@@ -461,6 +461,14 @@ class TelnetServer
                     continue;
                 }
 
+                // Disable Nagle's algorithm on the plain accepted socket before
+                // any TLS handshake — interactive keystroke/redraw traffic must
+                // not be batched. Best-effort; never fatal to the connection.
+                TerminalSocketOptions::enableNoDelay(
+                    $conn,
+                    $this->debug ? fn(string $m) => $this->log($m) : null
+                );
+
                 $connectionCount++;
                 [$peerName, $peerIp] = $this->parsePeerAddress($conn);
 
