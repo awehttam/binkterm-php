@@ -16,28 +16,31 @@
 namespace BinktermPHP\PacketBbs;
 
 use BinktermPHP\Database;
+use BinktermPHP\BbsConfig;
+use BinktermPHP\Config;
 
 /**
  * Manages per-node session state persisted in packet_bbs_sessions.
  *
- * Session rows are upserted on first contact and deleted on QUIT or timeout.
+ * Authentication expires independently of retained sender rows. QUIT or stale-row cleanup deletes rows.
  */
 class PacketBbsSession
 {
     private \PDO $db;
 
-    public function __construct()
+    public function __construct(?\PDO $db = null)
     {
-        $this->db = Database::getInstance()->getPdo();
+        $this->db = $db ?? Database::getInstance()->getPdo();
     }
 
     /**
-     * Load an existing session row, or null if none exists.
+     * Load an existing session, expiring idle authentication without refreshing activity.
      *
      * @return array<string,mixed>|null
      */
     public function load(string $nodeId): ?array
     {
+        $this->expireIdleAuthentication($nodeId);
         $stmt = $this->db->prepare('SELECT * FROM packet_bbs_sessions WHERE node_id = ?');
         $stmt->execute([$nodeId]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -58,19 +61,17 @@ class PacketBbsSession
         $stmt = $this->db->prepare(
             'INSERT INTO packet_bbs_sessions (node_id, bridge_node_id)
              VALUES (?, ?)
-             ON CONFLICT (node_id) DO UPDATE SET last_activity_at = NOW()
+             ON CONFLICT (node_id) DO NOTHING
              RETURNING *'
         );
         $stmt->execute([$nodeId, $bridgeNodeId]);
-        $row = $this->normalizeRow($stmt->fetch(\PDO::FETCH_ASSOC) ?: []);
-
-        // Reject if the session is owned by a different bridge.
-        if ($bridgeNodeId !== null && $bridgeNodeId !== '') {
-            $existing = $row['bridge_node_id'] ?? null;
-            if ($existing !== null && $existing !== '' && $existing !== $bridgeNodeId) {
-                return null;
-            }
+        $created = $stmt->fetch(\PDO::FETCH_ASSOC);
+        // Claim legacy rows and check binding before loading/expiring any state.
+        if ($bridgeNodeId !== null && $bridgeNodeId !== ''
+            && !$this->isBridgeAuthorized($nodeId, $bridgeNodeId)) {
+            return null;
         }
+        $row = $created ? $this->normalizeRow($created) : $this->load($nodeId);
 
         return $row;
     }
@@ -106,6 +107,16 @@ class PacketBbsSession
             $params[] = $val;
         }
 
+        if (array_key_exists('user_id', $changes)) {
+            $this->withSessionLock($nodeId, function () use ($nodeId, $setClauses, $params): void {
+                $this->db->prepare('DELETE FROM packet_bbs_outbound_queue WHERE node_id = ? AND sent_at IS NULL')
+                    ->execute([$nodeId]);
+                $sql = 'UPDATE packet_bbs_sessions SET ' . implode(', ', $setClauses) . ' WHERE node_id = ?';
+                $this->db->prepare($sql)->execute(array_merge($params, [$nodeId]));
+            });
+            return;
+        }
+
         $params[] = $nodeId;
         $sql = 'UPDATE packet_bbs_sessions SET ' . implode(', ', $setClauses) . ' WHERE node_id = ?';
         $this->db->prepare($sql)->execute($params);
@@ -116,11 +127,21 @@ class PacketBbsSession
      *
      * Returns true when:
      * - no session exists yet (first contact — bridge will own it on getOrCreate), or
-     * - the session has no recorded bridge (legacy row), or
+     * - a legacy row is atomically claimed by this bridge, or
      * - the session's bridge_node_id matches $bridgeNodeId.
      */
     public function isBridgeAuthorized(string $nodeId, string $bridgeNodeId): bool
     {
+        if ($bridgeNodeId === '') {
+            return false;
+        }
+        // Only the first authorized caller can claim a legacy row. A competing
+        // UPDATE rechecks the predicate after the first claimant releases its lock.
+        $this->db->prepare(
+            "UPDATE packet_bbs_sessions SET bridge_node_id = ?
+             WHERE node_id = ? AND (bridge_node_id IS NULL OR bridge_node_id = '')"
+        )->execute([$bridgeNodeId, $nodeId]);
+
         $stmt = $this->db->prepare(
             'SELECT bridge_node_id FROM packet_bbs_sessions WHERE node_id = ?'
         );
@@ -132,7 +153,7 @@ class PacketBbsSession
         }
 
         $existing = $row['bridge_node_id'] ?? null;
-        return $existing === null || $existing === '' || $existing === $bridgeNodeId;
+        return $existing === $bridgeNodeId;
     }
 
     /**
@@ -141,37 +162,127 @@ class PacketBbsSession
      */
     public function destroy(string $nodeId): void
     {
-        $stmt = $this->db->prepare(
-            'SELECT bbs_session_id FROM packet_bbs_sessions WHERE node_id = ?'
-        );
-        $stmt->execute([$nodeId]);
-        $bbsSessionId = $stmt->fetchColumn();
-        if ($bbsSessionId) {
-            $this->db->prepare('DELETE FROM user_sessions WHERE session_id = ?')
-                ->execute([$bbsSessionId]);
-        }
-
-        $this->db->prepare('DELETE FROM packet_bbs_sessions WHERE node_id = ?')->execute([$nodeId]);
+        $this->withSessionLock($nodeId, function () use ($nodeId): void {
+            $this->db->prepare(
+                "WITH retired AS (
+                    DELETE FROM packet_bbs_sessions WHERE node_id = ?
+                    RETURNING node_id, bbs_session_id
+                 ), discarded AS (
+                    DELETE FROM packet_bbs_outbound_queue q USING retired r
+                    WHERE q.node_id = r.node_id AND q.sent_at IS NULL
+                 ) DELETE FROM user_sessions WHERE session_id IN (SELECT bbs_session_id FROM retired)"
+            )->execute([$nodeId]);
+        });
     }
 
     /**
-     * Prune sessions inactive for more than $minutes, also removing their
-     * linked user_sessions rows so timed-out users go offline.
+     * Coordinate identity transitions with chat producers holding FOR SHARE.
+     * Purge in a separate statement after locking: its fresh READ COMMITTED
+     * snapshot must include notifications committed while we waited for the lock.
      */
-    public function cleanExpired(int $minutes): void
+    private function withSessionLock(string $nodeId, callable $operation): void
+    {
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
+        try {
+            $this->db->prepare('SELECT node_id FROM packet_bbs_sessions WHERE node_id = ? FOR UPDATE')
+                ->execute([$nodeId]);
+            $operation();
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Revoke idle authentication without changing the inactivity timestamp or
+     * sender/bridge binding. The retained notice is consumed by the next command.
+     * All authenticated interaction state, including queued chat, is discarded.
+     */
+    public function expireIdleAuthentication(?string $nodeId = null): void
+    {
+        $minutes = (int)(BbsConfig::getConfig()['packet_bbs']['session_timeout_minutes'] ?? 15);
+        $params = [$minutes];
+        $nodeFilter = '';
+        if ($nodeId !== null) {
+            $nodeFilter = ' AND node_id = ?';
+            $params[] = $nodeId;
+        }
+        $this->revokeAuthentication("last_activity_at < NOW() - INTERVAL '1 minute' * ?$nodeFilter", $params);
+    }
+
+    /**
+     * Revoke one node's authentication immediately because its linked
+     * user_sessions row no longer validates (revoked elsewhere: admin kick,
+     * revoke-all, logout, expiry). Same reset as idle expiry -- identity,
+     * link, menu, drafts and queued private content are all discarded and the
+     * expiry notice is retained -- without touching the inactivity timestamp
+     * and without creating any replacement user_sessions row.
+     */
+    public function revokeUnlinkedAuthentication(string $nodeId): void
+    {
+        $this->revokeAuthentication('node_id = ?', [$nodeId]);
+    }
+
+    /**
+     * Lock the matching authenticated rows and revoke their identities in one
+     * statement. $predicate is ANDed with user_id IS NOT NULL.
+     *
+     * @param list<mixed> $params
+     */
+    private function revokeAuthentication(string $predicate, array $params): void
     {
         $this->db->prepare(
-            "DELETE FROM user_sessions
-             WHERE session_id IN (
-                 SELECT bbs_session_id FROM packet_bbs_sessions
-                 WHERE last_activity_at < NOW() - INTERVAL '1 minute' * ?
-                   AND bbs_session_id IS NOT NULL
-             )"
-        )->execute([$minutes]);
+            "WITH expired AS (
+                SELECT node_id, bbs_session_id FROM packet_bbs_sessions
+                WHERE user_id IS NOT NULL
+                  AND $predicate
+                FOR UPDATE
+             ), reset AS (
+                UPDATE packet_bbs_sessions s SET
+                    user_id = NULL, bbs_session_id = NULL, menu_state = 'main',
+                    pagination_cursor = 1, pagination_context = NULL,
+                    compose_buffer = NULL, compose_type = NULL, compose_meta = NULL,
+                    session_state = '{\"auth_expired\":true}'::jsonb
+                FROM expired e WHERE s.node_id = e.node_id
+             ), discarded AS (
+                DELETE FROM packet_bbs_outbound_queue q USING expired e
+                WHERE q.node_id = e.node_id AND q.sent_at IS NULL
+             )
+             DELETE FROM user_sessions WHERE session_id IN (SELECT bbs_session_id FROM expired)"
+        )->execute($params);
+    }
 
+    /**
+     * Prune stale sender rows using independent retention (default 24 hours).
+     * Authentication expiry never refreshes the timestamp used by this cleanup.
+     */
+    public function cleanExpired(): void
+    {
+        $this->expireIdleAuthentication();
+        $seconds = (int)Config::env('PACKETBBS_SESSION_RETENTION_SECONDS', '86400');
+        if ($seconds <= 0) {
+            $seconds = 86400;
+        }
         $this->db->prepare(
-            "DELETE FROM packet_bbs_sessions WHERE last_activity_at < NOW() - INTERVAL '1 minute' * ?"
-        )->execute([$minutes]);
+            "WITH stale AS (
+                SELECT node_id, bbs_session_id FROM packet_bbs_sessions
+                WHERE last_activity_at < NOW() - INTERVAL '1 second' * ? FOR UPDATE
+             ), removed AS (
+                DELETE FROM packet_bbs_sessions s USING stale t WHERE s.node_id = t.node_id
+             ), discarded AS (
+                DELETE FROM packet_bbs_outbound_queue q USING stale t
+                WHERE q.node_id = t.node_id AND q.sent_at IS NULL
+             )
+             DELETE FROM user_sessions WHERE session_id IN (SELECT bbs_session_id FROM stale)"
+        )->execute([$seconds]);
     }
 
     /**
