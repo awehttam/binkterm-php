@@ -134,7 +134,7 @@ class Scheduler
             
             try {
                 $this->log("Scheduled poll starting for: {$address}");
-                $pollResult = $this->client->binkPoll($address);
+                $pollResult = $this->client->binkPollSync($address);
                 $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
                 $processResult = null;
 
@@ -297,7 +297,7 @@ class Scheduler
             $this->log("Triggering outbound poll for uplink {$address}");
             
             try {
-                $pollResult = $this->client->binkPoll($address);
+                $pollResult = $this->client->binkPollSync($address);
                 $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
                 $processResult = null;
 
@@ -634,7 +634,7 @@ class Scheduler
                 foreach ($rows as $row) {
                     $address = $row['node_address'];
                     $this->log("Hub node push starting for {$address}");
-                    $result = $this->client->binkPoll($address);
+                    $result = $this->client->binkPollSync($address);
                     $touchStmt->execute([$row['id']]);
                     if (($result['exit_code'] ?? 1) === 0) {
                         $this->log("Hub node push completed for {$address}");

@@ -205,6 +205,10 @@ Use a separate uplink and domain for each network:
 
 The domain is important because it keeps echo areas, file areas, and routing distinct. For example, `GENERAL@fidonet` and `GENERAL@anothernet` are separate areas even though the tag is the same.
 
+### Uplinks That Share a Host
+
+Several networks are often served by the same hub machine. BinktermPHP never runs two outbound BinkP sessions to the same `host:port` at once: each outbound session takes a lock file in `data/run/binkp-host-locks/` (override with `BINKP_HOST_LOCK_DIR`). Scheduled polls run one at a time and wait for each session to finish before processing packets. If another session to that host is still active after a bounded wait (90 seconds), the poll is deferred and retried on the next schedule instead of dialing alongside it; `data/logs/binkp_poll.log` notes that the host was busy.
+
 ---
 
 ## Troubleshooting
