@@ -31,10 +31,21 @@ $lockFile = __DIR__ . '/../data/run/process_packets.lock';
 if (!is_dir(dirname($lockFile))) {
     mkdir(dirname($lockFile), 0755, true);
 }
-$lockFh = fopen($lockFile, 'c');
-if (!$lockFh || !flock($lockFh, LOCK_EX | LOCK_NB)) {
-    $logger->warning('Another instance of process_packets.php is already running. Exiting.');
-    exit(0);
+error_clear_last();
+$lockFh = @fopen($lockFile, 'c');
+if ($lockFh === false) {
+    $reason = error_get_last()['message'] ?? 'Unknown filesystem error';
+    $logger->error("Cannot open/create packet processor lock {$lockFile}: {$reason}. Check the execution user's write permissions.");
+    exit(1);
+}
+if (!flock($lockFh, LOCK_EX | LOCK_NB, $wouldBlock)) {
+    fclose($lockFh);
+    if ($wouldBlock) {
+        $logger->warning('Another instance of process_packets.php is already running. Exiting.');
+        exit(0);
+    }
+    $logger->error("Cannot acquire packet processor lock {$lockFile}: flock failed without contention.");
+    exit(1);
 }
 
 /**
