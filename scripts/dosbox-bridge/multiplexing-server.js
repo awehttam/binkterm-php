@@ -21,6 +21,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { Client } = require('pg');
 const { createEmulatorAdapter } = require('./emulator-adapters');
+const { startKeepalive } = require('./ws-keepalive');
 require('dotenv').config({ path: __dirname + '/../../.env' });
 
 // Prepend ISO timestamp to every console.log / .error / .warn line
@@ -1381,6 +1382,9 @@ const wsServer = new WebSocket.Server({
 
 console.log(`[WS] Server listening on ${WS_BIND_HOST}:${WS_PORT}`);
 
+// Keep idle door connections alive through proxies that drop silent WebSockets.
+const wsKeepalive = startKeepalive(wsServer, WebSocket, { log: (msg) => console.log(msg) });
+
 // Clean up stale sessions from database on startup
 // This handles sessions that weren't cleaned up if bridge crashed/was killed
 (async () => {
@@ -1458,6 +1462,8 @@ setInterval(() => {
 process.on('SIGINT', () => {
     console.log('\n[SHUTDOWN] Received SIGINT, closing all connections...');
 
+    wsKeepalive.stop();
+
     // Close all sessions
     for (const session of sessionManager.sessionsByToken.values()) {
         sessionManager.removeSession(session);
@@ -1472,6 +1478,8 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
     console.log('\n[SHUTDOWN] Received SIGTERM, closing all connections...');
+
+    wsKeepalive.stop();
 
     // Close all sessions
     for (const session of sessionManager.sessionsByToken.values()) {
