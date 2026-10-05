@@ -2,6 +2,7 @@
 <?php
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/src/TerminalSocketOptions.php';
 require_once __DIR__ . '/src/TelnetServer.php';
 require_once __DIR__ . '/src/BbsSession.php';
 require_once __DIR__ . '/src/TelnetUtils.php';

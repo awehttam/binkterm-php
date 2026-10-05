@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/src/SshSession.php';
 require_once __DIR__ . '/src/SshStreamWrapper.php';
 require_once __DIR__ . '/src/SshServer.php';
+require_once __DIR__ . '/../telnet/src/TerminalSocketOptions.php';
 require_once __DIR__ . '/../telnet/src/BbsSession.php';
 require_once __DIR__ . '/../telnet/src/TelnetUtils.php';
 require_once __DIR__ . '/../telnet/src/TerminalMarkupRenderer.php';
