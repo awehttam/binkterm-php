@@ -241,6 +241,8 @@ DOSDOOR_WS_BIND_HOST=127.0.0.1
 # DOSDOOR_WS_URL=wss://bbs.example.com:6001   # explicit client URL
 DOSDOOR_MAX_SESSIONS=10
 DOSDOOR_DISCONNECT_TIMEOUT=0        # 0 = close door immediately on disconnect
+# DOSDOOR_RECONNECT_TIMEOUT=90      # seconds to hold session for page-refresh reconnect
+# DOSDOOR_WS_HEARTBEAT_INTERVAL_MS=20000  # ms WebSocket ping interval for reverse proxies
 DOSDOOR_CARRIER_LOSS_TIMEOUT=5000   # ms to wait before force-kill
 
 # DOSBOX_EXECUTABLE=/usr/bin/dosbox-x

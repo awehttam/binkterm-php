@@ -235,6 +235,13 @@ DOSBOX_EXECUTABLE=/usr/local/bin/dosbox-x
 # >0 = Wait X minutes for user to reconnect before triggering carrier loss
 DOSDOOR_DISCONNECT_TIMEOUT=0
 
+# Reconnect window for page-refresh recovery (in seconds, default: 90)
+# DOSDOOR_RECONNECT_TIMEOUT=90
+
+# WebSocket heartbeat ping interval (in milliseconds, default: 20000ms = 20s)
+# Prevents reverse proxies (Caddy, Cloudflare, Apache, Nginx) from dropping idle sessions
+# DOSDOOR_WS_HEARTBEAT_INTERVAL_MS=20000
+
 # Carrier loss timeout (in milliseconds, default: 5000)
 # How long to wait for door process to exit gracefully after carrier loss
 # before force-killing the process
