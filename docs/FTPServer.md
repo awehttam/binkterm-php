@@ -11,7 +11,7 @@ running the daemon as root.
 
 - Standalone daemon entrypoint: `scripts/ftp_daemon.php`
 - Not started automatically — runs only when you launch it yourself (cron, systemd, or your process manager)
-- Normal BBS username/password login
+- Normal BBS username/password login, subject to the shared [failed-login throttle](CONFIGURATION.md#failed-login-throttle) (a throttled attempt gets `530 Login incorrect`)
 - Anonymous FTP login for public file areas only
 - Virtual filesystem for:
   - `/qwk/download/<BBSID>.QWK`

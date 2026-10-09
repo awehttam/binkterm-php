@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Messaging](#messaging)
   - [Date Display Preferences](#date-display-preferences)
+  - [Fixed: Inbound Echomail Landed in Areas With an Empty Domain](#fixed-inbound-echomail-landed-in-areas-with-an-empty-domain)
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
 - [AreaFix / FileFix](#areafix-filefix)
   - [Structural Reply Parsing Across More Hub Mailers](#structural-reply-parsing-across-more-hub-mailers)
@@ -21,13 +22,20 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
+  - [MRC Chat Loads Its Libraries From the Bundled Copies](#mrc-chat-loads-its-libraries-from-the-bundled-copies)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
   - [SysopNet Added to the Networks List](#sysopnet-added-to-the-networks-list)
   - [Networks Listed Alphabetically](#networks-listed-alphabetically)
+- [BBS Directory](#bbs-directory)
+  - [Geocoding Provider Failures No Longer Cached](#geocoding-provider-failures-no-longer-cached)
+  - [Geocoding Backfill Skips Known No-Match Locations](#geocoding-backfill-skips-known-no-match-locations)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
+  - [Default Terminal Registration Secret No Longer Trusted](#default-terminal-registration-secret-no-longer-trusted)
+  - [Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked](#telnet-and-ssh-sessions-disconnected-when-their-web-session-is-revoked)
+  - [Docker: Config JSON Files No Longer World-Readable](#docker-config-json-files-no-longer-world-readable)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -39,6 +47,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Date display preferences:** users and sysops can now choose between relative timestamps ("4d ago") and exact date/time for message lists and headers, and choose whether echomail is ordered and displayed by received date or written date.
 - **Message search scoped by network and interest:** searching for messages from the Echo Areas page now respects the network and interest filters selected there, and searching while browsing a single interest on the Echomail page now stays within that interest's echo areas, instead of always searching every echo area.
+- **Fixed: inbound echomail landed in areas with an empty domain:** the network domain for incoming echomail is now taken from the uplink that delivered the packet, instead of only from the message author's address. Authors outside the uplink's routing patterns no longer produce messages with an empty domain.
 
 ### AreaFix / FileFix
 
@@ -60,6 +69,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Longer browser caching for door assets:** icons and screenshots served from `/door-assets/` now use `Cache-Control: public, max-age=604800, stale-while-revalidate=86400` (up from a 24-hour max-age), plus ETag/Last-Modified conditional requests, so repeat visits reload door pages faster and generate less server load.
 - **RLogin door asset sizes stored in the database:** icon and screenshot byte sizes for RLogin doors are now stored alongside the image data instead of being recomputed on every request, reducing memory overhead when serving those assets.
+- **MRC chat loads its libraries from the bundled copies:** the MRC web door now loads Bootstrap, jQuery and its icons from the copies bundled with BinktermPHP instead of public CDNs, so it works under a strict Content Security Policy and without access to those CDNs.
 
 ### MeshCore
 
@@ -70,9 +80,18 @@ Make sure you have a current backup of your database and files before upgrading.
 - **SysopNet added to the networks list:** SysopNet (zone 23, hub 23:1/1), an FTN for sysops run by sysops, is now registered automatically on upgrade, so it appears in **Admin -> Networks** without being created by hand.
 - **Networks listed alphabetically:** the network list in **Admin -> Networks** and the network dropdown when editing an uplink are now sorted purely by name.
 
+### BBS Directory
+
+- **Geocoding provider failures no longer cached:** a failed request to the geocoding provider, such as a timeout or an outage, was stored the same way as a genuine "no match" answer, so the location was never looked up again. Failures are now never cached and are retried on the next run.
+- **Geocoding backfill skips known no-match locations:** locations the provider has already said it cannot find no longer take up places in a limited backfill batch, so newer entries further down the directory are no longer starved of coordinates.
+
 ### Security
 
 - **Secure flag on session cookies:** the `binktermphp_session` cookie now sets the `Secure` flag whenever the site is served over HTTPS, so the cookie is no longer sent over a plain HTTP connection even if one is reachable.
+- **Default terminal registration secret no longer trusted:** an unset `TERMINAL_REGISTRATION_SECRET`, or the published default `Chang3Me`, is no longer accepted as proof that a request came from the telnet/SSH daemons. Docker installs generate a site-specific secret automatically; other installs must set one in `.env`.
+- **Failed-login throttle:** repeated failed logins are now limited per account and per source IP across the web login, telnet, SSH, FTP, NNTP and QWK HTTP downloads. By default an account allows 5 failures and an IP allows 20 within 15 minutes; once either limit is reached, further attempts fail exactly like a wrong password until the window passes. Set `AUTH_LOGIN_USER_MAX`, `AUTH_LOGIN_IP_MAX` and `AUTH_LOGIN_WINDOW` in `.env` to change the limits (see [CONFIGURATION.md](CONFIGURATION.md#failed-login-throttle)). The upgrade migration creates the `auth_login_attempts` table.
+- **Telnet and SSH sessions disconnected when their web session is revoked:** a connected Telnet or SSH user, including one playing a door, is now signed out shortly after their web session is revoked, expires, or is deleted by a password reset. Previously the terminal session kept running with full access until the user disconnected.
+- **Docker: config JSON files no longer world-readable:** the container now restricts the top-level `config/*.json` files, which hold uplink passwords and API keys, to the owner and group at startup. Previously they were readable by any user in the container.
 
 ## Messaging
 
@@ -92,6 +111,14 @@ Previously, only admin users could choose to order echomail by written date; thi
 The Echo Areas page lets you filter the area list down to one or more networks and interests using the **Network** and **Interests** dropdowns. The "Search Messages" box on that same page now carries those selections into the search, so results are limited to matching echo areas instead of every echo area on the system. Leaving both dropdowns on their "All" default still searches everything.
 
 On the Echomail page, searching while browsing a single interest under the Interests tab is likewise scoped to that interest's echo areas. Searching from a specific echo area continues to scope to that single area, as before, taking priority over any network or interest scope.
+
+### Fixed: Inbound Echomail Landed in Areas With an Empty Domain
+
+When echomail arrived in a packet, the network domain was worked out only from the message author's address, by matching it against the routing patterns of your configured uplinks. Authors on systems outside those patterns do not match, which is the usual case for echomail, so their messages were stored with an empty domain and ended up in echo areas not tied to any network.
+
+The domain is now taken from the uplink the packet came from, which is authoritative whatever the author's address is. The author's address is still used first for a message when it resolves to a network, and the packet's uplink domain is used when it does not.
+
+Messages already stored with an empty domain are not changed by the upgrade.
 
 ## AreaFix / FileFix
 
@@ -201,6 +228,10 @@ If you update a door's icon or screenshot file, its changed modification time (o
 
 RLogin doors store their icon and screenshot images as binary data directly in the `rlogin_doors` table, since these doors have no directory on disk. Their byte sizes are now stored in new `icon_size` and `screenshot_size` columns on that table, populated whenever an icon or screenshot is uploaded through **Admin -> RLogin Doors**. Existing icons and screenshots are backfilled automatically by the upgrade migration, so their sizes are recorded immediately without needing to re-upload anything.
 
+### MRC Chat Loads Its Libraries From the Bundled Copies
+
+The MRC chat page loaded Bootstrap 5.1.3, Bootstrap Icons and jQuery 3.6.0 from jsDelivr and code.jquery.com. With a strict Content Security Policy, or on a server without access to those hosts, the page rendered without styling, scripts or icons. It now uses the Bootstrap 5.3.0, jQuery 3.7.1 and Font Awesome 6.4.0 copies that the rest of BinktermPHP already serves from `/vendor/`, so nothing is fetched from a third party.
+
 ## MeshCore
 
 ### Radio Settings Link on the Dashboard
@@ -217,11 +248,71 @@ The upgrade migration registers SysopNet (domain `sysopnet`, https://sysopnet.co
 
 The network list in **Admin -> Networks**, and the network dropdown in the uplink editor under **Admin -> BBS Settings -> BinkP Uplinks**, previously showed all built-in networks first and then any other networks (such as locally created ones, or SysopNet) in a separate group below them. They are now sorted by name in a single list, regardless of whether a network is built in.
 
+## BBS Directory
+
+### Geocoding Provider Failures No Longer Cached
+
+The BBS directory looks up map coordinates for each listed location and keeps the answers in the `geocode_cache` table. A failed request to the provider (a network error, timeout, error response or unreadable reply) used to be saved as an empty answer, exactly like the provider replying that it found no match. A short outage during an automated backfill could therefore leave locations permanently without coordinates.
+
+Now only real answers are cached: a result with coordinates, or a successful reply with no match. A failed request is not cached, never replaces an existing cache entry, and is tried again on the next run.
+
+The upgrade migration adds a `status` column to `geocode_cache`. Existing rows that have coordinates are marked as successes, and existing rows without coordinates are marked as no-match, because there is no way to tell whether an old empty row was a real no-match or an earlier failure. The migration does not look those locations up again.
+
+### Geocoding Backfill Skips Known No-Match Locations
+
+`scripts/geocode_bbs_directory.php` backfills coordinates for directory entries that have a location but no coordinates. When run with a limit, it picked the entries with the lowest ids first. Entries whose locations can never be found stayed at the front on every run and used up the whole batch, so newer entries were never reached.
+
+The backfill now leaves out locations already cached as no-match before applying the limit, and examines at most 2000 candidate entries per run (or 20 times the limit, if that is larger). The script prints a new line, "Rows excluded (known permanent no_result)", with the number of entries it left out.
+
+An entry whose location text is changed is looked up again automatically, because the cache is keyed on the location text. To retry a location without changing its text, delete its row from `geocode_cache`.
+
 ## Security
 
 ### Secure Flag on Session Cookies
 
 The `binktermphp_session` cookie is now marked `Secure` whenever the site's effective URL uses HTTPS, determined from the `SITE_URL` environment variable (or, if that isn't set, from the request's own HTTPS signal). This prevents the browser from sending the session cookie over a plain HTTP connection, closing off a path where the session id could otherwise be exposed on the wire. Installations that serve BinktermPHP over HTTPS behind a reverse proxy should ensure `SITE_URL` in `.env` is set to the `https://` URL so this detection works correctly.
+
+### Default Terminal Registration Secret No Longer Trusted
+
+The telnet and SSH daemons send `TERMINAL_REGISTRATION_SECRET` to the web API to report the connecting user's real IP address and to mark registrations as terminal-originated (which skips the browser-only anti-spam checks). Until now an unset value fell back to the published default `Chang3Me`, so any HTTP client could send that value to set its own recorded session IP and to skip the registration anti-spam checks.
+
+The web side now treats an unset, empty, or `Chang3Me` value as "no secret configured" and ignores those headers.
+
+**Docker:** the container generates a random `TERMINAL_REGISTRATION_SECRET` on first start when your `.env` leaves it unset or set to `Chang3Me`, and reuses it on later restarts. Web and terminal daemons read the same generated value.
+
+**Other installs:** if your `.env` does not set a site-specific value, set one now and restart the web server and the telnet/SSH daemons:
+
+```ini
+TERMINAL_REGISTRATION_SECRET=<a long random string, e.g. the output of: openssl rand -hex 32>
+```
+
+Until it is set:
+
+- telnet/SSH sessions are recorded with the server's own address instead of the caller's IP;
+- telnet/SSH registrations are treated like browser registrations and are rejected by the browser timing check ("Session expired");
+- `scripts/setup.php` prints a warning with a generated value you can paste into `.env`, and the server log records a warning when a terminal registration arrives.
+
+### Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked
+
+A Telnet or SSH login creates a web auth session, which was checked only once, at login. If that session was later removed, the terminal session stayed connected with full access, and so did any door the user was playing. A session can be removed by:
+
+- **Revoke** or **Revoke all sessions** in **Settings**;
+- a password reset, which deletes all of the user's sessions;
+- the session expiring, or the account being deactivated.
+
+The terminal server now re-checks the session at most every 30 seconds while the user is at a prompt or waiting for a keypress, and while a door is running. Once the session is gone, the user sees "Your session was signed out elsewhere - disconnecting..." and is disconnected. A user inside a door is taken out of the door first. Once a session is found revoked it stays revoked.
+
+A database error during the re-check is logged and is not treated as a revocation, so a brief database outage does not disconnect users. Nothing is checked before login.
+
+The message is a new `ui.terminalserver.server.session_revoked` key, added to all six locales. Restart the telnet and SSH daemons so they load the new code; `scripts/restart_daemons.sh` does this.
+
+### Docker: Config JSON Files No Longer World-Readable
+
+The container entrypoint set `config/`, `data/` and `dosbox-bridge/` to mode 775 on every start. That left files such as `config/binkp.json` (BinkP uplink passwords) and `config/lovlynet.json` (LovlyNet keys) readable by every user in the container.
+
+After setting those permissions, the entrypoint now sets every top-level `config/*.json` file to mode 640: readable and writable by the `binkterm` user and group, with no access for anyone else. The web server user (`www-data`) belongs to that group, so PHP still reads the files. The `config/` directory stays at 775 so the admin daemon can still create and replace files.
+
+This applies on the next container start. If you mount `config/` from the host, the files on the host are changed to 640 as well, so check that any host-side tools or backup jobs reading them run as a user or group that can still do so.
 
 ---
 

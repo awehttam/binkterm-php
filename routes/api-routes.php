@@ -133,10 +133,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // Shared failed-login throttle for every interactive credential login
+        // (Web, Telnet, TLS-Telnet, SSH initial password auth, SSH fallback
+        // BbsSession login) -- they all reach this one route. For the terminal
+        // daemons Auth::resolveClientIp() yields the end-user IP from the
+        // authenticated X-Binkterm-Client-IP header. A throttled attempt returns
+        // the identical generic failure as a wrong password below -- no lockout
+        // signal, no username-enumeration signal.
+        $clientIp = Auth::resolveClientIp();
+        $loginThrottle = new \BinktermPHP\Security\LoginThrottle();
+        if (!$loginThrottle->isAllowed($username, $clientIp)) {
+            apiError('errors.auth.invalid_credentials', apiLocalizedText('errors.auth.invalid_credentials', 'Invalid credentials'), 401);
+            return;
+        }
+
         $auth = new Auth();
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
+            // Successful auth: retire this identifier's failure counter. The
+            // source-IP counter is deliberately left to age out on its own so
+            // holding one valid account cannot reset an IP spray counter.
+            $loginThrottle->recordSuccess($username);
+
             setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
@@ -159,6 +178,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
             echo json_encode(['success' => true, 'csrf_token' => $csrfToken]);
         } else {
+            // Count only a real credential attempt that returned false --
+            // never a malformed request, network error, or client disconnect.
+            $loginThrottle->recordFailure($username, $clientIp);
+            $loginThrottle->cleanOld();
             apiError('errors.auth.invalid_credentials', apiLocalizedText('errors.auth.invalid_credentials', 'Invalid credentials'), 401);
         }
     });
@@ -320,13 +343,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $registrationSource = strtolower(trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_SOURCE'] ?? 'web')));
         $registrationToken = trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN'] ?? ''));
         $terminalClientIpHeader = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
-        $expectedRegistrationToken = trim((string)\BinktermPHP\Config::env(
-            'TERMINAL_REGISTRATION_SECRET',
-            'Chang3Me'
-        ));
+        $expectedRegistrationToken = \BinktermPHP\Config::terminalRegistrationSecret();
         $isTerminalRegistration = in_array($registrationSource, ['telnet', 'ssh'], true)
             && $expectedRegistrationToken !== ''
             && hash_equals($expectedRegistrationToken, $registrationToken);
+        if (in_array($registrationSource, ['telnet', 'ssh'], true) && $expectedRegistrationToken === '') {
+            getServerLogger()->warning(
+                'Terminal registration received but TERMINAL_REGISTRATION_SECRET is unset or still the published default; '
+                . 'treating it as a browser registration. Set a site-specific secret in .env and restart the terminal daemons.'
+            );
+        }
         $registrationIpAddress = $_SERVER['REMOTE_ADDR'] ?? '';
         if ($isTerminalRegistration && filter_var($terminalClientIpHeader, FILTER_VALIDATE_IP) !== false) {
             $registrationIpAddress = $terminalClientIpHeader;

@@ -181,7 +181,7 @@ On bare metal these run via crontab entries (see `docs/CLI.md`); in Docker they'
 |---|---|---|---|---|
 | `scripts/rss_poster.php` | `ENABLE_RSS_POSTER` | `RSS_POSTER_SCHEDULE` | `0 * * * *` (hourly) | Polls RSS feeds configured under Auto Feed; see `docs/Autofeed.md` |
 | `scripts/echomail_robots.php` | `ENABLE_ECHOMAIL_ROBOTS` | `ECHOMAIL_ROBOTS_SCHEDULE` | `*/5 * * * *` (every 5 minutes) | Runs enabled echomail robots; see `docs/Robots.md` |
-| `scripts/logrotate.php` | `ENABLE_LOGROTATE` | `LOGROTATE_SCHEDULE` | `0 0 * * 0` (Sundays at midnight) | Also reads `LOGROTATE_KEEP` (default `52`) for the `--keep` count |
+| `scripts/logrotate.php` | `ENABLE_LOGROTATE` | `LOGROTATE_SCHEDULE` | `0 0 * * 0` (Sundays at midnight) | Also reads `LOGROTATE_KEEP` (default `52`) for `--keep`, and `LOGROTATE_MAX_SIZE` (unset by default) for `--max-size` — set it (e.g. `10M`) with a more frequent `LOGROTATE_SCHEDULE` to cap fast-growing logs like `binkp_poll.log` between weekly runs |
 
 Schedule variables take standard 5-field cron syntax. Job output is appended to its own log under `data/logs/` (e.g. `data/logs/rss_poster.log`).
 
