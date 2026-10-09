@@ -71,6 +71,15 @@ function getCache() {
     ]);
 }
 
+// Network fetch for a runtime cache miss. `cache: 'no-cache'` makes the browser
+// revalidate its HTTP-cache entry with the server (a cheap 304 when unchanged)
+// instead of using it as-is. Without this, a new worker's empty cache is filled
+// from the browser HTTP cache, which can still hold the pre-deploy copy of an
+// asset, and that stale copy then stays in the new cache until the next bump.
+function revalidatingFetch(request) {
+    return fetch(new Request(request, { cache: 'no-cache' }));
+}
+
 async function precacheStaticAssets(cache) {
     for (const asset of staticAssets) {
         const request = new Request(asset, { cache: 'reload' });
@@ -176,7 +185,7 @@ self.addEventListener('fetch', (event) => {
                     // Not in cache yet — fetch, store, and return.
                     // Do not cache partial responses (206) — the Cache API
                     // rejects them and audio range requests can trigger this.
-                    return fetch(request).then((networkResponse) => {
+                    return revalidatingFetch(request).then((networkResponse) => {
                         if (networkResponse.ok && networkResponse.status === 200) {
                             cache.put(request, networkResponse.clone());
                         }
@@ -199,7 +208,7 @@ self.addEventListener('fetch', (event) => {
                     if (cachedResponse) {
                         return cachedResponse;
                     }
-                    return fetch(request).then((networkResponse) => {
+                    return revalidatingFetch(request).then((networkResponse) => {
                         if (networkResponse.ok && networkResponse.status === 200) {
                             cache.put(request, networkResponse.clone());
                         }
