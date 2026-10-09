@@ -35,6 +35,11 @@ class Config
     const SYSTEM_NAME = 'BinktermPHP System';
     const SYSOP_NAME = 'System Operator';
     private const DEFAULT_TEST_DATABASE_NAME = 'binktermphp_test';
+
+    // The TERMINAL_REGISTRATION_SECRET value every install shipped with until
+    // an operator set a site-specific one. Never treated as a real secret —
+    // see terminalRegistrationSecret().
+    private const TERMINAL_REGISTRATION_SECRET_KNOWN_DEFAULT = 'Chang3Me';
     
     /**
      * Load environment variables and configuration
@@ -294,5 +299,26 @@ class Config
             'samesite' => 'Lax',
             'secure'   => self::isHttps(),
         ];
+    }
+
+    /**
+     * The configured TERMINAL_REGISTRATION_SECRET, or '' when none is configured.
+     *
+     * An unset value, an empty value and the publicly known former default
+     * (`Chang3Me`) all count as "not configured": every consumer then takes its
+     * own safe fallback instead of trusting a header that anyone who knows the
+     * default could send. Only a site-specific value is returned.
+     *
+     * @return string The site-specific secret, or '' if none is configured.
+     */
+    public static function terminalRegistrationSecret(): string
+    {
+        $value = trim((string)self::env('TERMINAL_REGISTRATION_SECRET', ''));
+
+        if ($value === '' || $value === self::TERMINAL_REGISTRATION_SECRET_KNOWN_DEFAULT) {
+            return '';
+        }
+
+        return $value;
     }
 }

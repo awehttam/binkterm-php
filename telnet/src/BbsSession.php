@@ -167,7 +167,7 @@ class BbsSession
         // Auth::resolveClientIp(). Set here — one forked process per connection.
         TelnetUtils::setClientContext(
             $this->peerIp,
-            trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'))
+            Config::terminalRegistrationSecret()
         );
 
         $state = [
@@ -3848,7 +3848,7 @@ class BbsSession
             // shared terminal secret) on every request. This keeps the session's
             // recorded IP — and registration screening — pointed at the user, not
             // the server. See Auth::resolveClientIp().
-            $terminalSecret = trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+            $terminalSecret = Config::terminalRegistrationSecret();
             if ($terminalSecret !== ''
                 && $this->peerIp !== null
                 && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
