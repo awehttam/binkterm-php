@@ -91,21 +91,35 @@ final class LoginThrottleEnforcementTest extends TestCase
     public function testThrottleIsNotWiredIntoTheDeeperCredentialPrimitive(): void
     {
         // The throttle must never leak into Auth::authenticateCredentials()
-        // itself, nor into the FTP / NNTP transports (separate daemons, not
-        // externally exposed in this deployment — see docs/proposals for the
-        // direct-caller recon).
+        // itself; each transport applies it around its own credential check.
+        $src = file_get_contents(__DIR__ . '/../../src/Auth.php');
+        self::assertIsString($src);
+        self::assertStringNotContainsString(
+            'LoginThrottle',
+            $src,
+            'Auth.php must not reference the route-level LoginThrottle'
+        );
+    }
+
+    public function testFtpAndNntpCredentialChecksAreThrottled(): void
+    {
         foreach ([
-            __DIR__ . '/../../src/Auth.php',
-            __DIR__ . '/../../src/Ftp/FtpServer.php',
-            __DIR__ . '/../../src/Nntp/NntpAuth.php',
-        ] as $file) {
-            $src = file_get_contents($file);
-            self::assertIsString($src);
-            self::assertStringNotContainsString(
-                'LoginThrottle',
-                $src,
-                basename($file) . ' must not reference the route-level LoginThrottle'
-            );
+            __DIR__ . '/../../src/Ftp/FtpServer.php' => '$auth->authenticateCredentials(',
+            __DIR__ . '/../../src/Nntp/NntpAuth.php' => '$this->auth->authenticateCredentials(',
+        ] as $file => $authCall) {
+            $src = str_replace("\r\n", "\n", (string)file_get_contents($file));
+            $checkPos = strpos($src, '$throttle->isAllowed(');
+            $authPos = strpos($src, $authCall);
+            $failPos = strpos($src, '$throttle->recordFailure(');
+            $successPos = strpos($src, '$throttle->recordSuccess(');
+
+            self::assertNotFalse($checkPos, basename($file) . ' must consult the throttle');
+            self::assertNotFalse($authPos, basename($file));
+            self::assertNotFalse($failPos, basename($file) . ' must record failures');
+            self::assertNotFalse($successPos, basename($file) . ' must record success');
+            self::assertLessThan($authPos, $checkPos, basename($file) . ': check precedes credential verification');
+            self::assertGreaterThan($authPos, $failPos, basename($file) . ': failure recorded after verification');
+            self::assertGreaterThan($authPos, $successPos, basename($file) . ': success recorded after verification');
         }
     }
 
