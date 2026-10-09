@@ -71,6 +71,12 @@ class BbsSession
 
     /** @var resource */
     private $conn;
+
+    /** Seconds between re-validations of the logged-in web auth session. */
+    private const AUTH_SESSION_RECHECK_SECONDS = 30;
+    private ?string $authSessionId = null;
+    private int $authSessionCheckedAt = 0;
+    private bool $authSessionRevoked = false;
     private string $apiBase;
     private bool $debug;
     private bool $insecure;
@@ -167,7 +173,7 @@ class BbsSession
         // Auth::resolveClientIp(). Set here — one forked process per connection.
         TelnetUtils::setClientContext(
             $this->peerIp,
-            trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'))
+            Config::terminalRegistrationSecret()
         );
 
         $state = [
@@ -418,6 +424,10 @@ class BbsSession
         );
         $state['is_admin'] = !empty($userRecord['is_admin']);
         $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
+        if ($userRecord) {
+            $this->authSessionId = (string)$session;
+            $this->authSessionCheckedAt = time();
+        }
 
         // Persist the negotiated terminal type so other subsystems (e.g. RLogin
         // door launches from the web UI) can fall back to "whatever client this
@@ -982,6 +992,55 @@ class BbsSession
     /**
      * Translate a terminal server UI string from the 'terminalserver' catalog namespace.
      */
+    /**
+     * Whether this terminal session's web auth session has been revoked or has
+     * expired since login (self-service "revoke session"/"revoke all", a
+     * password reset, account deactivation, expiry). Re-validated at most every
+     * AUTH_SESSION_RECHECK_SECONDS; once revoked it stays revoked. A database
+     * error is not treated as revocation.
+     */
+    public function authSessionRevoked(): bool
+    {
+        if ($this->authSessionRevoked) {
+            return true;
+        }
+        if ($this->authSessionId === null) {
+            return false;
+        }
+        $now = time();
+        if ($now - $this->authSessionCheckedAt < self::AUTH_SESSION_RECHECK_SECONDS) {
+            return false;
+        }
+        $this->authSessionCheckedAt = $now;
+
+        try {
+            $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+        } catch (\Throwable $e) {
+            $this->log('Auth session re-check failed: ' . $e->getMessage());
+            return false;
+        }
+        if ($user) {
+            return false;
+        }
+
+        $this->log('Auth session revoked or expired; disconnecting');
+        return $this->authSessionRevoked = true;
+    }
+
+    /**
+     * Tell the caller their session ended elsewhere and signal disconnect.
+     *
+     * @return array{0:null,1:bool,2:bool}
+     */
+    private function disconnectRevokedSession($conn, array $state): array
+    {
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.session_revoked', 'Your session was signed out elsewhere - disconnecting...', [], $state['locale'] ?? ''), self::ANSI_YELLOW));
+        $this->writeLine($conn, '');
+
+        return [null, false, true];
+    }
+
     public function t(string $key, string $fallback, array $params = [], string $locale = ''): string
     {
         $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['terminalserver']);
@@ -1735,6 +1794,9 @@ class BbsSession
      */
     public function readKeyWithTimeout($conn, array &$state, int $timeoutMs): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed   = time() - ($state['last_activity'] ?? time());
         $warnAt    = (int)($state['idle_warning_timeout'] ?? 300);
         $disconnAt = (int)($state['idle_disconnect_timeout'] ?? 420);
@@ -2825,6 +2887,9 @@ class BbsSession
      */
     private function readTelnetLineWithTimeout($conn, array &$state): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed    = time() - $state['last_activity'];
         $warnAt     = $state['idle_warning_timeout'];
         $disconnAt  = $state['idle_disconnect_timeout'];
@@ -2866,6 +2931,9 @@ class BbsSession
      */
     private function readTelnetKeyWithTimeout($conn, array &$state): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed   = time() - $state['last_activity'];
         $warnAt    = $state['idle_warning_timeout'];
         $disconnAt = $state['idle_disconnect_timeout'];
@@ -3848,7 +3916,7 @@ class BbsSession
             // shared terminal secret) on every request. This keeps the session's
             // recorded IP — and registration screening — pointed at the user, not
             // the server. See Auth::resolveClientIp().
-            $terminalSecret = trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+            $terminalSecret = Config::terminalRegistrationSecret();
             if ($terminalSecret !== ''
                 && $this->peerIp !== null
                 && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {

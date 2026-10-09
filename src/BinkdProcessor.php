@@ -596,7 +596,10 @@ class BinkdProcessor
             $origAddr .= '.' . $origPoint;
         }
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-        $domain =$binkpConfig->getDomainByAddress($origAddr);
+        // Prefer the message author's network when it can be resolved.
+        // Echomail authors may be outside the configured uplink route, however,
+        // so retain the packet's known network domain as the fallback.
+        $domain = $binkpConfig->getDomainByAddress($origAddr) ?: $packetDomain;
 
         $destAddr = $destZone . ':' . $destNet . '/' . $destNode;
         if ($destPoint > 0) {
@@ -804,7 +807,16 @@ class BinkdProcessor
 
         $address = $origZone . ':' . $origNet . '/' . $origNode;
         try {
-            return \BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getDomainByAddress($address) ?: null;
+            $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
+            // An incoming packet from a configured uplink has an authoritative
+            // domain regardless of which outbound routing patterns it serves.
+            $uplink = $config->getUplinkByAddress($address);
+            if ($uplink !== null && !empty($uplink['domain'])) {
+                return $uplink['domain'];
+            }
+
+            return $config->getDomainByAddress($address) ?: null;
         } catch (\Throwable) {
             return null;
         }

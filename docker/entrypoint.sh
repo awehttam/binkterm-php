@@ -63,16 +63,41 @@ else
     RESOLVED_SECRET="$SRC_SECRET"
 fi
 
+# TERMINAL_REGISTRATION_SECRET authenticates the telnet/SSH daemons to the web
+# API (forwarded client IP, terminal registrations). The published default
+# "Chang3Me" is not accepted as a secret, so when it is unset or still the
+# default, reuse a previously generated value (so a restart doesn't rotate it)
+# or generate a random one. Web and terminal daemons read the same .env.
+SRC_TERMINAL_SECRET=$(grep '^TERMINAL_REGISTRATION_SECRET=' "$SRC" | tail -1 | cut -d= -f2- | tr -d '"' | sed "s/^'//; s/'$//")
+if [ -z "$SRC_TERMINAL_SECRET" ] || [ "$SRC_TERMINAL_SECRET" = "Chang3Me" ]; then
+    EXISTING_TERMINAL_SECRET=""
+    if [ -f /var/www/html/.env ]; then
+        EXISTING_TERMINAL_SECRET=$(grep '^TERMINAL_REGISTRATION_SECRET=' /var/www/html/.env | tail -1 | cut -d= -f2-)
+    fi
+
+    if [ -n "$EXISTING_TERMINAL_SECRET" ] && [ "$EXISTING_TERMINAL_SECRET" != "Chang3Me" ]; then
+        RESOLVED_TERMINAL_SECRET="$EXISTING_TERMINAL_SECRET"
+        echo "Reusing existing TERMINAL_REGISTRATION_SECRET"
+    else
+        RESOLVED_TERMINAL_SECRET=$(openssl rand -hex 32)
+        echo "Generated random TERMINAL_REGISTRATION_SECRET"
+    fi
+else
+    RESOLVED_TERMINAL_SECRET="$SRC_TERMINAL_SECRET"
+fi
+
 # Write /var/www/html/.env from the mounted source, with DB_HOST/DB_PORT
 # (Compose always points the app at the "postgres" service, regardless of
-# what's in .env) and the resolved ADMIN_DAEMON_SECRET layered on top.
+# what's in .env) and the resolved ADMIN_DAEMON_SECRET and
+# TERMINAL_REGISTRATION_SECRET layered on top.
 echo "Writing application .env..."
 
 {
-    grep -Ev '^(DB_HOST|DB_PORT|ADMIN_DAEMON_SECRET)=' "$SRC"
+    grep -Ev '^(DB_HOST|DB_PORT|ADMIN_DAEMON_SECRET|TERMINAL_REGISTRATION_SECRET)=' "$SRC"
     echo "DB_HOST=${DB_HOST:-postgres}"
     echo "DB_PORT=${DB_PORT:-5432}"
     echo "ADMIN_DAEMON_SECRET=$RESOLVED_SECRET"
+    echo "TERMINAL_REGISTRATION_SECRET=$RESOLVED_TERMINAL_SECRET"
 } > /var/www/html/.env
 
 chown binkterm:binkterm /var/www/html/.env
@@ -117,6 +142,14 @@ mkdir -p \
 
 chown -R binkterm:binkterm /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 chmod -R 775 /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
+
+# config/*.json can carry credentials (BinkP uplink passwords in binkp.json,
+# LovlyNet keys in lovlynet.json, ...). The blanket 775 above would leave them
+# world-readable. Restrict every top-level config JSON to the binkterm user and
+# group (www-data is a member, so PHP can still read them) with no world
+# access. The directory itself stays 775 so the admin daemon can add/replace
+# files.
+chmod 640 /var/www/html/config/*.json 2>/dev/null || true
 
 # Activate optional daemons requested via ENABLE_* environment variables (set
 # in docker-compose.yml/docker-compose.override.yml -- Docker-only, never in
