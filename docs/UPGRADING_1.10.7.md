@@ -16,9 +16,12 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Per-Uplink Format Memory](#per-uplink-format-memory)
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
+  - [Log Rotation by Size](#log-rotation-by-size)
 - [AreaFix / FileFix](#areafix--filefix)
   - [Automatic Area Sync on Reply Now Opt-In](#automatic-area-sync-on-reply-now-opt-in)
   - [Fixed: AreaFix Sync Set an Override Address on Echo Areas](#fixed-areafix-sync-set-an-override-address-on-echo-areas)
+- [Web Interface](#web-interface)
+  - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
@@ -36,6 +39,9 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Default Terminal Registration Secret No Longer Trusted](#default-terminal-registration-secret-no-longer-trusted)
   - [Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked](#telnet-and-ssh-sessions-disconnected-when-their-web-session-is-revoked)
   - [Docker: Config JSON Files No Longer World-Readable](#docker-config-json-files-no-longer-world-readable)
+  - [BinkP Debug Logging No Longer Records Password Material](#binkp-debug-logging-no-longer-records-password-material)
+  - [Auto Feed Verifies TLS and Allows Only http(s) Feeds](#auto-feed-verifies-tls-and-allows-only-https-feeds)
+  - [Telnet TLS Offers TLS 1.3 and Validates Your Certificate](#telnet-tls-offers-tls-13-and-validates-your-certificate)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -59,11 +65,16 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Administration
 
 - **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
+- **Log rotation by size:** `scripts/logrotate.php` has a new `--max-size` option that rotates only logs that have grown past a size, so the script can run often without touching small logs. Docker installs can set `LOGROTATE_MAX_SIZE` to use it. The script also gained `--logs-dir`, and lowering `--keep` now removes the extra old generations on the next run.
 
 ### AreaFix / FileFix
 
 - **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
 - **Fixed: AreaFix sync set an override address on echo areas:** syncing areas from a hub's AreaFix reply filled in the echo area's **Uplink Address** ("Override Uplink FidoNet address") field on every area it created or touched. The sync no longer sets it, and deactivating areas missing from the hub's list is now scoped by network domain and tag instead of by that address.
+
+### Web Interface
+
+- **Fresh assets after an upgrade:** the service worker now asks the server whether a file has changed before saving it to its cache after an upgrade, so browsers no longer keep an old copy of a CSS or JavaScript file from before the upgrade.
 
 ### Web Doors
 
@@ -92,6 +103,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Failed-login throttle:** repeated failed logins are now limited per account and per source IP across the web login, telnet, SSH, FTP, NNTP and QWK HTTP downloads. By default an account allows 5 failures and an IP allows 20 within 15 minutes; once either limit is reached, further attempts fail exactly like a wrong password until the window passes. Set `AUTH_LOGIN_USER_MAX`, `AUTH_LOGIN_IP_MAX` and `AUTH_LOGIN_WINDOW` in `.env` to change the limits (see [CONFIGURATION.md](CONFIGURATION.md#failed-login-throttle)). The upgrade migration creates the `auth_login_attempts` table.
 - **Telnet and SSH sessions disconnected when their web session is revoked:** a connected Telnet or SSH user, including one playing a door, is now signed out shortly after their web session is revoked, expires, or is deleted by a password reset. Previously the terminal session kept running with full access until the user disconnected.
 - **Docker: config JSON files no longer world-readable:** the container now restricts the top-level `config/*.json` files, which hold uplink passwords and API keys, to the owner and group at startup. Previously they were readable by any user in the container.
+- **BinkP debug logging no longer records password material:** with debug logging on, BinkP authentication logged the first characters of the received and expected passwords and the CRAM-MD5 challenge with its digest. Only outcomes, lengths and a hint about why a password did not match are logged now, unless you set `BINKP_LOG_SENSITIVE_AUTH=true`.
+- **Auto Feed verifies TLS and allows only http(s) feeds:** RSS and Atom feeds are now fetched with HTTPS certificate and host name verification, and only `http://` and `https://` URLs are accepted. A feed with an invalid or self-signed certificate now fails instead of being fetched.
+- **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable.
 
 ## Messaging
 
@@ -181,6 +195,23 @@ SQLSTATE[42804]: column "is_active" is of type boolean but expression is of type
 
 This was left over from the project's earlier SQLite-based schema, where `is_active` accepted an integer. The command now inserts a proper boolean and reads back the new user's id via `RETURNING id` instead of `lastInsertId()`. If you were creating operator accounts by editing the database directly to work around this, you can now use `scripts/user-manager.php create` normally again.
 
+### Log Rotation by Size
+
+`scripts/logrotate.php` rotated every log on each run, so keeping a fast-growing log such as `binkp_poll.log` small meant rotating all logs more often. It now takes a size threshold:
+
+```bash
+php scripts/logrotate.php --keep=5 --max-size=10M
+```
+
+- **`--max-size=SIZE`** rotates only a `*.log` file that is at least this large. SIZE is a number of bytes or a number with a `K`, `M` or `G` suffix. A value that is not a valid size makes the script exit with an error. Without the option every log is rotated, as before.
+- **`--logs-dir=PATH`** rotates a different directory from `data/logs`. Rotated copies go in `old/` under that directory.
+- **`--keep=N`** now also deletes old generations beyond N when you lower it between runs. Before, only the single oldest generation was removed, so lowering it left the extra files in place.
+- **`--dry-run`** now starts its "Rotated" lines with `[dry-run]`.
+
+To cap a fast-growing log, schedule the script more often and let `--max-size` decide what is rotated. For example, an hourly cron entry with `--keep=5 --max-size=10M` leaves small logs alone.
+
+**Docker:** the container's log rotation job accepts an optional `LOGROTATE_MAX_SIZE`, for example `10M`, which is passed to the script as `--max-size`. Set it in the `environment` section of `docker-compose.override.yml`, and also set `LOGROTATE_SCHEDULE` to something more frequent than the weekly default (`0 0 * * 0`). A value that is not a number with an optional `K`, `M` or `G` suffix is ignored, with a warning in the container log. When it is unset, behavior is unchanged. See [DOCKER.md](DOCKER.md) and [CLI.md](CLI.md).
+
 ## AreaFix / FileFix
 
 ### Automatic Area Sync on Reply Now Opt-In
@@ -204,6 +235,14 @@ Syncing areas from an AreaFix reply (the **Sync to Echo Areas** button, or autom
 When the *deactivate missing* option is used, it now deactivates active areas in the same network domain whose tag is not in the hub's list. Previously it only considered areas whose Uplink Address matched the hub, which would have skipped areas that have no override.
 
 Echo areas that were already given an Uplink Address by an earlier sync keep it, because it cannot be distinguished from an address a sysop entered on purpose. If you see an override you did not intend, open the area in **Admin -> Echo Areas** and clear the **Uplink Address** field.
+
+## Web Interface
+
+### Fresh Assets After an Upgrade
+
+BinktermPHP's service worker keeps its own cache of CSS, JavaScript and other static files, and starts a new, empty cache whenever a release changes the cache name. It filled the new cache with ordinary requests, which a browser may answer from its own HTTP cache. A browser that still held a file from before the upgrade could therefore put that old copy into the new cache, and keep serving it until the cache name changed again. The symptom was a page that looked or behaved like the previous version after an upgrade, until the user force-reloaded.
+
+Files that are not yet in the service worker's cache are now requested with revalidation: the browser asks the server whether its copy is still current, which costs a small "not modified" reply when it is, and downloads the file when it is not.
 
 ## Web Doors
 
@@ -313,6 +352,50 @@ The container entrypoint set `config/`, `data/` and `dosbox-bridge/` to mode 775
 After setting those permissions, the entrypoint now sets every top-level `config/*.json` file to mode 640: readable and writable by the `binkterm` user and group, with no access for anyone else. The web server user (`www-data`) belongs to that group, so PHP still reads the files. The `config/` directory stays at 775 so the admin daemon can still create and replace files.
 
 This applies on the next container start. If you mount `config/` from the host, the files on the host are changed to 640 as well, so check that any host-side tools or backup jobs reading them run as a user or group that can still do so.
+
+### BinkP Debug Logging No Longer Records Password Material
+
+With debug logging enabled, BinkP authentication wrote the first characters of both the password received from the remote system and the password expected for it to the log. For CRAM-MD5 it also wrote the challenge together with the digest. Anyone who can read the log can use a logged challenge and digest to guess the shared session password offline.
+
+By default the log now records only the outcome of each authentication, the password lengths, and a hint that does not reveal the password: whether the lengths differ, the letter case differs, or there is stray whitespace.
+
+When you need the full detail to troubleshoot authentication with a particular peer, add this to `.env` and restart the BinkP daemons:
+
+```ini
+BINKP_LOG_SENSITIVE_AUTH=true
+```
+
+While it is on, the password prefixes and CRAM-MD5 challenge and digest values are logged again, and a warning is logged once per session to show that it is enabled. Remove the setting when you are done, and treat any log written while it was on as containing secrets. See [CONFIGURATION.md](CONFIGURATION.md) for the setting.
+
+### Auto Feed Verifies TLS and Allows Only http(s) Feeds
+
+The RSS poster fetched feeds with HTTPS certificate and host name checks turned off, followed redirects automatically, and accepted a URL with any scheme. Anyone able to tamper with the connection to a feed, or to redirect it, could supply content that was then posted into echo areas.
+
+Feeds are now fetched with these rules:
+
+- Only `http://` and `https://` URLs are fetched. Any other scheme, such as `file://`, fails.
+- The HTTPS certificate must be trusted by the server's system certificate store and must match the feed's host name.
+- Redirects are followed one at a time, up to 5. Each one must stay on `http` or `https`, and a feed fetched over `https://` is not allowed to redirect to plain `http://`.
+
+A feed that fails these checks is not posted for that run, and the error is recorded in the log of the RSS poster. Error messages leave out any user name, password and query string from the feed URL.
+
+Check **Admin -> Auto Feed** after upgrading. A feed whose server has an expired, self-signed or mismatched certificate used to work and will now fail until the server's certificate is fixed. There is no setting to turn verification off. A feed that redirects from `https://` to `http://` also fails, so change the feed's URL to the final `https://` address. See [Autofeed.md](Autofeed.md).
+
+### Telnet TLS Offers TLS 1.3 and Validates Your Certificate
+
+The TLS Telnet listener (port 8023 by default) only offered TLS 1.0 to 1.2, with a fixed cipher list. It now offers every version from a minimum you choose up to TLS 1.3, so a modern client negotiates TLS 1.3 and an old BBS terminal program can still connect with an older version. Two new settings in `.env` control this:
+
+```ini
+TELNET_TLS_MIN_VERSION=1.0
+TELNET_TLS_CIPHERS=DEFAULT:@SECLEVEL=0
+```
+
+- **`TELNET_TLS_MIN_VERSION`** is the oldest version accepted: `1.0`, `1.1`, `1.2` or `1.3`. The default is `1.0`, so existing callers keep working. Once you know none of your users need the older versions, set it to `1.2` or higher. An invalid value is logged as a warning and treated as `1.0`.
+- **`TELNET_TLS_CIPHERS`** is the OpenSSL cipher list. The default matches what was used before. Set a stricter list to harden the listener at the cost of older clients.
+
+If you set `TELNET_TLS_CERT` and `TELNET_TLS_KEY` to your own certificate and key, the daemon now checks them when it starts: both files must exist and be readable, be valid PEM, and the certificate must match the key. If any check fails, the daemon logs the exact reason and starts with the TLS listener off, while the plain Telnet listener keeps running. It does not create a self-signed certificate in place of the one you configured. A self-signed pair is generated under `data/telnet/` only when both settings are left unset.
+
+Check that the TLS listener is up after restarting the telnet daemon. Each TLS connection is logged with the negotiated version, cipher and key size, for example `TLS connection from 192.0.2.10 [TLSv1.3 TLS_AES_256_GCM_SHA384 256-bit]`. See [TelnetServer.md](TelnetServer.md).
 
 ---
 
