@@ -892,6 +892,8 @@ Public
 
 Validates credentials and creates an authenticated session. Sets a 30-day HTTP-only session cookie and tracks the login event. Returns a CSRF token for subsequent authenticated requests. The service parameter (default 'web') determines session behavior. Failed authentication returns 401 with invalid credentials error.
 
+Repeated failed attempts are throttled by two independent rolling-window counters — one keyed on the normalized submitted username, one on the resolved client IP (`AUTH_LOGIN_USER_MAX` / `AUTH_LOGIN_IP_MAX` failures per `AUTH_LOGIN_WINDOW` seconds; defaults 5 / 20 / 900). While either counter is over its limit the endpoint returns the **same** generic `401` / `errors.auth.invalid_credentials` response as a wrong password — there is no distinct "locked" status and no account lockout. A successful login clears the username counter but not the IP counter. This applies to every interactive transport, since Web, Telnet, TLS-Telnet and SSH all authenticate through this route.
+
 **Request Body** _(JSON)_
 
 Login credentials

@@ -77,6 +77,8 @@ DB_SSL=false
 #DB_SSL_KEY=/path/to/client-key.pem
 ```
 
+**Unit-test database (developers):** database-backed unit tests (`tests/Unit`) connect to `DB_DEVNAME` when it is set in `.env`, and to `binktermphp_test` when it is not. The live `DB_NAME` database is never used. Set `DB_DEVNAME` on a dedicated development instance that cannot use the `binktermphp_test` name.
+
 ### Site URL
 
 ```bash
@@ -158,8 +160,10 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 
 # Shared secret the telnet/SSH daemons use to authorize terminal-originated
 # registrations AND to tell the web side the connecting user's real IP address
-# (recorded on the session and used by registration screening). CHANGE THIS
-# from the default — anything holding it can set its own recorded session IP.
+# (recorded on the session and used by registration screening). Set a long
+# random value — anything holding it can set its own recorded session IP. An
+# unset value or the old published default (Chang3Me) is not trusted; Docker
+# generates a random value automatically.
 # TERMINAL_REGISTRATION_SECRET=change-me-to-a-long-random-string
 
 # ZMODEM file transfers over the telnet BBS
@@ -177,6 +181,53 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 ```
 
 See [docs/SSHServer.md](SSHServer.md) for full SSH daemon setup including key generation.
+
+### Failed-login throttle
+
+```bash
+# AUTH_LOGIN_USER_MAX=5
+# AUTH_LOGIN_IP_MAX=20
+# AUTH_LOGIN_WINDOW=900
+```
+
+`POST /api/auth/login` is the single credential-check boundary for every
+interactive transport — Web directly, and the Telnet, TLS-Telnet and SSH
+daemons by proxying the check through it. Two independent rolling-window
+failure counters guard it: one keyed on the normalized submitted username
+(`AUTH_LOGIN_USER_MAX`, tighter — limits targeted account brute force), one on
+the resolved client IP (`AUTH_LOGIN_IP_MAX`, more generous — limits broad
+username spraying without collaterally throttling NAT/shared sites). A login is
+allowed only while **both** counters are under their limit within
+`AUTH_LOGIN_WINDOW` seconds.
+
+A throttled attempt returns the identical generic `401` /
+`errors.auth.invalid_credentials` response as a wrong password: no distinct
+"account locked" status, no permanent lockout, no username-enumeration signal
+(unknown usernames and wrong passwords are counted identically). A successful
+login clears that username's counter but **not** the source-IP counter — the IP
+counter only ages out through the window, so holding one valid account cannot
+reset an IP spray counter. State lives in the `auth_login_attempts` table so it
+is shared across php-fpm workers and the terminal daemons. Non-positive or
+non-numeric values fall back to the defaults above rather than disabling the
+protection.
+
+The public QWK-over-HTTP Basic-auth endpoints (`/qwk/download`, `/qwk/upload`)
+authenticate outside `/api/auth/login`, so they apply the same counters,
+thresholds and `auth_login_attempts` table directly around their credential
+check. The FTP and NNTP daemons do the same around their own credential
+checks, using the connecting client's IP address (anonymous FTP has no
+credentials and is not throttled). A throttled FTP attempt gets the normal
+`530 Login incorrect` reply and a throttled NNTP attempt gets
+`481 Authentication failed`.
+
+The username counter is keyed on the account, not the submitted text: logging in
+by username and by real name for the same account share one counter. Loopback
+and the server's own address are not counted against the IP limit, so when
+`TERMINAL_REGISTRATION_SECRET` is unset (every telnet/SSH session then appears
+to come from the server) one user cannot lock out all terminal logins; the
+per-account limit still applies. If the throttle cannot reach the database (for
+example the migration has not run) logins proceed unthrottled and the error is
+written to the server log.
 
 ### Gemini Capsule Daemon
 

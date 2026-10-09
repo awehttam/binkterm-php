@@ -233,6 +233,16 @@ against the most recent packet.
 All endpoints require authentication and return JSON (except `/download` which
 streams a ZIP file).
 
+The browser-oriented `/api/qwk/*` endpoints use the normal logged-in session.
+The reader-oriented `/qwk/download` and `/qwk/upload` endpoints use HTTP Basic
+auth with your BBS username and password. Failed Basic-auth attempts are
+rate-limited by the same shared dual counter (submitted username and source
+IP) as the interactive login surfaces — `AUTH_LOGIN_USER_MAX` failures per
+username and `AUTH_LOGIN_IP_MAX` per IP within `AUTH_LOGIN_WINDOW` seconds
+(defaults 5 / 20 / 900). A throttled request returns the same generic `401`
+as a wrong password; there is no account lockout, and a successful login
+clears the username counter.
+
 If the optional FTP daemon is enabled, the equivalent FTP paths are:
 
 - `/qwk/download/<BBSID>.QWK`
