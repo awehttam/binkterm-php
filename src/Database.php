@@ -23,14 +23,6 @@ use PDOException;
 
 class Database
 {
-    /**
-     * TEST-ONLY: the sole database name setInstanceForTesting() will ever
-     * accept. Duplicated (not shared) from tests/Unit/Support/TestDatabase.php
-     * on purpose -- this guard must not trust that helper's own check, so it
-     * cannot be bypassed by a caller that skips it.
-     */
-    private const TEST_ONLY_DATABASE_NAME = 'binktermphp_test';
-
     private static $instance = null;
     private $pdo;
     private DatabasePlatformInterface $platform;
@@ -93,18 +85,19 @@ class Database
      * tests/Unit/Support/TestDatabase.php) already verified the target
      * database. It re-checks current_database() itself and refuses to
      * install the instance -- self::$instance is left untouched -- unless it
-     * is exactly the isolated test database. This is the only database name
-     * this method will ever accept; it can never be pointed at production.
+     * is exactly Config::getTestDatabaseName() (`DB_DEVNAME`, falling back to
+     * `DB_NAME`). Set `DB_DEVNAME` to keep tests off the live database.
      *
      * Never call this outside a test context.
      */
     public static function setInstanceForTesting(PDO $pdo, bool $useUtcTimezone = true): void
     {
+        $expected = Config::getTestDatabaseName();
         $actual = (string)$pdo->query('SELECT current_database()')->fetchColumn();
-        if ($actual !== self::TEST_ONLY_DATABASE_NAME) {
+        if ($expected === '' || $actual !== $expected) {
             throw new \RuntimeException(
                 'Database::setInstanceForTesting() refuses a PDO connected to '
-                . "\"{$actual}\" -- only \"" . self::TEST_ONLY_DATABASE_NAME . '" is accepted.'
+                . "\"{$actual}\" -- only \"{$expected}\" is accepted."
             );
         }
 

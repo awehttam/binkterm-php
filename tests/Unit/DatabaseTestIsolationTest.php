@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Database::setInstanceForTesting() lets database-backed tests point every
- * Database::getInstance() call at the isolated `binktermphp_test` database.
+ * Database::getInstance() call at the isolated test database
+ * (Config::getTestDatabaseName(): DB_DEVNAME, falling back to binktermphp_test).
  * It must refuse any connection to another database (independently of any
  * helper's own check) and leave the existing singleton untouched.
  * Runs without a database server, using PDO stubs.
@@ -34,12 +36,18 @@ final class DatabaseTestIsolationTest extends TestCase
         $sentinel = (new ReflectionClass(Database::class))->newInstanceWithoutConstructor();
         $this->instance->setValue(null, $sentinel);
 
-        foreach (['binktermphp', 'postgres', 'binktermphp_test_copy', ''] as $name) {
+        $testDb = Config::getTestDatabaseName();
+        $others = array_values(array_filter(
+            ['binktermphp', 'postgres', $testDb . '_copy', ''],
+            static fn(string $name): bool => $name !== $testDb
+        ));
+
+        foreach ($others as $name) {
             try {
                 Database::setInstanceForTesting(new IsolationProbePdo($name));
                 self::fail("must refuse database '{$name}'");
             } catch (RuntimeException $e) {
-                self::assertStringContainsString('only "binktermphp_test" is accepted', $e->getMessage());
+                self::assertStringContainsString('only "' . $testDb . '" is accepted', $e->getMessage());
             }
             self::assertSame($sentinel, $this->instance->getValue(), 'singleton must be left untouched');
         }
@@ -47,7 +55,7 @@ final class DatabaseTestIsolationTest extends TestCase
 
     public function testInstallsTheTestConnectionAndInitializesItsSession(): void
     {
-        $pdo = new IsolationProbePdo('binktermphp_test');
+        $pdo = new IsolationProbePdo(Config::getTestDatabaseName());
         Database::setInstanceForTesting($pdo);
 
         self::assertSame($pdo, Database::getInstance()->getPdo());
@@ -56,7 +64,7 @@ final class DatabaseTestIsolationTest extends TestCase
 
     public function testResetDropsTheSingletonWithoutConnecting(): void
     {
-        Database::setInstanceForTesting(new IsolationProbePdo('binktermphp_test'));
+        Database::setInstanceForTesting(new IsolationProbePdo(Config::getTestDatabaseName()));
         Database::resetInstanceForTesting();
 
         self::assertNull($this->instance->getValue());

@@ -34,6 +34,7 @@ class Config
     const FIDONET_ORIGIN = '1:999/999';
     const SYSTEM_NAME = 'BinktermPHP System';
     const SYSOP_NAME = 'System Operator';
+    private const DEFAULT_TEST_DATABASE_NAME = 'binktermphp_test';
     
     /**
      * Load environment variables and configuration
@@ -121,6 +122,21 @@ class Config
     {
         self::loadConfig();
         return $_ENV[$key] ?? $default;
+    }
+
+    /**
+     * TEST-ONLY: name of the database the unit-test harness is allowed to use.
+     *
+     * `DB_DEVNAME` when set and non-empty, otherwise `binktermphp_test`.
+     * The live `DB_NAME` database is never used.
+     *
+     * @return string Database name for database-backed tests.
+     */
+    public static function getTestDatabaseName(): string
+    {
+        $devName = trim((string)self::env('DB_DEVNAME', ''));
+
+        return $devName !== '' ? $devName : self::DEFAULT_TEST_DATABASE_NAME;
     }
     
     /**

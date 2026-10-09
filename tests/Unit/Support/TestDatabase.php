@@ -9,21 +9,20 @@ use PDO;
 use RuntimeException;
 
 /**
- * TestDatabase -- the single shared source of the isolated `binktermphp_test`
- * PDO connection for database-backed unit tests. Reuses
- * DB_HOST/DB_PORT/DB_USER/DB_PASS from the same environment
- * BinktermPHP\Database would use, but NEVER reads DB_NAME and NEVER calls
+ * TestDatabase -- the single shared source of the isolated test-database PDO
+ * for database-backed unit tests. Reuses DB_HOST/DB_PORT/DB_USER/DB_PASS from
+ * the same environment BinktermPHP\Database would use. The database name is
+ * Config::getTestDatabaseName(): `DB_DEVNAME` if set, otherwise
+ * `binktermphp_test`. It NEVER reads DB_NAME and NEVER calls
  * BinktermPHP\Database::getInstance(), which resolves production.
  *
  * Fail-closed: before the PDO is ever returned, current_database() is
- * checked and must equal exactly `binktermphp_test`, or this throws
+ * checked and must equal the resolved name, or this throws
  * RuntimeException -- a misconfigured environment fails loudly instead of
- * silently reaching production.
+ * silently reaching an unexpected database.
  */
 final class TestDatabase
 {
-    private const DATABASE_NAME = 'binktermphp_test';
-
     private static ?PDO $pdo = null;
 
     /**
@@ -40,7 +39,7 @@ final class TestDatabase
             'pgsql:host=%s;port=%s;dbname=%s',
             Config::env('DB_HOST', 'localhost'),
             Config::env('DB_PORT', '5432'),
-            self::DATABASE_NAME
+            Config::getTestDatabaseName()
         );
         $pdo = new PDO($dsn, Config::env('DB_USER', 'postgres'), Config::env('DB_PASS', ''), [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -64,7 +63,8 @@ final class TestDatabase
     private static function assertConnectedToTestDatabase(PDO $pdo): void
     {
         $actual = (string)$pdo->query('SELECT current_database()')->fetchColumn();
-        if ($actual !== self::DATABASE_NAME) {
+        $expected = Config::getTestDatabaseName();
+        if ($expected === '' || $actual !== $expected) {
             throw new RuntimeException(
                 "Refusing to use a non-test database for Unit tests: {$actual}"
             );

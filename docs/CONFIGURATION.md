@@ -77,6 +77,8 @@ DB_SSL=false
 #DB_SSL_KEY=/path/to/client-key.pem
 ```
 
+**Unit-test database (developers):** database-backed unit tests (`tests/Unit`) connect to `DB_DEVNAME` when it is set in `.env`, and to `binktermphp_test` when it is not. The live `DB_NAME` database is never used. Set `DB_DEVNAME` on a dedicated development instance that cannot use the `binktermphp_test` name.
+
 ### Site URL
 
 ```bash
