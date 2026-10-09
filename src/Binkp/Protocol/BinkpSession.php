@@ -133,6 +133,8 @@ class BinkpSession
         return $this->currentUplink;
     }
     
+    private ?bool $sensitiveAuthLogging = null;
+
     public function setLogger($logger)
     {
         $this->logger = $logger;
@@ -190,6 +192,28 @@ class BinkpSession
     {
         $this->extraOutboundFiles[] = $path;
         $this->extraOutboundFilesByName[basename($path)] = $path;
+    }
+
+    /**
+     * Whether authentication secrets may be written to the log.
+     *
+     * Off by default: DEBUG logging shows authentication outcomes, lengths and
+     * mismatch hints, but never password characters or CRAM-MD5 challenge and
+     * digest values (a logged challenge+digest pair allows an offline guess of
+     * the shared secret). BINKP_LOG_SENSITIVE_AUTH=true restores those values
+     * for troubleshooting and logs a warning once per session.
+     */
+    private function sensitiveAuthLogging(): bool
+    {
+        if ($this->sensitiveAuthLogging === null) {
+            $raw = \BinktermPHP\Config::env('BINKP_LOG_SENSITIVE_AUTH', 'false');
+            $this->sensitiveAuthLogging = filter_var($raw, FILTER_VALIDATE_BOOLEAN);
+            if ($this->sensitiveAuthLogging) {
+                $this->log('BINKP_LOG_SENSITIVE_AUTH is enabled: password prefixes and CRAM-MD5 challenge/digest values are being written to this log. Turn it off when troubleshooting is done.', 'WARNING');
+            }
+        }
+
+        return $this->sensitiveAuthLogging;
     }
 
     public function log($message, $level = 'INFO')
@@ -2548,10 +2572,25 @@ class BinkpSession
         // Log details for debugging authentication issues
         $receivedLen = strlen($password);
         $expectedLen = strlen($expectedPassword);
-        $receivedPreview = $receivedLen > 0 ? substr($password, 0, 3) . '...' : '(empty)';
-        $expectedPreview = $expectedLen > 0 ? substr($expectedPassword, 0, 3) . '...' : '(empty)';
-
-        $this->log("Password validation: received={$receivedPreview} (len={$receivedLen}), expected={$expectedPreview} (len={$expectedLen})", 'DEBUG');
+        if ($this->sensitiveAuthLogging()) {
+            $receivedPreview = $receivedLen > 0 ? substr($password, 0, 3) . '...' : '(empty)';
+            $expectedPreview = $expectedLen > 0 ? substr($expectedPassword, 0, 3) . '...' : '(empty)';
+            $this->log("Password validation: received={$receivedPreview} (len={$receivedLen}), expected={$expectedPreview} (len={$expectedLen})", 'DEBUG');
+        } else {
+            $hint = '';
+            if (!$match) {
+                if ($receivedLen !== $expectedLen) {
+                    $hint = trim($password) === trim($expectedPassword)
+                        ? ', differs only by leading/trailing whitespace'
+                        : ', length differs';
+                } elseif (strcasecmp($password, $expectedPassword) === 0) {
+                    $hint = ', differs only by letter case';
+                } else {
+                    $hint = ', same length, content differs';
+                }
+            }
+            $this->log("Password validation: received len={$receivedLen}, expected len={$expectedLen}{$hint}", 'DEBUG');
+        }
         $this->log("Password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
 
         if ($match) {
@@ -2743,7 +2782,8 @@ class BinkpSession
         $digest = hash_hmac('md5', $binaryChallenge, $password);
 
         $this->log("CRAM-MD5 HMAC digest: challenge_len=" . strlen($challenge) .
-            ", password_len=" . strlen($password) . ", digest=" . $digest, 'DEBUG');
+            ", password_len=" . strlen($password) .
+            ($this->sensitiveAuthLogging() ? ", digest=" . $digest : ''), 'DEBUG');
         return $digest;
     }
 
@@ -2759,7 +2799,9 @@ class BinkpSession
         // Match variable-length hex challenge (at least 16 chars, typically 32+)
         if (preg_match('/CRAM-MD5-([0-9a-fA-F]{16,})/', $nulData, $matches)) {
             $challenge = $matches[1];
-            $this->log("Parsed CRAM-MD5 challenge: " . $challenge . " (len=" . strlen($challenge) . ")", 'DEBUG');
+            $this->log($this->sensitiveAuthLogging()
+                ? "Parsed CRAM-MD5 challenge: " . $challenge . " (len=" . strlen($challenge) . ")"
+                : "Parsed CRAM-MD5 challenge (len=" . strlen($challenge) . ")", 'DEBUG');
             return $challenge;
         }
         return null;
