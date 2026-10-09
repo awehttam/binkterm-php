@@ -347,6 +347,7 @@
             this._boundRescale = this.rescale.bind(this);
             this._boundVisualViewportHandler = this.handleVisualViewport.bind(this);
             this._boundMessageHandler = this.handleWindowMessage.bind(this);
+            this._boundWheelHandler = this.handleWheel.bind(this);
             this._lastComputedScale = 1.0;
         }
 
@@ -492,6 +493,10 @@
                 this.focus();
             });
 
+            // Intercept mouse wheel events on viewport to prevent xterm from synthesizing
+            // spurious cursor/mouse escape sequences (which echo as periods '.' in DOS doors).
+            this.viewportElement.addEventListener('wheel', this._boundWheelHandler, { capture: true, passive: false });
+
             // Initial calculation
             this.rescale();
             setTimeout(this._boundRescale, 150);
@@ -507,6 +512,9 @@
             if (window.visualViewport) {
                 window.visualViewport.removeEventListener('resize', this._boundVisualViewportHandler);
                 window.visualViewport.removeEventListener('scroll', this._boundVisualViewportHandler);
+            }
+            if (this.viewportElement) {
+                this.viewportElement.removeEventListener('wheel', this._boundWheelHandler, { capture: true, passive: false });
             }
             if (this.toolbarElement && this.toolbarElement.parentElement) {
                 this.toolbarElement.remove();
@@ -1010,6 +1018,31 @@
                 window.scrollTo(0, 0);
             }
             this.rescale();
+        }
+
+        /**
+         * Handle mouse wheel events on the terminal viewport.
+         * Prevents xterm.js from synthesizing unwanted arrow keys or mouse tracking reports
+         * (which type '.' periods into DOS doors) while enabling smooth container scrolling or Ctrl-zoom.
+         */
+        handleWheel(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            // Ctrl + Wheel: Zoom in / out
+            if (e.ctrlKey) {
+                if (e.deltaY < 0) {
+                    this.zoomIn();
+                } else if (e.deltaY > 0) {
+                    this.zoomOut();
+                }
+                return;
+            }
+
+            // If zoomed in or in fit-width mode causing viewport overflow, scroll the viewport container directly
+            if (this.viewportElement && this.viewportElement.scrollHeight > this.viewportElement.clientHeight) {
+                this.viewportElement.scrollTop += e.deltaY;
+            }
         }
 
         /**

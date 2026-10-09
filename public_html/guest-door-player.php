@@ -204,6 +204,15 @@ $mobileAssetVer = (string)@filemtime(__DIR__ . '/js/binkterm-mobile-terminal.js'
             term.loadAddon(fitAddon);
             term.open(container);
 
+            // Prevent mouse wheel from generating spurious cursor escape sequences or mouse tracking
+            container.addEventListener('wheel', (e) => {
+                const vp = container.querySelector('.binkterm-mobile-viewport');
+                if (!vp || vp.scrollHeight <= vp.clientHeight) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            }, { capture: true, passive: false });
+
             if (window.BinktermMobileTerminalAddon) {
                 mobileAddon = new BinktermMobileTerminalAddon({
                     doorId: doorId,
