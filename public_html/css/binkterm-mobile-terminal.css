@@ -1,0 +1,560 @@
+/* ==========================================================================
+   BinkTermPHP Mobile Terminal Addon Styles
+   Optimized for mobile touch devices, iPhone Safari & Chrome, and responsive viewports.
+   ========================================================================== */
+
+/* Terminal controls header bar */
+.terminal-controls {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 3px 8px !important;
+    background: #121224 !important;
+    height: 34px !important;
+    border-bottom: 1px solid #2a2a40 !important;
+    z-index: 10 !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+}
+
+.terminal-controls .door-header {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #e0e0f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 6px;
+}
+
+@media (max-width: 768px) {
+    /* On mobile, parent page already shows the game title; hide redundant iframe title to prevent truncation */
+    .terminal-controls .door-header {
+        display: none !important;
+    }
+    .terminal-controls {
+        height: 30px !important;
+        padding: 2px 6px !important;
+        justify-content: flex-end !important;
+        gap: 6px !important;
+    }
+    #terminal-container {
+        top: 30px !important;
+    }
+}
+
+.terminal-controls-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+}
+
+/* High Contrast Toggle Button */
+.btn-contrast {
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #25253d;
+    color: #ffd700;
+    border: 1px solid #55557a;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.btn-contrast:active {
+    transform: scale(0.96);
+}
+
+.btn-contrast.mode-vivid {
+    background: #ffd700 !important;
+    color: #000 !important;
+    border-color: #ffe644 !important;
+}
+
+.btn-contrast.mode-amber {
+    background: #ff9900 !important;
+    color: #000 !important;
+    border-color: #ffaa33 !important;
+}
+
+/* Connection status badge */
+.connection-status {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.status-disconnected {
+    background-color: #dc3545;
+    color: white;
+}
+
+.status-connecting {
+    background-color: #ffc107;
+    color: black;
+}
+
+.status-connected {
+    background-color: #28a745;
+    color: white;
+}
+
+/* End session button */
+#endSessionBtn, #leaveBtn {
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+#endSessionBtn:hover, #leaveBtn:hover {
+    background: #c82333;
+}
+
+/* Container harness holding viewport and toolbar in a vertical column */
+#terminal-container {
+    position: absolute !important;
+    top: 34px;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: #000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+}
+
+/* Viewport harness for scaled fixed-grid (80x25) terminals */
+.binkterm-mobile-viewport {
+    position: relative;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start !important; /* Top-aligned to prevent empty gap above text */
+    padding-top: 2px !important;
+    overflow: hidden;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* When in fit-width mode or desktop, allow scrolling if content overflows */
+.binkterm-mobile-viewport.mode-fit-width {
+    overflow-y: auto;
+    justify-content: flex-start !important;
+}
+
+/* Scaler container: dimensions are set dynamically via JS to match scaled bounds */
+.binkterm-mobile-scaler {
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+    background: #000;
+    flex-shrink: 0;
+    border-radius: 2px;
+}
+
+/* Force xterm element to sit at top-left and scale via CSS transform */
+.binkterm-mobile-scaler .xterm {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform-origin: top left !important;
+}
+
+/* Force terminal canvas/screen backgrounds to black */
+.binkterm-mobile-scaler .xterm,
+.binkterm-mobile-scaler .xterm-viewport,
+.binkterm-mobile-scaler .xterm-screen,
+.binkterm-mobile-scaler .xterm-screen canvas {
+    background-color: #000 !important;
+}
+
+/* Ensure xterm hidden textarea is positioned safely offscreen without zoom */
+.binkterm-mobile-scaler .xterm-helper-textarea {
+    font-size: 16px !important; /* Prevents iOS auto-zoom when textarea gains focus */
+}
+
+/* ==========================================================================
+   Mobile Virtual Keys Toolbar & Game Controller
+   ========================================================================== */
+.binkterm-mobile-toolbar {
+    position: relative !important;
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    background: #141426 !important;
+    border-top: 1px solid #2e2e4a !important;
+    padding: 4px 6px calc(env(safe-area-inset-bottom, 8px) + 2px) 6px !important;
+    z-index: 100 !important;
+    transition: max-height 0.25s ease-in-out;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    box-sizing: border-box !important;
+}
+
+.binkterm-mobile-toolbar.is-collapsed {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    height: 22px !important;
+    overflow: hidden !important;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-toolbar-row {
+    display: none !important;
+}
+
+/* Collapse/Expand pull tab & Layout badge */
+.binkterm-toolbar-tab-wrapper {
+    position: absolute;
+    top: -22px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 101;
+}
+
+.binkterm-toolbar-tab {
+    background: #141426;
+    border: 1px solid #2e2e4a;
+    border-bottom: none;
+    border-radius: 5px 5px 0 0;
+    color: #9999bb;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.binkterm-toolbar-tab:active {
+    background: #252540;
+    color: #fff;
+}
+
+.binkterm-layout-pill {
+    background: #1b1b36;
+    border: 1px solid #3c3c6a;
+    border-bottom: none;
+    border-radius: 5px 5px 0 0;
+    color: #99bbff;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    letter-spacing: 0.3px;
+}
+
+.binkterm-layout-pill:active {
+    background: #2b2b50;
+    color: #fff;
+}
+
+/* Toolbar Rows */
+.binkterm-toolbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.binkterm-toolbar-row::-webkit-scrollbar {
+    display: none;
+}
+
+/* Key Buttons */
+.binkterm-key-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    background: #232338;
+    color: #e5e5f5;
+    border: 1px solid #3d3d5c;
+    border-radius: 5px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 32px;
+    height: 35px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 0.1s, transform 0.05s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    flex-shrink: 0;
+}
+
+.binkterm-key-btn:active,
+.binkterm-key-btn.is-active {
+    background: #4a4a75;
+    color: #fff;
+    transform: translateY(1px);
+    box-shadow: none;
+}
+
+/* Specialized Buttons */
+.binkterm-key-btn.btn-action {
+    background: #1b3558;
+    border-color: #2e558a;
+    color: #99c2ff;
+}
+.binkterm-key-btn.btn-action:active {
+    background: #2e558a;
+    color: #fff;
+}
+
+.binkterm-key-btn.btn-esc {
+    background: #4a1f25;
+    border-color: #6d2f39;
+    color: #ff99a5;
+    font-weight: 700;
+}
+.binkterm-key-btn.btn-esc:active {
+    background: #6d2f39;
+    color: #fff;
+}
+
+.binkterm-key-btn.btn-enter {
+    background: #19442a;
+    border-color: #2b6342;
+    color: #8ae3af;
+    font-weight: 700;
+    min-width: 48px;
+}
+.binkterm-key-btn.btn-enter:active {
+    background: #2b6342;
+    color: #fff;
+}
+
+.binkterm-key-btn.btn-nav {
+    background: #2c2c48;
+    font-size: 14px;
+    font-weight: 700;
+    min-width: 38px;
+}
+
+.binkterm-key-btn.btn-utility {
+    background: #1c1c2e;
+    border-color: #33334d;
+    color: #aaaabf;
+    font-size: 12px;
+}
+
+.binkterm-key-btn.btn-contrast-key {
+    color: #ffd700;
+    font-weight: 700;
+}
+
+.binkterm-key-btn.btn-hotkey {
+    background: #1e1e36;
+    border-color: #3c3c62;
+    color: #ffcc00;
+    font-weight: 700;
+}
+.binkterm-key-btn.btn-hotkey:active {
+    background: #3c3c62;
+    color: #fff;
+}
+
+/* OOII Large Action Combat Space Bar */
+.binkterm-key-btn.btn-space-combat {
+    background: #6a1a1a !important;
+    border-color: #a83232 !important;
+    color: #ffdddd !important;
+    font-weight: 800 !important;
+    min-width: 100px !important;
+    font-size: 12px !important;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 6px rgba(255, 68, 68, 0.45);
+    flex-grow: 1;
+}
+.binkterm-key-btn.btn-space-combat:active,
+.binkterm-key-btn.btn-space-combat.is-active {
+    background: #a82e2e !important;
+    color: #ffffff !important;
+}
+
+/* OOII * Go Back button */
+.binkterm-key-btn.btn-back-key {
+    background: #482a0d !important;
+    border-color: #7d4816 !important;
+    color: #ffd280 !important;
+    font-weight: 700 !important;
+}
+.binkterm-key-btn.btn-back-key:active,
+.binkterm-key-btn.btn-back-key.is-active {
+    background: #7d4816 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-row-sep {
+    display: inline-block;
+    width: 1px;
+    height: 22px;
+    background: #33334d;
+    margin: 0 2px;
+    flex-shrink: 0;
+}
+
+/* Zoom control pills in toolbar */
+.binkterm-zoom-group {
+    display: inline-flex;
+    align-items: center;
+    background: #1c1c2e;
+    border: 1px solid #33334d;
+    border-radius: 5px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.binkterm-zoom-group button {
+    background: none;
+    border: none;
+    color: #aaaabf;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 0 8px;
+    height: 35px;
+    cursor: pointer;
+}
+.binkterm-zoom-group button:active {
+    background: #333355;
+    color: #fff;
+}
+.binkterm-zoom-group span {
+    font-size: 10px;
+    color: #8888aa;
+    padding: 0 4px;
+    font-family: monospace;
+}
+
+/* Quick Hotkeys Carousel/Row */
+.binkterm-toolbar-hotkeys {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+    overflow-x: auto;
+    padding: 2px 0;
+    width: 100%;
+}
+.binkterm-toolbar-hotkeys .binkterm-key-btn {
+    min-width: 28px;
+    height: 32px;
+    font-size: 12px;
+}
+
+/* Modal Overlay (Layout & Settings) */
+.binkterm-mobile-modal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #18182b;
+    border: 1px solid #3c3c5a;
+    border-radius: 8px;
+    padding: 16px;
+    width: 90%;
+    max-width: 340px;
+    z-index: 200;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.85);
+    color: #e0e0f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.binkterm-mobile-modal h6 {
+    margin: 0 0 12px 0;
+    font-size: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2c2c44;
+    padding-bottom: 8px;
+}
+
+.binkterm-mobile-modal .modal-close-btn {
+    background: none;
+    border: none;
+    color: #8888aa;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.binkterm-profile-option {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 10px;
+    background: #202035;
+    border: 1px solid #383858;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.binkterm-profile-option:hover,
+.binkterm-profile-option:active {
+    background: #2c2c4a;
+    border-color: #555588;
+}
+.binkterm-profile-option.is-selected {
+    border-color: #ffd700;
+    background: #282845;
+}
+.binkterm-profile-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.binkterm-profile-title i.fa-check {
+    color: #ffd700;
+}
+.binkterm-profile-desc {
+    font-size: 11px;
+    color: #9999bb;
+    margin-top: 3px;
+}

@@ -2,22 +2,29 @@
 
 {% block title %}{{ door.name }} - {{ t('ui.webdoor_play.page_title_suffix', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
+{% block meta_tags %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid mt-2">
-    <div class="d-flex justify-content-between align-items-center mb-2">
+<div class="container-fluid mt-2 door-play-wrapper">
+    <div class="door-header-bar d-flex justify-content-between align-items-center mb-2">
         <div class="d-flex align-items-center">
-            <a href="/games" class="btn btn-outline-secondary btn-sm me-3">
-                <i class="fas fa-arrow-left"></i> {{ t('ui.webdoor_play.back_to_doors', {}, locale, ['common']) }}
+            <a href="/games" class="btn btn-outline-secondary btn-sm me-2">
+                <i class="fas fa-arrow-left"></i> <span class="d-none d-sm-inline">{{ t('ui.webdoor_play.back_to_doors', {}, locale, ['common']) }}</span><span class="d-inline d-sm-none">Doors</span>
             </a>
-            <h4 class="mb-0"><i class="fas fa-terminal"></i> {{ door.name }}</h4>
+            <h4 class="mb-0 door-title"><i class="fas fa-terminal"></i> {{ door.name }}</h4>
         </div>
-        <div>
+        <div class="d-flex align-items-center gap-1">
             {% if secondary_url %}
                 <a href="{{ secondary_url }}"
-                   class="btn btn-outline-secondary btn-sm me-2">
-                    <i class="fas fa-sliders-h"></i> {{ t(secondary_label_key, {}, locale, ['common']) }}
+                   class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-sliders-h"></i> <span class="d-none d-sm-inline">{{ t(secondary_label_key, {}, locale, ['common']) }}</span>
                 </a>
             {% endif %}
+            <button id="contrast-btn" class="btn btn-outline-warning btn-sm" title="Toggle High Contrast">
+                <i class="fas fa-adjust"></i> <span class="d-none d-sm-inline">Contrast</span>
+            </button>
             {% if show_fullscreen_button is not defined or show_fullscreen_button %}
                 <button id="fullscreen-btn" class="btn btn-outline-primary btn-sm" title="{{ t('ui.webdoor_play.fullscreen', {}, locale, ['common']) }}">
                     <i class="fas fa-expand"></i>
@@ -37,6 +44,10 @@
 </div>
 
 <style>
+.door-play-wrapper {
+    position: relative;
+}
+
 .game-container {
     position: relative;
     width: 100%;
@@ -51,6 +62,7 @@
     width: 100%;
     height: 100%;
     border: none;
+    display: block;
 }
 
 /* Fullscreen styles */
@@ -61,27 +73,103 @@
 .game-container:fullscreen .game-frame {
     height: 100vh;
 }
+
+/* Mobile responsive layout optimizations */
+@media (max-width: 768px) {
+    /* Hide top BBS navbar to maximize vertical space for terminal on mobile */
+    .navbar {
+        display: none !important;
+    }
+    .door-play-wrapper {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .door-header-bar {
+        padding: 2px 6px !important;
+        margin-bottom: 0 !important;
+        background: #111124;
+        border-bottom: 1px solid #252538;
+        height: 32px !important;
+    }
+    .door-header-bar h4.door-title {
+        font-size: 0.82rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 170px;
+    }
+    .door-header-bar .btn {
+        padding: 2px 6px !important;
+        font-size: 0.75rem !important;
+    }
+    .game-container {
+        height: calc(100vh - 32px) !important;
+        height: calc(100dvh - 32px) !important;
+        min-height: 0 !important;
+        border-radius: 0 !important;
+    }
+}
+
+/* Fallback pseudo-fullscreen mode for iOS Safari (which lacks Element.requestFullscreen) */
+body.mobile-fullscreen-active .navbar {
+    display: none !important;
+}
+body.mobile-fullscreen-active .door-header-bar {
+    display: none !important;
+}
+body.mobile-fullscreen-active .game-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    z-index: 99999 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+}
 </style>
 
 <script>
+document.body.classList.add('door-player-active');
+
+const contrastBtn = document.getElementById('contrast-btn');
+if (contrastBtn) {
+    contrastBtn.addEventListener('click', function() {
+        const frame = document.getElementById('game-frame');
+        if (frame && frame.contentWindow) {
+            frame.contentWindow.postMessage({ type: 'toggle-contrast' }, '*');
+        }
+    });
+}
+
 const fullscreenBtn = document.getElementById('fullscreen-btn');
 if (fullscreenBtn) {
     fullscreenBtn.addEventListener('click', function() {
         const container = document.querySelector('.game-container');
         if (container.requestFullscreen) {
-            container.requestFullscreen();
+            container.requestFullscreen().catch(function() {
+                document.body.classList.toggle('mobile-fullscreen-active');
+            });
         } else if (container.webkitRequestFullscreen) {
             container.webkitRequestFullscreen();
         } else if (container.msRequestFullscreen) {
             container.msRequestFullscreen();
+        } else {
+            // iOS Safari pseudo-fullscreen fallback
+            document.body.classList.toggle('mobile-fullscreen-active');
         }
     });
 }
 
-// Handle escape key to exit game
+// Handle escape key to exit game or pseudo-fullscreen
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && document.fullscreenElement) {
-        document.exitFullscreen();
+    if (e.key === 'Escape') {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else if (document.body.classList.contains('mobile-fullscreen-active')) {
+            document.body.classList.remove('mobile-fullscreen-active');
+        }
     }
 });
 
