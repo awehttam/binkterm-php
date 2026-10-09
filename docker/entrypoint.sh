@@ -143,6 +143,14 @@ mkdir -p \
 chown -R binkterm:binkterm /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 chmod -R 775 /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 
+# config/*.json can carry credentials (BinkP uplink passwords in binkp.json,
+# LovlyNet keys in lovlynet.json, ...). The blanket 775 above would leave them
+# world-readable. Restrict every top-level config JSON to the binkterm user and
+# group (www-data is a member, so PHP can still read them) with no world
+# access. The directory itself stays 775 so the admin daemon can add/replace
+# files.
+chmod 640 /var/www/html/config/*.json 2>/dev/null || true
+
 # Activate optional daemons requested via ENABLE_* environment variables (set
 # in docker-compose.yml/docker-compose.override.yml -- Docker-only, never in
 # .env). Each daemon ships as a disabled-by-default template in
