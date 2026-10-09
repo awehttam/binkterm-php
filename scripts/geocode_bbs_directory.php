@@ -67,6 +67,7 @@ try {
     echo "Rows geocoded: {$result['updated']}\n";
     echo "Rows skipped: {$result['skipped']}\n";
     echo "Rows failed: {$result['failed']}\n";
+    echo "Rows excluded (known permanent no_result): {$result['excluded_known_no_result']}\n";
 
     if ($dryRun) {
         echo "\nNo database changes were made.\n";
