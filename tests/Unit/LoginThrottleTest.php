@@ -268,7 +268,7 @@ final class LoginThrottleTest extends TestCase
     }
 
     /**
-     * Isolated `binktermphp_test` connection (never the application database).
+     * Isolated test-database connection (never the application database).
      * Skips when pdo_pgsql or that database is unavailable.
      */
     private static function testDb(): PDO
@@ -281,18 +281,19 @@ final class LoginThrottleTest extends TestCase
             self::markTestSkipped('pdo_pgsql not available');
         }
         $dsn = sprintf(
-            'pgsql:host=%s;port=%s;dbname=binktermphp_test',
+            'pgsql:host=%s;port=%s;dbname=%s',
             \BinktermPHP\Config::env('DB_HOST', 'localhost'),
-            \BinktermPHP\Config::env('DB_PORT', '5432')
+            \BinktermPHP\Config::env('DB_PORT', '5432'),
+            \BinktermPHP\Config::getTestDatabaseName()
         );
         try {
             $candidate = new PDO($dsn, \BinktermPHP\Config::env('DB_USER', 'postgres'), \BinktermPHP\Config::env('DB_PASS', ''), [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             ]);
         } catch (PDOException $e) {
-            self::markTestSkipped('binktermphp_test database not reachable: ' . $e->getMessage());
+            self::markTestSkipped('test database not reachable: ' . $e->getMessage());
         }
-        if ($candidate->query('SELECT current_database()')->fetchColumn() !== 'binktermphp_test') {
+        if ($candidate->query('SELECT current_database()')->fetchColumn() !== \BinktermPHP\Config::getTestDatabaseName()) {
             throw new RuntimeException('Refusing to run throttle tests against a non-test database');
         }
 
