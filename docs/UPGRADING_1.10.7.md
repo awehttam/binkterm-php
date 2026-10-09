@@ -14,12 +14,11 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Mandatory Preview Before Syncing Areas](#mandatory-preview-before-syncing-areas)
   - [Data-Driven Grammar Definitions](#data-driven-grammar-definitions)
   - [Per-Uplink Format Memory](#per-uplink-format-memory)
+  - [Automatic Area Sync on Reply Now Opt-In](#automatic-area-sync-on-reply-now-opt-in)
+  - [Fixed: AreaFix Sync Set an Override Address on Echo Areas](#fixed-areafix-sync-set-an-override-address-on-echo-areas)
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
   - [Log Rotation by Size](#log-rotation-by-size)
-- [AreaFix / FileFix](#areafix--filefix)
-  - [Automatic Area Sync on Reply Now Opt-In](#automatic-area-sync-on-reply-now-opt-in)
-  - [Fixed: AreaFix Sync Set an Override Address on Echo Areas](#fixed-areafix-sync-set-an-override-address-on-echo-areas)
 - [Web Interface](#web-interface)
   - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
 - [Web Doors](#web-doors)
@@ -61,16 +60,13 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Mandatory preview before syncing areas:** clicking "Sync Areas to Local BBS" (from the latest reply, or from any individual incoming message in the Message History table) now shows a preview of exactly which areas will be created, reactivated, deactivated, or left unchanged. Nothing is written to the database until this preview is explicitly confirmed.
 - **Data-driven grammar definitions:** a new **Admin -> Area Management -> AreaFix Grammars** page lets a sysop teach AreaFix a new hub reply format without a code change, either by hand or by pasting a sample reply and asking the built-in AI assistant to suggest one. Suggestions are always added disabled for review before saving.
 - **Per-uplink format memory:** BinktermPHP now remembers which reply format last matched each hub's confirmed sync, tries that format first on the hub's next reply, and flags it on the preview screen if the format changes unexpectedly. The remembered format for each uplink can be viewed, forced, or cleared from **Admin -> BBS Settings -> BinkP Uplinks -> Edit Uplink**.
+- **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
+- **Fixed: AreaFix sync set an override address on echo areas:** syncing areas from a hub's AreaFix reply filled in the echo area's **Uplink Address** ("Override Uplink FidoNet address") field on every area it created or touched. The sync no longer sets it, and deactivating areas missing from the hub's list is now scoped by network domain and tag instead of by that address.
 
 ### Administration
 
 - **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
 - **Log rotation by size:** `scripts/logrotate.php` has a new `--max-size` option that rotates only logs that have grown past a size, so the script can run often without touching small logs. Docker installs can set `LOGROTATE_MAX_SIZE` to use it. The script also gained `--logs-dir`, and lowering `--keep` now removes the extra old generations on the next run.
-
-### AreaFix / FileFix
-
-- **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
-- **Fixed: AreaFix sync set an override address on echo areas:** syncing areas from a hub's AreaFix reply filled in the echo area's **Uplink Address** ("Override Uplink FidoNet address") field on every area it created or touched. The sync no longer sets it, and deactivating areas missing from the hub's list is now scoped by network domain and tag instead of by that address.
 
 ### Web Interface
 
@@ -183,6 +179,28 @@ A given hub's AreaFix/FileFix robot always replies in the same format, so Binkte
 
 The remembered format for each uplink is visible and directly editable from **Admin -> BBS Settings -> BinkP Uplinks -> Edit Uplink**: a "Remembered Reply Format" panel shows the current format for AreaFix and FileFix, with buttons to force it to a specific format or clear it. Clearing is useful after you've confirmed a hub's format really did change; forcing is useful to pre-seed a known format for a brand-new uplink before its first reply arrives.
 
+### Automatic Area Sync on Reply Now Opt-In
+
+When your BBS receives a netmail reply from a hub's AreaFix or FileFix robot that looks like an area list (for example, the response to a `%LIST` or `%QUERY` command), BinktermPHP can automatically create matching `echoareas` or `file_areas` rows and activate them, using the descriptions the hub reports.
+
+Starting with this release, that automatic sync is **disabled by default**. Incoming AreaFix/FileFix replies are still stored and viewable as normal netmail; they simply no longer create or activate local areas on their own. Sysops who want to review and apply a hub's area list continue to do so from **Admin -> AreaFix / FileFix**, using the **Sync to Echo Areas** button on a parsed reply.
+
+If you relied on the previous automatic behavior — for example, to pick up new areas from your hub without visiting the admin page — set the following in `.env` to restore it:
+
+```
+AREAFIX_AUTOIMPORT_ENABLED=true
+```
+
+### Fixed: AreaFix Sync Set an Override Address on Echo Areas
+
+Each echo area has an optional **Uplink Address** field in **Admin -> Echo Areas**, described as "Override Uplink FidoNet address". When it is empty, echomail for that area is sent to the uplink configured for the area's network. When it is set, echomail for that area is sent to that address instead, which is only wanted when a sysop deliberately routes one area differently.
+
+Syncing areas from an AreaFix reply (the **Sync to Echo Areas** button, or automatic sync when `AREAFIX_AUTOIMPORT_ENABLED=true`) was filling this field in with the hub's address on every area it created, and on existing areas where it was empty. Newly created echo areas therefore appeared to have an override that nobody had set. The sync no longer writes this field.
+
+When the *deactivate missing* option is used, it now deactivates active areas in the same network domain whose tag is not in the hub's list. Previously it only considered areas whose Uplink Address matched the hub, which would have skipped areas that have no override.
+
+Echo areas that were already given an Uplink Address by an earlier sync keep it, because it cannot be distinguished from an address a sysop entered on purpose. If you see an override you did not intend, open the area in **Admin -> Echo Areas** and clear the **Uplink Address** field.
+
 ## Administration
 
 ### Fixed: user-manager.php create Command
@@ -211,30 +229,6 @@ php scripts/logrotate.php --keep=5 --max-size=10M
 To cap a fast-growing log, schedule the script more often and let `--max-size` decide what is rotated. For example, an hourly cron entry with `--keep=5 --max-size=10M` leaves small logs alone.
 
 **Docker:** the container's log rotation job accepts an optional `LOGROTATE_MAX_SIZE`, for example `10M`, which is passed to the script as `--max-size`. Set it in the `environment` section of `docker-compose.override.yml`, and also set `LOGROTATE_SCHEDULE` to something more frequent than the weekly default (`0 0 * * 0`). A value that is not a number with an optional `K`, `M` or `G` suffix is ignored, with a warning in the container log. When it is unset, behavior is unchanged. See [DOCKER.md](DOCKER.md) and [CLI.md](CLI.md).
-
-## AreaFix / FileFix
-
-### Automatic Area Sync on Reply Now Opt-In
-
-When your BBS receives a netmail reply from a hub's AreaFix or FileFix robot that looks like an area list (for example, the response to a `%LIST` or `%QUERY` command), BinktermPHP can automatically create matching `echoareas` or `file_areas` rows and activate them, using the descriptions the hub reports.
-
-Starting with this release, that automatic sync is **disabled by default**. Incoming AreaFix/FileFix replies are still stored and viewable as normal netmail; they simply no longer create or activate local areas on their own. Sysops who want to review and apply a hub's area list continue to do so from **Admin -> AreaFix / FileFix**, using the **Sync to Echo Areas** button on a parsed reply.
-
-If you relied on the previous automatic behavior — for example, to pick up new areas from your hub without visiting the admin page — set the following in `.env` to restore it:
-
-```
-AREAFIX_AUTOIMPORT_ENABLED=true
-```
-
-### Fixed: AreaFix Sync Set an Override Address on Echo Areas
-
-Each echo area has an optional **Uplink Address** field in **Admin -> Echo Areas**, described as "Override Uplink FidoNet address". When it is empty, echomail for that area is sent to the uplink configured for the area's network. When it is set, echomail for that area is sent to that address instead, which is only wanted when a sysop deliberately routes one area differently.
-
-Syncing areas from an AreaFix reply (the **Sync to Echo Areas** button, or automatic sync when `AREAFIX_AUTOIMPORT_ENABLED=true`) was filling this field in with the hub's address on every area it created, and on existing areas where it was empty. Newly created echo areas therefore appeared to have an override that nobody had set. The sync no longer writes this field.
-
-When the *deactivate missing* option is used, it now deactivates active areas in the same network domain whose tag is not in the hub's list. Previously it only considered areas whose Uplink Address matched the hub, which would have skipped areas that have no override.
-
-Echo areas that were already given an Uplink Address by an earlier sync keep it, because it cannot be distinguished from an address a sysop entered on purpose. If you see an override you did not intend, open the area in **Admin -> Echo Areas** and clear the **Uplink Address** field.
 
 ## Web Interface
 
