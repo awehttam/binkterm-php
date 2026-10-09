@@ -1258,7 +1258,7 @@ PacketBBS writes operational logs to:
 data/logs/packetbbs.log
 ```
 
-This log includes command routing and high-level errors. TOTP codes are never logged.
+This log includes recognized command names, sender/bridge context, and high-level errors. Command arguments and unrecognized free-form input are omitted; login events do not echo submitted usernames. Successful logins identify the database user ID. TOTP codes are never logged.
 
 ## Related Systems
 
