@@ -597,7 +597,11 @@
             // Build each row defined in the profile
             profile.rows.forEach((rowDefs, rowIdx) => {
                 const rowEl = document.createElement('div');
-                rowEl.className = 'binkterm-toolbar-row' + (rowIdx === 2 ? ' binkterm-toolbar-hotkeys' : '');
+                let rowCls = 'binkterm-toolbar-row';
+                if (rowIdx === 0) rowCls += ' binkterm-row-system';
+                else if (rowIdx === 1) rowCls += ' binkterm-row-gameplay';
+                else if (rowIdx === 2) rowCls += ' binkterm-toolbar-hotkeys binkterm-row-hotkeys';
+                rowEl.className = rowCls;
 
                 rowDefs.forEach(def => {
                     if (def.type === 'zoom') {
