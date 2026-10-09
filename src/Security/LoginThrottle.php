@@ -17,7 +17,8 @@ use PDO;
  * TLS-Telnet and SSH daemons by proxying the credential check through it -- so
  * one throttle there covers all four transports. FTP, NNTP and QWK Basic-auth
  * call the deeper Auth::authenticateCredentials() primitive outside this HTTP
- * context and are deliberately NOT in scope here.
+ * context and are deliberately NOT in scope here. The QWK-over-HTTP Basic-auth
+ * helper in routes/web-routes.php applies this same throttle explicitly.
  *
  * Two independent rolling-window failure counters, both keyed off values the
  * route already has:
@@ -67,6 +68,8 @@ final class LoginThrottle
     private const IDENTIFIER_MAX_LEN = 255;
 
     private PDO $db;
+    /** @var array<string,string> normalized input => canonical counter key */
+    private array $canonicalCache = [];
     private int $userMax;
     private int $ipMax;
     private int $windowSeconds;
@@ -123,14 +126,20 @@ final class LoginThrottle
      */
     public function isAllowed(string $identifier, string $ip): bool
     {
-        $idKey = self::normalizeIdentifier($identifier);
-        if ($idKey !== '' && $this->identifierFailures($idKey) >= $this->userMax) {
-            return false;
-        }
+        try {
+            $idKey = $this->canonicalIdentifier($identifier);
+            if ($idKey !== '' && $this->identifierFailures($idKey) >= $this->userMax) {
+                return false;
+            }
 
-        $ipKey = self::normalizeIp($ip);
-        if ($ipKey !== '' && $this->ipFailures($ipKey) >= $this->ipMax) {
-            return false;
+            $ipKey = self::throttleIpKey($ip);
+            if ($ipKey !== '' && $this->ipFailures($ipKey) >= $this->ipMax) {
+                return false;
+            }
+        } catch (\Throwable $e) {
+            // Fail open: a broken throttle (e.g. the migration has not run yet)
+            // must not lock every user out.
+            self::logFailure('isAllowed', $e);
         }
 
         return true;
@@ -144,13 +153,17 @@ final class LoginThrottle
      */
     public function recordFailure(string $identifier, string $ip): void
     {
-        $stmt = $this->db->prepare(
-            'INSERT INTO auth_login_attempts (identifier_key, ip_key, success) VALUES (?, ?, FALSE)'
-        );
-        $stmt->execute([
-            self::normalizeIdentifier($identifier),
-            self::normalizeIp($ip),
-        ]);
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO auth_login_attempts (identifier_key, ip_key, success) VALUES (?, ?, FALSE)'
+            );
+            $stmt->execute([
+                $this->canonicalIdentifier($identifier),
+                self::throttleIpKey($ip),
+            ]);
+        } catch (\Throwable $e) {
+            self::logFailure('recordFailure', $e);
+        }
     }
 
     /**
@@ -160,14 +173,18 @@ final class LoginThrottle
      */
     public function recordSuccess(string $identifier): void
     {
-        $idKey = self::normalizeIdentifier($identifier);
-        if ($idKey === '') {
-            return;
+        try {
+            $idKey = $this->canonicalIdentifier($identifier);
+            if ($idKey === '') {
+                return;
+            }
+            $stmt = $this->db->prepare(
+                'UPDATE auth_login_attempts SET success = TRUE WHERE identifier_key = ? AND success = FALSE'
+            );
+            $stmt->execute([$idKey]);
+        } catch (\Throwable $e) {
+            self::logFailure('recordSuccess', $e);
         }
-        $stmt = $this->db->prepare(
-            'UPDATE auth_login_attempts SET success = TRUE WHERE identifier_key = ? AND success = FALSE'
-        );
-        $stmt->execute([$idKey]);
     }
 
     /**
@@ -199,6 +216,71 @@ final class LoginThrottle
     public function windowSeconds(): int
     {
         return $this->windowSeconds;
+    }
+
+    /**
+     * Counter key for a submitted identifier. Auth::authenticateCredentials()
+     * accepts either the username or the real name for the same account, so a
+     * key based only on the submitted string would give each spelling its own
+     * budget. When the identifier matches an active account the key is that
+     * account's normalized username; otherwise it is the normalized input.
+     */
+    private function canonicalIdentifier(string $identifier): string
+    {
+        $normalized = self::normalizeIdentifier($identifier);
+        if ($normalized === '') {
+            return '';
+        }
+        if (isset($this->canonicalCache[$normalized])) {
+            return $this->canonicalCache[$normalized];
+        }
+
+        $key = $normalized;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT username FROM users
+                 WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND is_active = TRUE
+                 LIMIT 1'
+            );
+            $stmt->execute([$identifier, $identifier]);
+            $username = $stmt->fetchColumn();
+            if (is_string($username) && $username !== '') {
+                $key = self::normalizeIdentifier($username);
+            }
+        } catch (\Throwable $e) {
+            // Fall back to the normalized input.
+        }
+
+        return $this->canonicalCache[$normalized] = $key;
+    }
+
+    /**
+     * IP counter key, or '' when the IP cannot meaningfully identify a caller.
+     * Loopback and the server's own address are skipped: when
+     * TERMINAL_REGISTRATION_SECRET is not configured every telnet/SSH session
+     * resolves to the server's address, and a shared counter would let one
+     * user lock out all terminal logins. The per-account counter still applies.
+     */
+    private static function throttleIpKey(string $ip): string
+    {
+        $ipKey = self::normalizeIp($ip);
+        if ($ipKey === '') {
+            return '';
+        }
+        $serverAddr = (string)($_SERVER['SERVER_ADDR'] ?? '');
+        if ($ipKey === '::1' || strpos($ipKey, '127.') === 0 || ($serverAddr !== '' && $ipKey === $serverAddr)) {
+            return '';
+        }
+        return $ipKey;
+    }
+
+    private static function logFailure(string $operation, \Throwable $e): void
+    {
+        try {
+            getServerLogger()->error('[LoginThrottle] ' . $operation . ' failed, continuing without throttle: ' . $e->getMessage());
+        } catch (\Throwable $ignored) {
+            // Logging must never break authentication.
+        }
     }
 
     private function identifierFailures(string $idKey): int

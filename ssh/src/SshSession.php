@@ -705,7 +705,7 @@ class SshSession
      */
     private function terminalClientIpHeaders(): array
     {
-        $terminalSecret = trim((string) \BinktermPHP\Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+        $terminalSecret = \BinktermPHP\Config::terminalRegistrationSecret();
         if ($terminalSecret === ''
             || $this->peerIp === null
             || filter_var($this->peerIp, FILTER_VALIDATE_IP) === false) {

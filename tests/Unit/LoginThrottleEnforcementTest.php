@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../ssh/src/SshStreamWrapper.php';
 require_once __DIR__ . '/../../ssh/src/SshSession.php';
 require_once __DIR__ . '/../../ssh/src/SshServer.php';
 
+use BinktermPHP\Security\LoginThrottle;
 use BinktermPHP\SshServer\SshSession;
 use PHPUnit\Framework\TestCase;
 
@@ -113,8 +114,8 @@ final class LoginThrottleEnforcementTest extends TestCase
         // The public QWK-over-HTTP Basic-auth helper calls
         // Auth::authenticateCredentials() directly, bypassing /api/auth/login.
         // It must apply the same shared throttle around that call.
-        $src = file_get_contents(__DIR__ . '/../../routes/web-routes.php');
-        self::assertIsString($src);
+        $src = str_replace("\r\n", "\n", (string)file_get_contents(__DIR__ . '/../../routes/web-routes.php'));
+        self::assertNotSame('', $src);
 
         $start = strpos($src, 'function requireBasicAuthUser(');
         self::assertNotFalse($start);
@@ -235,6 +236,28 @@ final class LoginThrottleEnforcementTest extends TestCase
         $method->setAccessible(true);
 
         return $method->invoke($session);
+    }
+
+    public function testThrottleIpKeySkipsLoopbackAndServerAddress(): void
+    {
+        $rm = new ReflectionMethod(LoginThrottle::class, 'throttleIpKey');
+        $rm->setAccessible(true);
+
+        $saved = $_SERVER['SERVER_ADDR'] ?? null;
+        $_SERVER['SERVER_ADDR'] = '203.0.113.5';
+        try {
+            self::assertSame('', $rm->invoke(null, '127.0.0.1'));
+            self::assertSame('', $rm->invoke(null, '::1'));
+            self::assertSame('', $rm->invoke(null, '203.0.113.5'));
+            self::assertSame('', $rm->invoke(null, 'not-an-ip'));
+            self::assertSame('198.51.100.7', $rm->invoke(null, '198.51.100.7'));
+        } finally {
+            if ($saved === null) {
+                unset($_SERVER['SERVER_ADDR']);
+            } else {
+                $_SERVER['SERVER_ADDR'] = $saved;
+            }
+        }
     }
 
     private function methodSource(string $method): string

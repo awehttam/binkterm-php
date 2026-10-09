@@ -214,9 +214,20 @@ protection.
 The public QWK-over-HTTP Basic-auth endpoints (`/qwk/download`, `/qwk/upload`)
 authenticate outside `/api/auth/login`, so they apply the same counters,
 thresholds and `auth_login_attempts` table directly around their credential
-check. The FTP and NNTP transports are not throttled here — neither daemon is
-run or exposed in the default deployment; if you enable one, put a
-transport-level control in front of it.
+check. The FTP and NNTP daemons do the same around their own credential
+checks, using the connecting client's IP address (anonymous FTP has no
+credentials and is not throttled). A throttled FTP attempt gets the normal
+`530 Login incorrect` reply and a throttled NNTP attempt gets
+`481 Authentication failed`.
+
+The username counter is keyed on the account, not the submitted text: logging in
+by username and by real name for the same account share one counter. Loopback
+and the server's own address are not counted against the IP limit, so when
+`TERMINAL_REGISTRATION_SECRET` is unset (every telnet/SSH session then appears
+to come from the server) one user cannot lock out all terminal logins; the
+per-account limit still applies. If the throttle cannot reach the database (for
+example the migration has not run) logins proceed unthrottled and the error is
+written to the server log.
 
 ### Gemini Capsule Daemon
 

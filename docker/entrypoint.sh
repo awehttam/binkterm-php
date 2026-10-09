@@ -68,7 +68,7 @@ fi
 # "Chang3Me" is not accepted as a secret, so when it is unset or still the
 # default, reuse a previously generated value (so a restart doesn't rotate it)
 # or generate a random one. Web and terminal daemons read the same .env.
-SRC_TERMINAL_SECRET=$(grep '^TERMINAL_REGISTRATION_SECRET=' "$SRC" | tail -1 | cut -d= -f2-)
+SRC_TERMINAL_SECRET=$(grep '^TERMINAL_REGISTRATION_SECRET=' "$SRC" | tail -1 | cut -d= -f2- | tr -d '"' | sed "s/^'//; s/'$//")
 if [ -z "$SRC_TERMINAL_SECRET" ] || [ "$SRC_TERMINAL_SECRET" = "Chang3Me" ]; then
     EXISTING_TERMINAL_SECRET=""
     if [ -f /var/www/html/.env ]; then
