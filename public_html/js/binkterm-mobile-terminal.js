@@ -96,7 +96,7 @@
                 name: 'Operation Overkill II',
                 shortName: 'OOII',
                 desc: 'N/S/E/W D-Pad, Large Combat Space, * Back',
-                matches: ['ooii', 'overkill', 'test-ooii', 'bbslink-ooii'],
+                matches: ['ooii', 'oo2', 'overkill', 'test-ooii', 'bbslink-ooii', 'operation overkill'],
                 rows: [
                     // Row 1: Actions & System
                     [
@@ -384,7 +384,26 @@
                 }
             }
 
-            // 3. Match doorId or doorName against registered profile keywords
+            // 3. Fallback: try reading door title from parent frame or document if not supplied
+            if (!doorName) {
+                try {
+                    if (window.parent && window.parent !== window && window.parent.document) {
+                        const parentTitleEl = window.parent.document.querySelector('.door-title');
+                        if (parentTitleEl) {
+                            doorName = parentTitleEl.textContent;
+                        } else if (window.parent.document.title) {
+                            doorName = window.parent.document.title;
+                        }
+                    }
+                } catch (_) {}
+
+                if (!doorName) {
+                    const headerEl = document.querySelector('.door-header') || document.querySelector('h1, h2, h3, h4, h5, h6');
+                    doorName = (headerEl ? headerEl.textContent : '') + ' ' + (document.title || '');
+                }
+            }
+
+            // 4. Match doorId or doorName against registered profile keywords
             const checkStr = (doorId + ' ' + (doorName || '')).toLowerCase();
             for (const profileKey in BinktermMobileTerminalAddon.LAYOUT_PROFILES) {
                 const profile = BinktermMobileTerminalAddon.LAYOUT_PROFILES[profileKey];
@@ -559,7 +578,7 @@
             // Collapse/Expand Tab
             const tab = document.createElement('div');
             tab.className = 'binkterm-toolbar-tab';
-            tab.innerHTML = `<span class="tab-icon">▼</span> <span>Keys</span>`;
+            tab.innerHTML = `<span class="tab-icon">▼</span> <span class="tab-label">Hide</span>`;
             tab.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleCollapseToolbar();
@@ -598,9 +617,14 @@
             profile.rows.forEach((rowDefs, rowIdx) => {
                 const rowEl = document.createElement('div');
                 let rowCls = 'binkterm-toolbar-row';
-                if (rowIdx === 0) rowCls += ' binkterm-row-system';
-                else if (rowIdx === 1) rowCls += ' binkterm-row-gameplay';
-                else if (rowIdx === 2) rowCls += ' binkterm-toolbar-hotkeys binkterm-row-hotkeys';
+                if (rowIdx === 0) {
+                    rowCls += ' binkterm-row-system';
+                } else if (rowIdx === 1) {
+                    rowCls += ' binkterm-row-gameplay';
+                } else if (rowIdx === 2) {
+                    const hasHotkeys = rowDefs.some(d => d.cls && d.cls.includes('btn-hotkey'));
+                    rowCls += hasHotkeys ? ' binkterm-toolbar-hotkeys binkterm-row-hotkeys' : ' binkterm-row-numbers';
+                }
                 rowEl.className = rowCls;
 
                 rowDefs.forEach(def => {
@@ -944,8 +968,12 @@
             this.toolbarCollapsed = !this.toolbarCollapsed;
             this.toolbarElement.classList.toggle('is-collapsed', this.toolbarCollapsed);
             const tabIcon = this.toolbarElement.querySelector('.tab-icon');
+            const tabLabel = this.toolbarElement.querySelector('.tab-label');
             if (tabIcon) {
                 tabIcon.textContent = this.toolbarCollapsed ? '▲' : '▼';
+            }
+            if (tabLabel) {
+                tabLabel.textContent = this.toolbarCollapsed ? 'Keys' : 'Hide';
             }
             this.saveConfig({ toolbarCollapsed: this.toolbarCollapsed });
             setTimeout(this._boundRescale, 150);

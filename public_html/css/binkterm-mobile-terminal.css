@@ -212,21 +212,24 @@
     flex: 0 0 auto !important;
     background: #141426 !important;
     border-top: 1px solid #2e2e4a !important;
-    padding: 8px 8px calc(env(safe-area-inset-bottom, 12px) + 8px) 8px !important;
+    padding: 6px 4px calc(env(safe-area-inset-bottom, 10px) + 6px) 4px !important;
     z-index: 100 !important;
-    transition: max-height 0.25s ease-in-out;
     display: flex !important;
     flex-direction: column !important;
-    gap: 6px !important;
+    gap: 4px !important;
     box-sizing: border-box !important;
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.45) !important;
+    overflow: visible !important;
 }
 
 .binkterm-mobile-toolbar.is-collapsed {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    height: 24px !important;
-    overflow: hidden !important;
+    padding: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    border-top: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    overflow: visible !important;
 }
 
 .binkterm-mobile-toolbar.is-collapsed .binkterm-toolbar-row {
@@ -236,12 +239,18 @@
 /* Collapse/Expand pull tab & Layout badge */
 .binkterm-toolbar-tab-wrapper {
     position: absolute;
-    top: -26px;
+    top: -28px;
     right: 8px;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     z-index: 101;
+    pointer-events: auto;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-toolbar-tab-wrapper {
+    top: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 6px) + 4px) !important;
 }
 
 .binkterm-toolbar-tab {
@@ -250,18 +259,32 @@
     border-bottom: none;
     border-radius: 6px 6px 0 0;
     color: #9999bb;
-    padding: 3px 10px;
+    padding: 4px 10px;
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 4px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .binkterm-toolbar-tab:active {
     background: #252540;
     color: #fff;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-toolbar-tab {
+    border: 1px solid #3c3c6a !important;
+    border-radius: 6px !important;
+    background: #181830 !important;
+    color: #ffd700 !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.7) !important;
+    padding: 6px 14px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
 }
 
 .binkterm-layout-pill {
@@ -270,7 +293,7 @@
     border-bottom: none;
     border-radius: 6px 6px 0 0;
     color: #99bbff;
-    padding: 3px 10px;
+    padding: 4px 10px;
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
@@ -278,6 +301,9 @@
     align-items: center;
     gap: 4px;
     letter-spacing: 0.3px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .binkterm-layout-pill:active {
@@ -285,19 +311,23 @@
     color: #fff;
 }
 
+.binkterm-mobile-toolbar.is-collapsed .binkterm-layout-pill {
+    border: 1px solid #3c3c6a !important;
+    border-radius: 6px !important;
+    background: #1b1b36 !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.7) !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+}
+
 /* Toolbar Rows */
 .binkterm-toolbar-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
+    justify-content: flex-start;
+    gap: 4px;
     width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-}
-.binkterm-toolbar-row::-webkit-scrollbar {
-    display: none;
+    box-sizing: border-box;
 }
 
 /* Key Buttons Base */
@@ -310,11 +340,10 @@
     border: 1px solid #3d3d5c;
     border-radius: 7px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
-    min-width: 40px;
     height: 48px;
-    padding: 0 8px;
+    padding: 0 4px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -325,6 +354,7 @@
     transition: background 0.1s, transform 0.05s, box-shadow 0.05s;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 .binkterm-key-btn:active,
@@ -335,38 +365,102 @@
     box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
-/* Row 1: System, Actions, Contrast & Zoom */
+/* Row 1: System, Actions, Contrast & Zoom - Full width proportional distribution */
 .binkterm-row-system {
-    gap: 5px;
+    justify-content: space-between !important;
+    gap: 3px !important;
+    overflow-x: hidden !important;
 }
 .binkterm-row-system .binkterm-key-btn {
-    height: 46px;
-    min-width: 38px;
-    font-size: 14px;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 44px !important;
+    padding: 0 2px !important;
+    font-size: 13px !important;
+}
+.binkterm-row-system .btn-enter {
+    flex: 1.5 1 0 !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+}
+.binkterm-row-system .btn-action,
+.binkterm-row-system .btn-back-key {
+    flex: 1.2 1 0 !important;
+    font-size: 13px !important;
+}
+.binkterm-row-system .btn-utility {
+    flex: 0.8 1 0 !important;
+    font-size: 15px !important;
+}
+.binkterm-row-system .binkterm-zoom-group {
+    flex: 1.8 1 0 !important;
+    min-width: 0 !important;
+    height: 44px !important;
 }
 
-/* Row 2: Gameplay D-Pad & Primary Movement/Actions (Primary Thumb Zone) */
+/* Row 2: Gameplay D-Pad & Actions (Primary Thumb Zone) - Full width proportional distribution */
 .binkterm-row-gameplay {
-    gap: 6px;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    overflow-x: hidden !important;
 }
 .binkterm-row-gameplay .binkterm-key-btn {
-    height: 52px;
-    min-width: 46px;
-    font-size: 16px;
-    font-weight: 700;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 50px !important;
+    padding: 0 2px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+}
+.binkterm-row-gameplay .btn-nav {
+    flex: 1.15 1 0 !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+}
+.binkterm-row-gameplay .btn-space-combat {
+    flex: 2.3 1 0 !important;
+    min-width: 0 !important;
+    height: 50px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.5px !important;
 }
 
-/* Row 3: Numbers & RPG Hotkeys */
+/* Row 3 (Numbers only): Full width proportional distribution across 10 keys */
+.binkterm-row-numbers {
+    justify-content: space-between !important;
+    gap: 2px !important;
+    overflow-x: hidden !important;
+}
+.binkterm-row-numbers .binkterm-key-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    padding: 0 !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+}
+
+/* Row 3 (Numbers + Hotkeys): Touch-scrollable carousel anchored to left edge */
 .binkterm-row-hotkeys {
-    gap: 4px;
-    justify-content: flex-start;
-    padding: 2px 0;
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    gap: 3px !important;
+    padding: 2px 2px !important;
+    width: 100%;
+}
+.binkterm-row-hotkeys::-webkit-scrollbar {
+    display: none !important;
 }
 .binkterm-row-hotkeys .binkterm-key-btn {
-    min-width: 36px;
-    height: 42px;
-    font-size: 14px;
-    border-radius: 6px;
+    flex: 0 0 34px !important;
+    min-width: 34px !important;
+    height: 42px !important;
+    font-size: 14px !important;
+    border-radius: 6px !important;
+    padding: 0 !important;
 }
 
 /* Specialized Buttons */
@@ -386,8 +480,6 @@
     border-color: #6d2f39;
     color: #ff99a5;
     font-weight: 800;
-    min-width: 46px;
-    font-size: 13px;
 }
 .binkterm-key-btn.btn-esc:active {
     background: #6d2f39;
@@ -399,8 +491,6 @@
     border-color: #2b6342;
     color: #8ae3af;
     font-weight: 800;
-    min-width: 62px;
-    font-size: 13px;
     letter-spacing: 0.5px;
 }
 .binkterm-key-btn.btn-enter:active {
@@ -412,9 +502,6 @@
     background: #282848;
     border-color: #444470;
     color: #ffffff;
-    font-size: 18px;
-    font-weight: 800;
-    min-width: 48px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
 }
 
@@ -422,14 +509,11 @@
     background: #1c1c2e;
     border-color: #383854;
     color: #b0b0cc;
-    font-size: 16px;
-    min-width: 38px;
 }
 
 .binkterm-key-btn.btn-contrast-key {
     color: #ffd700;
     font-weight: 700;
-    font-size: 16px;
 }
 
 .binkterm-key-btn.btn-hotkey {
@@ -437,7 +521,6 @@
     border-color: #3f3f68;
     color: #ffcc00;
     font-weight: 700;
-    min-width: 36px;
 }
 .binkterm-key-btn.btn-hotkey:active {
     background: #3f3f68;
@@ -450,12 +533,7 @@
     border-color: #b83838 !important;
     color: #ffffff !important;
     font-weight: 800 !important;
-    min-width: 120px !important;
-    height: 52px !important;
-    font-size: 13px !important;
-    letter-spacing: 0.8px;
     box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
-    flex-grow: 1;
 }
 .binkterm-key-btn.btn-space-combat:active,
 .binkterm-key-btn.btn-space-combat.is-active {
@@ -469,8 +547,6 @@
     border-color: #8b5118 !important;
     color: #ffe099 !important;
     font-weight: 800 !important;
-    min-width: 60px !important;
-    font-size: 14px !important;
 }
 .binkterm-key-btn.btn-back-key:active,
 .binkterm-key-btn.btn-back-key.is-active {
@@ -483,7 +559,7 @@
     width: 1px;
     height: 28px;
     background: #3c3c58;
-    margin: 0 3px;
+    margin: 0 2px;
     flex-shrink: 0;
 }
 
@@ -496,16 +572,15 @@
     border-radius: 7px;
     overflow: hidden;
     flex-shrink: 0;
-    height: 46px;
 }
 
 .binkterm-zoom-group button {
     background: none;
     border: none;
     color: #aaaabf;
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 700;
-    padding: 0 10px;
+    padding: 0 6px;
     height: 100%;
     cursor: pointer;
     touch-action: manipulation;
@@ -515,12 +590,12 @@
     color: #fff;
 }
 .binkterm-zoom-group span {
-    font-size: 12px;
+    font-size: 11px;
     color: #8888aa;
-    padding: 0 6px;
+    padding: 0 2px;
     font-family: monospace;
     font-weight: 700;
-    min-width: 36px;
+    min-width: 28px;
     text-align: center;
 }
 
