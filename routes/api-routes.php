@@ -191,6 +191,27 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    /**
+     * GET /api/auth/csrf-token
+     *
+     * Returns the current session's per-user CSRF token. The token is rotated
+     * on every login of the same user (Auth::createAuthenticatedSession), so a
+     * page or terminal session that cached it can become stale when the user
+     * logs in elsewhere; clients call this once to re-sync after a 403
+     * errors.auth.invalid_csrf_token and retry. Read-only: it never rotates the
+     * token, and it discloses nothing beyond what every authenticated page
+     * render already embeds (meta csrf-token); cross-origin pages cannot read
+     * the response.
+     */
+    SimpleRouter::get('/auth/csrf-token', function() {
+        header('Content-Type: application/json');
+        header('Cache-Control: no-store');
+        $user = RouteHelper::requireAuth();
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        echo json_encode(['success' => true, 'csrf_token' => (new UserMeta())->getValue($userId, 'csrf_token')]);
+    });
+
     SimpleRouter::post('/auth/logout', function() {
         header('Content-Type: application/json');
 

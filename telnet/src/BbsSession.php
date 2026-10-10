@@ -399,6 +399,7 @@ class BbsSession
         $loginTime = time();
 
         $state['csrf_token'] = $loginResult['csrf_token'] ?? null;
+        TelnetUtils::setCsrfToken($state['csrf_token']);
 
         $initResp = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/config/session-init', null, $session);
         $initData = $initResp['data'] ?? [];
