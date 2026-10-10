@@ -48,6 +48,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Auto Feed Verifies TLS and Allows Only http(s) Feeds](#auto-feed-verifies-tls-and-allows-only-https-feeds)
   - [Telnet TLS Offers TLS 1.3 and Validates Your Certificate](#telnet-tls-offers-tls-13-and-validates-your-certificate)
   - [Login Takes the Same Time for Unknown Usernames](#login-takes-the-same-time-for-unknown-usernames)
+  - [WebDoor API Only Serves Installed, Enabled Games](#webdoor-api-only-serves-installed-enabled-games)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -116,6 +117,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Auto Feed verifies TLS and allows only http(s) feeds:** RSS and Atom feeds are now fetched with HTTPS certificate and host name verification, and only `http://` and `https://` URLs are accepted. A feed with an invalid or self-signed certificate now fails instead of being fetched.
 - **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable.
 - **Login takes the same time for unknown usernames:** a login with a username that does not exist used to fail faster than a login with a real username and a wrong password, which let anyone tell which accounts exist by timing the responses. Both failures now take about the same time.
+- **WebDoor API only serves installed, enabled games:** the session, storage and leaderboard endpoints used under `/api/webdoor/` now accept only a `game_id` that names an installed WebDoor which is enabled and whose requirements are met. Any other id gets a `404` and nothing is read or written. Before, any string was accepted and created session, save and leaderboard rows.
 
 ## Messaging
 
@@ -469,6 +471,16 @@ Checking a password is deliberately slow. When a login named an account that exi
 A login with an unknown username now checks the password against a placeholder hash that no password matches, using the same algorithm and cost that new passwords are stored with. A wrong password for a real account and any password for an unknown account therefore take about the same time and give the same error. The placeholder is built without hashing anything, so this adds no extra work per request beyond the one check.
 
 This applies to every place that checks a username and password: the web login, Telnet and SSH (which sign in through the web login), FTP, NNTP and QWK HTTP downloads.
+
+### WebDoor API Only Serves Installed, Enabled Games
+
+WebDoor games call `/api/webdoor/session`, `/api/webdoor/storage` and `/api/webdoor/leaderboard` to keep sessions, save slots and high scores. The game is identified by the `game_id` query parameter or, when that is absent, by the `/webdoors/{id}/` page in the request's referer. The API used to accept any value, and fell back to `unknown` when there was none, so a signed-in user could create session, save and leaderboard rows for a game that does not exist, is switched off, or does not meet its requirements.
+
+The id must now name an installed WebDoor, matched by its directory name or its manifest `game.id`, that is enabled and whose manifest requirements are met. The API then uses the manifest's own id, whichever of the two the request used. For any other id, or when no id can be determined, the API answers `404` with the error `errors.webdoor.game_unavailable` ("This game is not available") and reads or writes nothing.
+
+Rows already stored under ids that no longer match an installed WebDoor are left in place and are not served. A game that is disabled in **Admin -> WebDoors** stops being able to load or save data until it is enabled again.
+
+The error is a new key in `errors.php`, added to all six locales. See [WebDoors.md](WebDoors.md).
 
 
 ## Upgrade Instructions
