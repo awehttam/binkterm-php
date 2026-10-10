@@ -99,6 +99,8 @@ PacketBBS supports a bridge device serving more than one radio sender.
 
 If `bridge_node_id` is omitted, PacketBBS uses `node_id` for both authorization and the user session.
 
+A retained session is bound to its bridge. The first authorized command or pending-message poll claims a legacy session with no bridge binding; subsequent access through another bridge is denied without refreshing activity.
+
 Sessions are keyed by `node_id`, so multiple radio users behind one bridge can have separate login and compose state as long as the bridge sends their distinct sender IDs.
 
 ## Workflow: how PacketBBS fits into low-bandwidth access
@@ -139,8 +141,14 @@ Options:
 
 | Option | Default | Meaning |
 |---|---:|---|
-| `session_timeout_minutes` | `15` | Inactive authenticated sessions are cleared after this many minutes. The next command returns `Session expired. LOGIN again.` |
+| `session_timeout_minutes` | `15` | Inactive authenticated sessions are cleared after this many minutes. While the sender row is retained, the next command returns `Session expired. LOGIN again.` without executing the requested action. |
 | `allow_guest_who` | `true` | Allows unauthenticated users to run `WHO`. If false, `WHO` requires login. |
+
+Authentication expiry clears the user identity, linked online session, navigation context, drafts, and pending chat notifications. Drafts and context do not survive TOTP re-authentication. QUIT and successful LOGIN also discard unsent chat notifications from the previous authentication; ordinary same-user activity and delivered history are unaffected. Device commands use a separate queue. Session retrieval and bridge polling never refresh activity. Commands refresh activity only after expiry has been checked; the expired command consumes the notice and leaves the sender in clean guest state.
+
+A PacketBBS identity is also only as valid as the online session it is linked to (`packet_bbs_sessions.bbs_session_id` -> `user_sessions`). If that session is revoked elsewhere (an administrator kick, revoke-all, logout, expiry, or the account being deactivated), the next command or bridge poll fails closed: the identity, link, context, drafts and pending chat notifications are cleared exactly as on idle expiry, the command answers `Session expired. LOGIN again.` without executing the requested action, a poll delivers nothing and retains the notice for the next command, and no replacement online session is created. The caller must LOGIN again.
+
+Stale sender-row cleanup is separate from authentication expiry. `PACKETBBS_SESSION_RETENTION_SECONDS` in `.env` defaults to `86400` (24 hours); nonpositive values fall back to that default. There is no admin UI for this retention setting. Cleanup runs opportunistically during commands and may remove rows after that much inactivity. Expiry itself preserves the sender/bridge binding and inactivity timestamp, with a pending notice in the existing session state. Once cleanup has removed a stale row, the next contact creates a fresh guest session and no expiry notice is required. Radio contact records are independent of this session cleanup.
 
 Login failures are rate-limited per sender node: 5 failed attempts in 10 minutes blocks further attempts briefly. Successful login clears prior failures.
 
