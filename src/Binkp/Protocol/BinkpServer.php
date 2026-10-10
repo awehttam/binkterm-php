@@ -136,8 +136,13 @@ class BinkpServer
         $this->reapChildren();
         if (count($this->childPids) >= $this->config->getMaxConnections()) {
             $this->log('Maximum connections reached, rejecting new connection', 'WARNING');
-            $this->sendBusy($clientSocket, 'Maximum connections reached');
-            socket_close($clientSocket);
+            // sendBusy() takes over descriptor ownership (and closes it) as soon
+            // as it successfully exports the socket to a stream; only fall back
+            // to closing the raw socket here when that ownership transfer never
+            // happened.
+            if (!$this->sendBusy($clientSocket, 'Maximum connections reached')) {
+                socket_close($clientSocket);
+            }
             return;
         }
 
@@ -182,6 +187,7 @@ class BinkpServer
      */
     private function handleConnectionSync($clientSocket, $connectionId, $clientIP)
     {
+        $session = null;
         try {
             $stream = $this->socketToStream($clientSocket);
             $session = new BinkpSession($stream, false, $this->config);
@@ -225,7 +231,6 @@ class BinkpServer
                 $this->log("Handshake failed for {$clientIP} ({$connectionId})", 'ERROR');
             }
 
-            $session->close();
         } catch (\Throwable $e) {
             if (isset($sessionLogger)) {
                 $sessionLogger->endSession('failed', $e->getMessage());
@@ -233,7 +238,14 @@ class BinkpServer
             $this->log("Connection error for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
         }
 
-        if (is_resource($clientSocket)) {
+        // Once the accepted socket has been exported to a stream and handed to
+        // a BinkpSession, that session is the sole owner of the underlying
+        // descriptor (mirrors BinkpClient's ownership pattern) — socket_close()
+        // on the original resource must only run on the path where ownership
+        // was never transferred (socketToStream()/the session never got created).
+        if ($session) {
+            $session->close();
+        } elseif (is_resource($clientSocket)) {
             socket_close($clientSocket);
         }
     }
@@ -260,15 +272,33 @@ class BinkpServer
         }
     }
     
-    private function sendBusy($socket, $message)
+    /**
+     * @return bool True once the socket has been exported to a stream (that
+     *              stream then owns the descriptor and is closed here
+     *              regardless of whether the busy frame itself sent
+     *              successfully); false if the export never happened, so the
+     *              caller still owns the raw socket and must close it.
+     */
+    private function sendBusy($socket, $message): bool
     {
+        $stream = null;
         try {
             $stream = $this->socketToStream($socket);
             $frame = BinkpFrame::createCommand(BinkpFrame::M_BSY, $message);
             $frame->writeToSocket($stream);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            // Socket operations here (clearSocketTimeouts(), socket_export_stream())
+            // can throw \Error/\TypeError on PHP 8 (e.g. an already-closed
+            // socket) — not just \Exception — so this must catch the full
+            // \Throwable surface to avoid escaping into acceptConnection().
             $this->log("Failed to send busy message: " . $e->getMessage(), 'ERROR');
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
         }
+
+        return $stream !== null;
     }
     
     private function socketToStream($socket)
