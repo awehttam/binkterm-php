@@ -16,9 +16,14 @@ if (empty($doorId)) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Public Terminal</title>
+<?php
+$mobileAssetVer = (string)@filemtime(__DIR__ . '/js/binkterm-mobile-terminal.js') ?: '20261009_2';
+?>
+    <link rel="stylesheet" href="/vendor/fontawesome-6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/webdoors/terminal/assets/xterm.css">
+    <link rel="stylesheet" href="/css/binkterm-mobile-terminal.css?v=<?= htmlspecialchars($mobileAssetVer, ENT_QUOTES) ?>">
     <style>
         * {
             margin: 0;
@@ -30,29 +35,6 @@ if (empty($doorId)) {
             height: 100%;
             overflow: hidden;
             background: #000;
-        }
-
-        .terminal-controls {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            align-items: center;
-            padding: 5px 10px;
-            background: #1a1a2e;
-            height: 35px;
-            border-bottom: 1px solid #333;
-        }
-
-        #terminal-container {
-            position: absolute;
-            top: 35px;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            overflow: hidden;
         }
 
         #terminal-container .xterm {
@@ -159,18 +141,25 @@ if (empty($doorId)) {
 <body>
     <div class="terminal-controls">
         <h5 class="door-header" id="doorTitle">Public Terminal</h5>
-        <div id="connectionStatus" class="connection-status status-disconnected">
-            Status: Disconnected
+        <div class="terminal-controls-right">
+            <button id="contrastBtn" type="button" class="btn-contrast" title="Toggle High Contrast">
+                <i class="fas fa-adjust"></i> <span>Contrast</span>
+            </button>
+            <div id="connectionStatus" class="connection-status status-disconnected">
+                Status: Disconnected
+            </div>
+            <button id="leaveBtn">Leave</button>
         </div>
-        <button id="leaveBtn">Leave</button>
     </div>
     <div id="terminal-container"></div>
 
     <script src="/webdoors/terminal/assets/xterm.js"></script>
     <script src="/js/xterm-addon-fit.js"></script>
+    <script src="/js/binkterm-mobile-terminal.js?v=<?= htmlspecialchars($mobileAssetVer, ENT_QUOTES) ?>"></script>
     <script>
         let term = null;
         let fitAddon = null;
+        let mobileAddon = null;
         let socket = null;
         let doAutofit = false;
         let sessionId = null;
@@ -214,6 +203,30 @@ if (empty($doorId)) {
             fitAddon = new FitAddon.FitAddon();
             term.loadAddon(fitAddon);
             term.open(container);
+
+            // Prevent mouse wheel from generating spurious cursor escape sequences or mouse tracking
+            container.addEventListener('wheel', (e) => {
+                const vp = container.querySelector('.binkterm-mobile-viewport');
+                if (!vp || vp.scrollHeight <= vp.clientHeight) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            }, { capture: true, passive: false });
+
+            if (window.BinktermMobileTerminalAddon) {
+                mobileAddon = new BinktermMobileTerminalAddon({
+                    doorId: doorId,
+                    cols: 80,
+                    rows: 25,
+                    isNative: DOOR_IS_NATIVE,
+                    onKey: (data) => {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send(data);
+                        }
+                    }
+                });
+                term.loadAddon(mobileAddon);
+            }
             // Sizing is deferred to applyTerminalSize() once the session config is known
 
             term.onResize(({ cols, rows }) => {
@@ -389,6 +402,10 @@ if (empty($doorId)) {
         }
 
         function setFixedTerminalSize() {
+            if (mobileAddon) {
+                mobileAddon.rescale();
+                return;
+            }
             if (!term || !term.element) return;
             const core = term._core;
             if (!core || !core._renderService || !core._renderService.dimensions) return;
