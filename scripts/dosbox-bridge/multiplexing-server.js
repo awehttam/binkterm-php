@@ -150,9 +150,10 @@ const WS_PORT = parseInt(process.env.DOSDOOR_WS_PORT) || 6001;
 const WS_BIND_HOST = process.env.DOSDOOR_WS_BIND_HOST || '127.0.0.1';
 // These are safe to reload via SIGHUP — they take effect per-session/per-event.
 let DISCONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
-let RECONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 30; // seconds to hold session open for a page-refresh reconnect
+let RECONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 90; // seconds to hold session open for a page-refresh reconnect
 let DEBUG_KEEP_FILES = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true'; // Set to 'true' to disable cleanup
 let CARRIER_LOSS_TIMEOUT = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000; // ms to wait after carrier loss
+const WS_HEARTBEAT_INTERVAL_MS = parseInt(process.env.DOSDOOR_WS_HEARTBEAT_INTERVAL_MS) || 20000; // 20s WebSocket ping interval
 
 // Comma-separated list of proxy IPs whose X-Forwarded-For header is trusted.
 // Only connections originating from one of these addresses will have their
@@ -195,7 +196,7 @@ function reloadEnv() {
     require('dotenv').config({ path: __dirname + '/../../.env', override: true });
 
     const newDisconnectTimeout = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
-    const newReconnectTimeout = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 30;
+    const newReconnectTimeout = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 90;
     const newDebugKeepFiles = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true';
     const newCarrierLossTimeout = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000;
 
@@ -1041,6 +1042,13 @@ class SessionManager {
                     utf8Data = typeof data === 'string' ? data : data.toString('utf8');
                 }
 
+                // In MS-DOS ANSI.SYS, \x1b[2J clears screen AND homes cursor to (1,1).
+                // xterm.js (DEC VT100 standard) clears screen but preserves cursor position.
+                // For DOS/CP437 doors, translate \x1b[2J to \x1b[2J\x1b[H so layouts align correctly.
+                if (emulatorName === 'DOSBox' || emulatorName === 'Rlogin' || (emulatorName === 'Native' && session.emulator.outputEncoding === 'cp437')) {
+                    utf8Data = utf8Data.replace(/\x1b\[2J(?!\x1b\[H|\x1b\[1;1H|\x1b\[;H|\x1b\[1;1f)/g, '\x1b[2J\x1b[H');
+                }
+
                 if (session.ws && session.ws.readyState === WebSocket.OPEN) {
                     session.ws.send(utf8Data);
                 } else {
@@ -1062,7 +1070,10 @@ class SessionManager {
 
             // Convert CP437 (DOS) to UTF-8
             try {
-                const utf8Data = iconv.decode(data, 'cp437');
+                let utf8Data = iconv.decode(data, 'cp437');
+
+                // In MS-DOS ANSI.SYS, \x1b[2J clears screen AND homes cursor to (1,1).
+                utf8Data = utf8Data.replace(/\x1b\[2J(?!\x1b\[H|\x1b\[1;1H|\x1b\[;H|\x1b\[1;1f)/g, '\x1b[2J\x1b[H');
 
                 // Forward to WebSocket client if connected
                 if (session.ws && session.ws.readyState === WebSocket.OPEN) {
@@ -1088,16 +1099,45 @@ class SessionManager {
     setupWebSocketHandlers(session) {
         const { ws, sessionId } = session;
 
+        // Start heartbeat ping interval to prevent intermediate reverse proxies
+        // (Caddy, Cloudflare, Apache) or mobile browsers from dropping idle connections (code 1006).
+        if (session.heartbeatInterval) {
+            clearInterval(session.heartbeatInterval);
+        }
+        ws.isAlive = true;
+        ws.on('pong', () => {
+            ws.isAlive = true;
+        });
+
+        session.heartbeatInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                if (ws.isAlive === false) {
+                    session.slog.warn(`[WS] Heartbeat timeout - terminating unresponsive socket`);
+                    ws.terminate();
+                    return;
+                }
+                ws.isAlive = false;
+                ws.ping();
+            }
+        }, WS_HEARTBEAT_INTERVAL_MS);
+
         ws.on('message', (data) => {
+            ws.isAlive = true;
             session.bytesToEmulator += data.length;
 
             try {
                 const dataStr = data.toString('utf8');
 
-                // Intercept JSON control messages (e.g. terminal resize) before forwarding bytes
+                // Intercept JSON control messages (e.g. terminal resize, client keepalive) before forwarding bytes
                 if (dataStr.charCodeAt(0) === 0x7B) {
                     try {
                         const msg = JSON.parse(dataStr);
+                        if (msg.type === 'ping') {
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
+                            }
+                            return;
+                        }
                         if (msg.type === 'resize') {
                             if (session.emulator) {
                                 const cols = Math.max(20, Math.min(500, parseInt(msg.cols) || 80));
@@ -1137,6 +1177,10 @@ class SessionManager {
         });
 
         ws.on('close', (code, reason) => {
+            if (session.heartbeatInterval) {
+                clearInterval(session.heartbeatInterval);
+                session.heartbeatInterval = null;
+            }
             session.slog.log(`[WS] Client disconnected: ${code} ${reason}`);
             this.handleWebSocketDisconnect(session);
         });
@@ -1158,13 +1202,15 @@ class SessionManager {
         // Mark that DOSBox has exited (so WebSocket handler knows to clean up immediately)
         session.dosboxExited = true;
 
-        // Close WebSocket - this will trigger handleWebSocketDisconnect which does cleanup
-        if (session.ws && session.ws.readyState === WebSocket.OPEN) {
-            session.ws.close(1000, 'Door session ended');
-        } else {
-            // WebSocket already closed, do cleanup directly
-            this.removeSession(session);
-        }
+        // Allow a brief grace period (800ms) before closing WebSocket so the browser terminal
+        // receives any trailing buffered screen output (e.g., game-over screens, character demise details)
+        setTimeout(() => {
+            if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+                session.ws.close(1000, 'Door session ended');
+            } else {
+                this.removeSession(session);
+            }
+        }, 800);
     }
 
     handleDosBoxDisconnect(session) {
@@ -1228,9 +1274,14 @@ class SessionManager {
 
         session.slog.log(`[SESSION] Removing`);
 
-        // Clear disconnect timer
+        // Clear disconnect and heartbeat timers
         if (session.disconnectTimer) {
             clearTimeout(session.disconnectTimer);
+            session.disconnectTimer = null;
+        }
+        if (session.heartbeatInterval) {
+            clearInterval(session.heartbeatInterval);
+            session.heartbeatInterval = null;
         }
 
         // Close emulator TCP connection (simulates carrier loss)
