@@ -49,6 +49,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Telnet TLS Offers TLS 1.3 and Validates Your Certificate](#telnet-tls-offers-tls-13-and-validates-your-certificate)
   - [Login Takes the Same Time for Unknown Usernames](#login-takes-the-same-time-for-unknown-usernames)
   - [WebDoor API Only Serves Installed, Enabled Games](#webdoor-api-only-serves-installed-enabled-games)
+  - [Telnet Drops Idle Connections Sooner Before Login](#telnet-drops-idle-connections-sooner-before-login)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -118,6 +119,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable.
 - **Login takes the same time for unknown usernames:** a login with a username that does not exist used to fail faster than a login with a real username and a wrong password, which let anyone tell which accounts exist by timing the responses. Both failures now take about the same time.
 - **WebDoor API only serves installed, enabled games:** the session, storage and leaderboard endpoints used under `/api/webdoor/` now accept only a `game_id` that names an installed WebDoor which is enabled and whose requirements are met. Any other id gets a `404` and nothing is read or written. Before, any string was accepted and created session, save and leaderboard rows.
+- **Telnet drops idle connections sooner before login:** a Telnet connection that sits silent at the login, register or reset-password prompts is now disconnected after 90 seconds instead of the 7 minutes allowed for a signed-in session. Set `TELNET_PREAUTH_IDLE_TIMEOUT` in `.env` to change it.
 
 ## Messaging
 
@@ -481,6 +483,22 @@ The id must now name an installed WebDoor, matched by its directory name or its 
 Rows already stored under ids that no longer match an installed WebDoor are left in place and are not served. A game that is disabled in **Admin -> Doors -> WebDoors** stops being able to load or save data until it is enabled again.
 
 The error is a new key in `errors.php`, added to all six locales. See [WebDoors.md](WebDoors.md).
+
+### Telnet Drops Idle Connections Sooner Before Login
+
+Port scanners often open a Telnet connection, read the banner and then say nothing. Each such connection holds a handler process until the idle timer ends it, and before login that timer was the same 7 minutes (420 seconds) used for signed-in users.
+
+The login, register and reset-password prompts now use a shorter idle limit of 90 seconds. Any keystroke resets it, so a person reading the login screen and typing at a normal pace is not cut off. Telnet option negotiation and terminal reports sent by the client do not count as activity, so a client that only sends those is disconnected on schedule. Once the user signs in, the session goes back to the normal idle warning and disconnect times.
+
+To change the limit, set this in `.env` and restart the telnet daemon:
+
+```ini
+TELNET_PREAUTH_IDLE_TIMEOUT=90
+```
+
+The value is in seconds. A value below `15` is ignored and the default of 90 is used, because it could disconnect someone who is still typing their username.
+
+This frees idle sockets; it does not prevent abuse. A client that sends a keystroke every so often can still hold a pre-login connection open. SSH users sign in at the SSH layer before reaching the BBS, so this limit does not apply to them. See [TelnetServer.md](TelnetServer.md).
 
 
 ## Upgrade Instructions
