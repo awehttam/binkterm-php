@@ -10,6 +10,25 @@ For the higher-level direction and rationale, see:
 
 - `docs/proposals/MariaMySQLCompat.md`
 
+## Migration SQL boundaries
+
+`scripts/upgrade.php` uses `src/PostgresSqlSplitter.php` for PostgreSQL statement
+boundaries. It preserves comments and quoted content, handles nested block
+comments, doubled quotes, escape strings (including newline continuation), and
+case-sensitive dollar tags. The runner reads `standard_conforming_strings` before
+each yielded statement, so changes made by an earlier statement are respected.
+Unclosed lexical constructs raise an error with their opening line and byte
+offset; both lexical and SQL errors roll back the current migration and its
+`database_migrations` record. PHP migration execution is unchanged.
+
+This is a lexical splitter, not a PostgreSQL grammar validator or a psql script
+interpreter. Use quoted bodies for procedural migrations; psql meta-commands,
+COPY-from-stdin data and unquoted SQL-standard `BEGIN ATOMIC` bodies are outside
+its statement-boundary contract. The separate base-schema installer in
+`scripts/install.php` retains its existing parser; it is not the upgrade path.
+
+`PostgresSqlSplitterTest` checks lexical cases and every checked-out SQL migration.
+
 ## How To Use This Document
 
 - Update this file when adding a new PostgreSQL-specific dependency that future MariaDB/MySQL compatibility work would need to understand.
