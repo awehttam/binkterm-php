@@ -161,7 +161,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // holding one valid account cannot reset an IP spray counter.
             $loginThrottle->recordSuccess($username);
 
-            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
+            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions($remember));
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
             }

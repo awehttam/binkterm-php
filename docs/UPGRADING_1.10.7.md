@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Date Display Preferences](#date-display-preferences)
   - [Fixed: Inbound Echomail Landed in Areas With an Empty Domain](#fixed-inbound-echomail-landed-in-areas-with-an-empty-domain)
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
+  - [Echomail No Longer Sent Through Another Network's Uplink](#echomail-no-longer-sent-through-another-networks-uplink)
 - [AreaFix / FileFix](#areafix-filefix)
   - [Structural Reply Parsing Across More Hub Mailers](#structural-reply-parsing-across-more-hub-mailers)
   - [Mandatory Preview Before Syncing Areas](#mandatory-preview-before-syncing-areas)
@@ -19,8 +20,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
   - [Log Rotation by Size](#log-rotation-by-size)
+  - [Admin Daemon Keeps Log Lines It Cannot Write](#admin-daemon-keeps-log-lines-it-cannot-write)
 - [Web Interface](#web-interface)
   - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
+  - [Login Page Honors "Remember Me"](#login-page-honors-remember-me)
+  - [Recovery From a Stale CSRF Token](#recovery-from-a-stale-csrf-token)
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
@@ -53,6 +57,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Date display preferences:** users and sysops can now choose between relative timestamps ("4d ago") and exact date/time for message lists and headers, and choose whether echomail is ordered and displayed by received date or written date.
 - **Message search scoped by network and interest:** searching for messages from the Echo Areas page now respects the network and interest filters selected there, and searching while browsing a single interest on the Echomail page now stays within that interest's echo areas, instead of always searching every echo area.
 - **Fixed: inbound echomail landed in areas with an empty domain:** the network domain for incoming echomail is now taken from the uplink that delivered the packet, instead of only from the message author's address. Authors outside the uplink's routing patterns no longer produce messages with an empty domain.
+- **Echomail no longer sent through another network's uplink:** when an echo area's network has no uplink configured, its outbound echomail used to be sent through the default uplink, which belongs to a different network. It now stays local and a warning is logged.
 
 ### AreaFix / FileFix
 
@@ -67,10 +72,13 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
 - **Log rotation by size:** `scripts/logrotate.php` has a new `--max-size` option that rotates only logs that have grown past a size, so the script can run often without touching small logs. Docker installs can set `LOGROTATE_MAX_SIZE` to use it. The script also gained `--logs-dir`, and lowering `--keep` now removes the extra old generations on the next run.
+- **Admin daemon keeps log lines it cannot write:** when a process cannot write its own log file and forwards the line to the admin daemon, and the daemon cannot write that file either, the line is now recorded in `data/logs/admin_daemon.log` as a warning instead of being discarded.
 
 ### Web Interface
 
 - **Fresh assets after an upgrade:** the service worker now asks the server whether a file has changed before saving it to its cache after an upgrade, so browsers no longer keep an old copy of a CSS or JavaScript file from before the upgrade.
+- **Login page honors "Remember me":** the checkbox on the login page was never sent to the server, so every web login got a 30-day session cookie. Leaving it unchecked now gives a cookie that the browser discards when it closes.
+- **Recovery from a stale CSRF token:** logging in as the same user somewhere else, in another browser or over Telnet or SSH, used to make every already-open page and terminal session fail with "Invalid CSRF token" until it was reloaded or reconnected. Web pages and terminal sessions now fetch the current token and recover on their own. A new `GET /api/auth/csrf-token` endpoint supplies the token.
 
 ### Web Doors
 
@@ -129,6 +137,14 @@ When echomail arrived in a packet, the network domain was worked out only from t
 The domain is now taken from the uplink the packet came from, which is authoritative whatever the author's address is. The author's address is still used first for a message when it resolves to a network, and the packet's uplink domain is used when it does not.
 
 Messages already stored with an empty domain are not changed by the upgrade.
+
+### Echomail No Longer Sent Through Another Network's Uplink
+
+Outbound echomail for a networked echo area goes to the area's **Uplink Address** if one is set (see **Admin -> Echo Areas**), and otherwise to the uplink configured for the area's network in **Admin -> BBS Settings -> BinkP Uplinks**. When the network had no uplink, BinktermPHP used to fall back to the default uplink, which can belong to an unrelated network. Messages posted to the area, and inbound echomail relayed onward, were then written into that other network's packet.
+
+That fallback is gone. If an area's network has no uplink, the message stays on your system, is not queued for sending, and `data/logs/server.log` records a warning like `No uplink configured for network 'examplenet' (echoarea EXAMPLE_TAG); not routing to another network's uplink`.
+
+After upgrading, check the log for this warning. For each network named in it, add the uplink for that network under **Admin -> BBS Settings -> BinkP Uplinks**, then post the message again. Messages that were kept local before you added the uplink are not sent automatically.
 
 ## AreaFix / FileFix
 
@@ -230,6 +246,14 @@ To cap a fast-growing log, schedule the script more often and let `--max-size` d
 
 **Docker:** the container's log rotation job accepts an optional `LOGROTATE_MAX_SIZE`, for example `10M`, which is passed to the script as `--max-size`. Set it in the `environment` section of `docker-compose.override.yml`, and also set `LOGROTATE_SCHEDULE` to something more frequent than the weekly default (`0 0 * * 0`). A value that is not a number with an optional `K`, `M` or `G` suffix is ignored, with a warning in the container log. When it is unset, behavior is unchanged. See [DOCKER.md](DOCKER.md) and [CLI.md](CLI.md).
 
+### Admin Daemon Keeps Log Lines It Cannot Write
+
+When a BinktermPHP process cannot append to its own log file, for example because the file was created by a different system user than the one the process runs as, it sends the log line to the admin daemon over UDP, and the daemon writes it for them. The daemon runs as a single service account, so the same ownership mismatch can stop it from writing that file too. The daemon ignored that failure, and the line was lost without a trace. This most often cost the detailed protocol trace of a BinkP session, which is the information needed to diagnose a session that stalled or hung.
+
+When the daemon cannot write the target file, it now logs a warning to `data/logs/admin_daemon.log` that names the intended log file and the process id, and contains the full text of the lost line. The line is therefore kept, though in `admin_daemon.log` instead of the file it was meant for. If the file that cannot be written is `admin_daemon.log` itself, nothing is recorded, because there is nowhere else to write it.
+
+This does not fix the underlying permissions problem. If you see these warnings, correct the owner or mode of the named log file so the process that writes it can append to it.
+
 ## Web Interface
 
 ### Fresh Assets After an Upgrade
@@ -237,6 +261,33 @@ To cap a fast-growing log, schedule the script more often and let `--max-size` d
 BinktermPHP's service worker keeps its own cache of CSS, JavaScript and other static files, and starts a new, empty cache whenever a release changes the cache name. It filled the new cache with ordinary requests, which a browser may answer from its own HTTP cache. A browser that still held a file from before the upgrade could therefore put that old copy into the new cache, and keep serving it until the cache name changed again. The symptom was a page that looked or behaved like the previous version after an upgrade, until the user force-reloaded.
 
 Files that are not yet in the service worker's cache are now requested with revalidation: the browser asks the server whether its copy is still current, which costs a small "not modified" reply when it is, and downloads the file when it is not.
+
+### Login Page Honors "Remember Me"
+
+The login page has a "Remember me" checkbox, but its state was never sent to the server. Every web login received a session cookie that lasts 30 days, whether the box was checked or not.
+
+The login page now sends the checkbox state:
+
+- **Checked:** the session cookie lasts 30 days, as before.
+- **Unchecked:** the session cookie has no expiry, so the browser discards it when it closes and the user must sign in again the next time they open the browser.
+
+A client that does not send the setting at all, such as an older script calling `POST /api/auth/login`, still receives the 30-day cookie. Only a value of `true` counts as checked once the setting is sent.
+
+### Recovery From a Stale CSRF Token
+
+Each user has one CSRF token, which is replaced every time that user logs in. A browser page keeps the token it was given when it loaded, and a Telnet or SSH session keeps the token from its own login. When the same user logged in anywhere else, for example in a second browser or by connecting over Telnet while a tab was open, the token held by every other open page and terminal session became stale. Their next save, post or send was rejected with "Invalid CSRF token", and kept being rejected until the page was reloaded or the terminal session reconnected.
+
+Stale tokens are now repaired automatically:
+
+- **Pages using `fetch()`:** when a same-origin POST, PUT, PATCH or DELETE is rejected because of a stale token, the page fetches the current token, updates itself and repeats the request once. The user sees nothing.
+- **Pages using jQuery:** the rejected request is not repeated. The page fetches the current token so that the user's next action succeeds, so that one action may still need to be tried again.
+- **Telnet and SSH sessions:** a rejected request is repeated once with the current token, and later requests in that session use it.
+
+A rejected request was never carried out, so repeating it cannot do the same thing twice. The server still checks every request against the live token, and other 403 errors are not repeated.
+
+The token comes from the new `GET /api/auth/csrf-token`, which requires a signed-in session and returns the session's current token without changing it. It exposes nothing that signed-in pages do not already contain, and a page on another site cannot read it. See [API.md](API.md).
+
+Restart the telnet and SSH daemons so they load the new code; `scripts/restart_daemons.sh` does this.
 
 ## Web Doors
 
