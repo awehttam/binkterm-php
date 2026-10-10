@@ -1879,6 +1879,13 @@ class BbsSession
         if ($char === null) {
             return [null, false, true];
         }
+        // Protocol chatter (negotiation, device reports, bracketed-paste
+        // markers) that readRawChar folded away. Not a keypress — let the
+        // caller's loop re-read rather than surfacing an empty token that a
+        // text field would mistake for Esc/cancel.
+        if ($char === "\x00") {
+            return ['', true, false];
+        }
 
         $state['last_activity'] = time();
         $state['idle_warned'] = false;
@@ -1893,6 +1900,10 @@ class BbsSession
         if ($char === self::KEY_PGDOWN || $char === self::KEY_PGDOWN_ALT) { return ['PGDOWN', false, false]; }
         if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
         if ($char === self::KEY_DELETE) { return ['DELETE', false, false]; }
+        // Standalone ESC. readRawChar() returns a bare 0x1B only when no escape
+        // sequence followed within its disambiguation window; real sequences
+        // come back multi-byte. Report it as 'ESC' rather than an empty token.
+        if (strlen($char) === 1 && ord($char) === 27) { return ['ESC', false, false]; }
 
         $ord = ord($char[0]);
         if ($ord === 9) { return ['TAB', false, false]; }
@@ -3055,6 +3066,9 @@ class BbsSession
 
         $char = $this->readRawChar($conn, $state);
         if ($char === null) { return [null, false, true]; }
+        // Protocol chatter folded away by readRawChar (negotiation, device
+        // reports, bracketed-paste markers) — not a keypress; re-read.
+        if ($char === "\x00") { return ['', true, false]; }
 
         $state['last_activity'] = time();
         $state['idle_warned']   = false;
@@ -3922,13 +3936,27 @@ class BbsSession
                         }
 
                         if ($next === '~') {
+                            // Bracketed-paste markers (DECSET 2004): many clients
+                            // emit ESC[200~ / ESC[201~ around a paste even when
+                            // the server has not enabled the mode. Treat them as
+                            // protocol chatter; the pasted text flows through.
+                            if ($seq === '200' || $seq === '201') {
+                                return "\x00";
+                            }
                             return chr(27) . '[' . $seq . '~';
                         }
 
                         $seq .= $next;
-                        if (preg_match('/^[0-9;]*[A-Za-z]$/', $seq)) {
-                            // Device reports like CPR (ESC[row;colR) are not
-                            // keypresses and should not enter the input stream.
+                        if (preg_match('/^[0-9;]*([A-Za-z])$/', $seq, $m)) {
+                            // Parametrised / modified cursor and navigation keys
+                            // (e.g. ESC[1D for Left, ESC[1;5D for Ctrl-Left)
+                            // behave as the bare ESC[D arrow; normalise them so
+                            // the key readers decode them. Anything else ending
+                            // in a letter (CPR ESC[..R, DSR, DA, SGR ...) is a
+                            // terminal-generated report, not a keypress.
+                            if (in_array($m[1], ['A', 'B', 'C', 'D', 'H', 'F'], true)) {
+                                return chr(27) . '[' . $m[1];
+                            }
                             return "\x00";
                         }
 
@@ -3938,6 +3966,19 @@ class BbsSession
                     }
                 }
                 return chr(27) . '[' . $next2;
+            }
+            if ($next1 === 'O') {
+                // SS3 - application cursor-key mode (DECCKM). A terminal in that
+                // mode sends ESC O A/B/C/D for the arrows and ESC O H/F for
+                // Home/End; normalise to the bare CSI form the key readers know.
+                $next2 = $this->nextByte($conn, $state, 50000);
+                if ($next2 !== null && in_array($next2, ['A', 'B', 'C', 'D', 'H', 'F'], true)) {
+                    return chr(27) . '[' . $next2;
+                }
+                // Not an SS3 cursor key: hand the bytes back in order and report
+                // the bare ESC (same as the generic fall-through below).
+                $state['pushback'] = 'O' . ($next2 ?? '') . ($state['pushback'] ?? '');
+                return chr(27);
             }
             // Preserve ordering: put the unconsumed byte back at the front of
             // pushback, since it may itself have come from pushback ahead of
