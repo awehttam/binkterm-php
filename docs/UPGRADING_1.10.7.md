@@ -478,7 +478,7 @@ WebDoor games call `/api/webdoor/session`, `/api/webdoor/storage` and `/api/webd
 
 The id must now name an installed WebDoor, matched by its directory name or its manifest `game.id`, that is enabled and whose manifest requirements are met. The API then uses the manifest's own id, whichever of the two the request used. For any other id, or when no id can be determined, the API answers `404` with the error `errors.webdoor.game_unavailable` ("This game is not available") and reads or writes nothing.
 
-Rows already stored under ids that no longer match an installed WebDoor are left in place and are not served. A game that is disabled in **Admin -> WebDoors** stops being able to load or save data until it is enabled again.
+Rows already stored under ids that no longer match an installed WebDoor are left in place and are not served. A game that is disabled in **Admin -> Doors -> WebDoors** stops being able to load or save data until it is enabled again.
 
 The error is a new key in `errors.php`, added to all six locales. See [WebDoors.md](WebDoors.md).
 
