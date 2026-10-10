@@ -524,7 +524,9 @@ When adding any new user-visible string in a handler:
 
 ## API Endpoints Used
 
-The terminal server uses `TelnetUtils::apiRequest()` for most operations. A subset of direct internal calls are made for performance-critical paths: session validation (`Auth`), login activity tracking (`ActivityTracker`), nodelist presence check, feature flags (`BbsConfig`, `BinkpConfig`), and system news (`AppearanceConfig`).
+The terminal server uses `TelnetUtils::apiRequest()` for most operations. A subset of direct internal calls are made for performance-critical paths: session validation (`Auth`), nodelist presence check, feature flags (`BbsConfig`, `BinkpConfig`), and system news (`AppearanceConfig`).
+
+The login event itself (`ActivityTracker::trackLogin()`, tagged `telnet` or `ssh` with the caller IP) is recorded by `POST /api/auth/login` (or `/api/register` for an auto-approved terminal registration) when it issues the session; `BbsSession` does not record a second one after login.
 
 Primary endpoints used by `BbsSession` and the core handlers:
 
