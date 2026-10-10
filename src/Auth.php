@@ -149,7 +149,43 @@ class Auth
             return $user;
         }
 
+        if (!$user) {
+            // Unknown username: still pay one password verification so the
+            // response time does not reveal whether the account exists.
+            password_verify($password, self::dummyPasswordHash());
+        }
+
         return false;
+    }
+
+    /**
+     * A hash that no password matches, using the same algorithm and cost as
+     * password_hash($x, PASSWORD_DEFAULT) on the running PHP, so verifying
+     * against it costs the same as verifying a freshly stored password.
+     *
+     * For bcrypt (PASSWORD_DEFAULT on every supported PHP) the string is built
+     * from PASSWORD_BCRYPT_DEFAULT_COST without hashing anything, so the
+     * unknown-username path does not pay an extra password_hash() per request.
+     */
+    public static function dummyPasswordHash(): string
+    {
+        static $hash = null;
+        if ($hash !== null) {
+            return $hash;
+        }
+
+        if (PASSWORD_DEFAULT === PASSWORD_BCRYPT) {
+            // Fixed 22-char salt + 31-char digest; the digest never matches.
+            $hash = sprintf(
+                '$2y$%02d$%s',
+                PASSWORD_BCRYPT_DEFAULT_COST,
+                'MHvNzwOnzQ9nn3d.gL4UUebuAOD798CQTIa/1hAfFVyYnh5qphE6y'
+            );
+        } else {
+            $hash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+        }
+
+        return $hash;
     }
 
     public function logout($sessionId)
