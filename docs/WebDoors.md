@@ -333,6 +333,8 @@ WebDoors run within authenticated user sessions. Games can access:
 - User ID
 - Session token
 
+The WebDoor API (`/api/webdoor/session`, `/api/webdoor/storage`, `/api/webdoor/leaderboard`) identifies the game from the `game_id` query parameter or, failing that, from a `/webdoors/{id}/` referer. The id must name an installed WebDoor (its directory or `game.id`) that is enabled in `config/webdoors.json` and whose `requirements` are met; otherwise the API answers `404` with `errors.webdoor.game_unavailable` and reads or writes nothing.
+
 ### Storage API
 
 Games requiring persistent storage use the BBS storage API to save/load user data.

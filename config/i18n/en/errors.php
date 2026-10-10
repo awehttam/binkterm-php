@@ -613,6 +613,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Invalid slot number',
     'errors.webdoor.save_too_large' => 'Save data exceeds maximum size',
     'errors.webdoor.save_not_found' => 'Save not found',
+    'errors.webdoor.game_unavailable' => 'This game is not available',
 
     // Door API
     'errors.door.door_name_required' => 'Door name required',
