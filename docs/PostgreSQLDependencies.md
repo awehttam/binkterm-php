@@ -235,6 +235,17 @@ Representative examples:
 - Difficulty:
   - medium
 
+### Advisory locks for door admission
+
+- Why PostgreSQL-specific:
+  - `pg_advisory_xact_lock(DoorSessionManager::ADMISSION_LOCK_KEY)` serializes door admission (per-door `max_nodes` check, node selection and the session insert) across processes until the admission transaction ends; row locks cannot protect a count or a free node that has no row yet
+- Current locations:
+  - `src/DoorSessionManager.php` (`findAvailableNode()`)
+- Likely future strategy:
+  - a dedicated single-row lock table locked with `SELECT ... FOR UPDATE`, or the target database's named-lock facility
+- Difficulty:
+  - low
+
 ## Schema And Type Dependencies
 
 ### `SERIAL` and `BIGSERIAL`
