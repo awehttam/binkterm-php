@@ -1787,6 +1787,29 @@ class BbsSession
     }
 
     /**
+     * Key reader for editable line input (the shared line editor / text fields).
+     *
+     * Same idle-timeout looping and token set as {@see readKeyWithIdleCheck()},
+     * but over {@see readKeyWithTimeout()}, which does NOT apply the menu-style
+     * "swallow a queued line terminator after a printable" peek. That peek is
+     * right for single-key menus ("L<Enter>") but wrong for a text field: it
+     * eats an LF that should have submitted the line, so a multi-line paste runs
+     * on forever instead of ending at the first newline. `readKeyWithTimeout()`
+     * still collapses a real CR-LF pair into one ENTER.
+     *
+     * @return string|null a normalised token, or null on disconnect
+     */
+    public function readLineKeyWithIdleCheck($conn, array &$state): ?string
+    {
+        while (true) {
+            [$key, $timedOut, $shouldDisconnect] = $this->readKeyWithTimeout($conn, $state, 30000);
+            if ($shouldDisconnect) { return null; }
+            if ($timedOut || $key === null) { continue; }
+            return $key;
+        }
+    }
+
+    /**
      * Read a single key token with an upper-bound timeout.
      *
      * Returns [string|null $key, bool $timedOut, bool $shouldDisconnect].
@@ -1837,6 +1860,13 @@ class BbsSession
         if ($char === null) {
             return [null, false, true];
         }
+        // Protocol chatter (negotiation, device reports, bracketed-paste
+        // markers) that readRawChar folded away. Not a keypress — let the
+        // caller's loop re-read rather than surfacing an empty token that a
+        // text field would mistake for Esc/cancel.
+        if ($char === "\x00") {
+            return ['', true, false];
+        }
 
         $state['last_activity'] = time();
         $state['idle_warned'] = false;
@@ -1851,6 +1881,10 @@ class BbsSession
         if ($char === self::KEY_PGDOWN || $char === self::KEY_PGDOWN_ALT) { return ['PGDOWN', false, false]; }
         if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
         if ($char === self::KEY_DELETE) { return ['DELETE', false, false]; }
+        // Standalone ESC. readRawChar() returns a bare 0x1B only when no escape
+        // sequence followed within its disambiguation window; real sequences
+        // come back multi-byte. Report it as 'ESC' rather than an empty token.
+        if (strlen($char) === 1 && ord($char) === 27) { return ['ESC', false, false]; }
 
         $ord = ord($char[0]);
         if ($ord === 9) { return ['TAB', false, false]; }
@@ -1868,6 +1902,8 @@ class BbsSession
         if ($ord === 10) { return ['ENTER', false, false]; }
         if ($ord === 8 || $ord === 127) { return ['BACKSPACE', false, false]; }
         if ($ord >= 32 && $ord < 127) { return ['CHAR:' . $char, false, false]; }
+        // A reassembled UTF-8 codepoint (readRawChar returns the whole sequence).
+        if (strlen($char) > 1 && ($ord & 0xC0) === 0xC0) { return ['CHAR:' . $char, false, false]; }
         if ($ord === 3) { return ['CTRL_C', false, false]; }
         if ($ord === 5) { return ['CTRL_E', false, false]; }
         if ($ord === 11) { return ['CTRL_K', false, false]; }
@@ -2964,6 +3000,9 @@ class BbsSession
 
         $char = $this->readRawChar($conn, $state);
         if ($char === null) { return [null, false, true]; }
+        // Protocol chatter folded away by readRawChar (negotiation, device
+        // reports, bracketed-paste markers) — not a keypress; re-read.
+        if ($char === "\x00") { return ['', true, false]; }
 
         $state['last_activity'] = time();
         $state['idle_warned']   = false;
@@ -2993,6 +3032,9 @@ class BbsSession
         }
         if ($ord === 10)                         { return ['ENTER',     false, false]; }
         if ($ord === 8 || $ord === 127)          { return ['BACKSPACE', false, false]; }
+        // A reassembled UTF-8 codepoint (readRawChar returns the whole sequence).
+        // No line-terminator peek: multibyte input only occurs in text fields.
+        if (strlen($char) > 1 && ($ord & 0xC0) === 0xC0) { return ['CHAR:' . $char, false, false]; }
         if ($ord >= 32 && $ord < 127) {
             // Menu hotkeys are often typed as "L<Enter>" or similar. Swallow an
             // immediately queued line terminator so prompt-driven submenu screens
@@ -3049,31 +3091,40 @@ class BbsSession
 
             $byte = ord($char[0]);
 
-            if ($byte === 10) {
+            if ($byte === 10 || $byte === 13) {
+                if ($byte === 13) { $state['skip_lf_once'] = true; }
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
-                return $line;
-            }
-            if ($byte === 13) {
-                $state['skip_lf_once'] = true;
-                if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
+                // A multi-line paste ends here; anything still queued behind the
+                // terminator belongs to no prompt on this screen. Drop it so it
+                // cannot execute against the next menu / prompt / password field.
+                $this->drainPendingInput($conn, $state);
                 return $line;
             }
             if ($byte === 3) {
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "^C\r\n"); }
+                $this->drainPendingInput($conn, $state);
                 return null;
             }
             if ($byte === 8 || $byte === 127) {
                 if ($line !== '') {
-                    $line = substr($line, 0, -1);
+                    $line = mb_substr($line, 0, max(0, mb_strlen($line, 'UTF-8') - 1), 'UTF-8');
                     if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\x08 \x08"); }
                 }
                 continue;
             }
             if ($byte === 0) { continue; }
 
-            // Ignore ANSI escape sequences and other multi-byte key tokens in
-            // line mode instead of echoing terminal control bytes back out.
-            if (strlen($char) > 1 || $byte === 27) {
+            // A reassembled UTF-8 codepoint: keep it (append + echo the whole
+            // sequence). Other multi-byte tokens (ANSI key sequences) and ESC are
+            // not text and are ignored in line mode.
+            if (strlen($char) > 1) {
+                if (($byte & 0xC0) === 0xC0) {
+                    $line .= $char;
+                    if (!empty($state['input_echo'])) { $this->safeWrite($conn, $char); }
+                }
+                continue;
+            }
+            if ($byte === 27 || $byte < 32) {
                 continue;
             }
 
@@ -3693,6 +3744,66 @@ class BbsSession
      * Read one character from the socket, handling TELNET IAC and ANSI escape sequences.
      * Returns null on disconnect.
      */
+    /**
+     * Discard input that is queued *right now* — pushback plus whatever is
+     * already sitting in the socket buffer — without blocking.
+     *
+     * Called at the submit / cancel boundary of a line reader: a multi-line
+     * paste (or a "hotkey<Enter>" burst) leaves trailing bytes that belong to no
+     * field on the current screen, and if left queued they run as keystrokes
+     * against the next menu, prompt or — worst — a password field. This is the
+     * correct place to drop them: the caller has just accepted one line of input
+     * and nothing else on this screen is waiting to read.
+     *
+     * It never blocks and never waits for new bytes, so genuine typed-ahead
+     * input that arrives *after* this call is unaffected.
+     */
+    /**
+     * True when another input byte is available *right now* (pushback or the
+     * socket buffer), without blocking. A line-input widget uses this to
+     * coalesce a paste burst: process every queued key first, redraw once,
+     * instead of once per character (a per-char full-box redraw storm makes a
+     * paste look like it vanished on some clients).
+     */
+    public function hasBufferedInput($conn, array &$state): bool
+    {
+        if (($state['pushback'] ?? '') !== '') {
+            return true;
+        }
+        if (!is_resource($conn) || feof($conn)) {
+            return false;
+        }
+        $r = [$conn]; $w = $ex = null;
+
+        return @stream_select($r, $w, $ex, 0, 0) > 0;
+    }
+
+    public function drainPendingInput($conn, array &$state): void
+    {
+        $state['skip_lf_once'] = false;
+
+        if (!is_resource($conn) || feof($conn)) {
+            $state['pushback'] = '';
+            return;
+        }
+        // Drain through readRawChar so IAC / NAWS / CHARSET negotiation that is
+        // interleaved with the pasted bytes is still processed (readRawChar
+        // returns "\x00" for that) — only real input tokens are discarded.
+        // Bounded so a hostile flood cannot spin here forever.
+        for ($i = 0; $i < 8192; $i++) {
+            if (($state['pushback'] ?? '') === '') {
+                $r = [$conn]; $w = $ex = null;
+                if (@stream_select($r, $w, $ex, 0, 0) < 1) {
+                    return;
+                }
+            }
+            $c = $this->readRawChar($conn, $state);
+            if ($c === null) {
+                return;
+            }
+        }
+    }
+
     public function readRawChar($conn, array &$state): ?string
     {
         if (!is_resource($conn) || feof($conn)) { return null; }
@@ -3812,13 +3923,27 @@ class BbsSession
                         }
 
                         if ($next === '~') {
+                            // Bracketed-paste markers (DECSET 2004): many clients
+                            // emit ESC[200~ / ESC[201~ around a paste even when
+                            // the server has not enabled the mode. Treat them as
+                            // protocol chatter; the pasted text flows through.
+                            if ($seq === '200' || $seq === '201') {
+                                return "\x00";
+                            }
                             return chr(27) . '[' . $seq . '~';
                         }
 
                         $seq .= $next;
-                        if (preg_match('/^[0-9;]*[A-Za-z]$/', $seq)) {
-                            // Device reports like CPR (ESC[row;colR) are not
-                            // keypresses and should not enter the input stream.
+                        if (preg_match('/^[0-9;]*([A-Za-z])$/', $seq, $m)) {
+                            // Parametrised / modified cursor and navigation keys
+                            // (e.g. ESC[1D for Left, ESC[1;5D for Ctrl-Left)
+                            // behave as the bare ESC[D arrow; normalise them so
+                            // the key readers decode them. Anything else ending
+                            // in a letter (CPR ESC[..R, DSR, DA, SGR ...) is a
+                            // terminal-generated report, not a keypress.
+                            if (in_array($m[1], ['A', 'B', 'C', 'D', 'H', 'F'], true)) {
+                                return chr(27) . '[' . $m[1];
+                            }
                             return "\x00";
                         }
 
@@ -3829,11 +3954,50 @@ class BbsSession
                 }
                 return chr(27) . '[' . $next2;
             }
+            if ($next1 === 'O') {
+                // SS3 - application cursor-key mode (DECCKM). A terminal in that
+                // mode sends ESC O A/B/C/D for the arrows and ESC O H/F for
+                // Home/End; normalise to the bare CSI form the key readers know.
+                $next2 = $this->nextByte($conn, $state, 50000);
+                if ($next2 !== null && in_array($next2, ['A', 'B', 'C', 'D', 'H', 'F'], true)) {
+                    return chr(27) . '[' . $next2;
+                }
+                // Not an SS3 cursor key: hand the bytes back in order and report
+                // the bare ESC (same as the generic fall-through below).
+                $state['pushback'] = 'O' . ($next2 ?? '') . ($state['pushback'] ?? '');
+                return chr(27);
+            }
             // Preserve ordering: put the unconsumed byte back at the front of
             // pushback, since it may itself have come from pushback ahead of
             // other still-buffered bytes.
             $state['pushback'] = $next1 . ($state['pushback'] ?? '');
             return chr(27);
+        }
+
+        // UTF-8 multi-byte lead byte (0xC2-0xF4). Reassemble the whole codepoint
+        // so callers see one character, not raw continuation bytes. Only the
+        // input readers benefit — IAC (0xFF) and ESC (0x1B) are handled above and
+        // are never valid lead bytes, and arrow/key sequences are pure ASCII, so
+        // this cannot disturb them. On a truncated / invalid sequence the bytes
+        // read are pushed back and the lead byte is returned alone.
+        if ($byte >= 0xC2 && $byte <= 0xF4) {
+            $need = $byte >= 0xF0 ? 3 : ($byte >= 0xE0 ? 2 : 1);
+            $seq  = $char;
+            for ($i = 0; $i < $need; $i++) {
+                $cont = $this->nextByte($conn, $state, 50000);
+                if ($cont === null || (ord($cont) & 0xC0) !== 0x80) {
+                    if ($cont !== null) {
+                        $state['pushback'] = $cont . ($state['pushback'] ?? '');
+                    }
+                    if (strlen($seq) > 1) {
+                        $state['pushback'] = substr($seq, 1) . ($state['pushback'] ?? '');
+                    }
+                    return $char;
+                }
+                $seq .= $cont;
+            }
+
+            return $seq;
         }
 
         return chr($byte);
