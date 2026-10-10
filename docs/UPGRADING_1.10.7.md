@@ -20,6 +20,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
   - [Log Rotation by Size](#log-rotation-by-size)
+  - [SQL Migrations Split on Real Statement Boundaries](#sql-migrations-split-on-real-statement-boundaries)
+  - [Docker: telnet Client Added for the BBSLink Door](#docker-telnet-client-added-for-the-bbslink-door)
   - [Admin Daemon Keeps Log Lines It Cannot Write](#admin-daemon-keeps-log-lines-it-cannot-write)
 - [Web Interface](#web-interface)
   - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
@@ -45,6 +47,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [BinkP Debug Logging No Longer Records Password Material](#binkp-debug-logging-no-longer-records-password-material)
   - [Auto Feed Verifies TLS and Allows Only http(s) Feeds](#auto-feed-verifies-tls-and-allows-only-https-feeds)
   - [Telnet TLS Offers TLS 1.3 and Validates Your Certificate](#telnet-tls-offers-tls-13-and-validates-your-certificate)
+  - [Login Takes the Same Time for Unknown Usernames](#login-takes-the-same-time-for-unknown-usernames)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -73,6 +76,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
 - **Log rotation by size:** `scripts/logrotate.php` has a new `--max-size` option that rotates only logs that have grown past a size, so the script can run often without touching small logs. Docker installs can set `LOGROTATE_MAX_SIZE` to use it. The script also gained `--logs-dir`, and lowering `--keep` now removes the extra old generations on the next run.
 - **Admin daemon keeps log lines it cannot write:** when a process cannot write its own log file and forwards the line to the admin daemon, and the daemon cannot write that file either, the line is now recorded in `data/logs/admin_daemon.log` as a warning instead of being discarded.
+- **SQL migrations split on real statement boundaries:** the upgrade script now finds the end of each statement in a `.sql` migration by reading the SQL, instead of by pattern matching. A `;` or `--` inside a quoted string, a function body or a block comment no longer corrupts the migration. Every migration shipped with BinktermPHP is split exactly as before.
+- **Docker: telnet client added for the BBSLink door:** the container image now includes the `telnet` package, which the BBSLink native door (`bbslinknative`) needs. Rebuild the image to get it.
 
 ### Web Interface
 
@@ -110,6 +115,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **BinkP debug logging no longer records password material:** with debug logging on, BinkP authentication logged the first characters of the received and expected passwords and the CRAM-MD5 challenge with its digest. Only outcomes, lengths and a hint about why a password did not match are logged now, unless you set `BINKP_LOG_SENSITIVE_AUTH=true`.
 - **Auto Feed verifies TLS and allows only http(s) feeds:** RSS and Atom feeds are now fetched with HTTPS certificate and host name verification, and only `http://` and `https://` URLs are accepted. A feed with an invalid or self-signed certificate now fails instead of being fetched.
 - **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable.
+- **Login takes the same time for unknown usernames:** a login with a username that does not exist used to fail faster than a login with a real username and a wrong password, which let anyone tell which accounts exist by timing the responses. Both failures now take about the same time.
 
 ## Messaging
 
@@ -245,6 +251,20 @@ php scripts/logrotate.php --keep=5 --max-size=10M
 To cap a fast-growing log, schedule the script more often and let `--max-size` decide what is rotated. For example, an hourly cron entry with `--keep=5 --max-size=10M` leaves small logs alone.
 
 **Docker:** the container's log rotation job accepts an optional `LOGROTATE_MAX_SIZE`, for example `10M`, which is passed to the script as `--max-size`. Set it in the `environment` section of `docker-compose.override.yml`, and also set `LOGROTATE_SCHEDULE` to something more frequent than the weekly default (`0 0 * * 0`). A value that is not a number with an optional `K`, `M` or `G` suffix is ignored, with a warning in the container log. When it is unset, behavior is unchanged. See [DOCKER.md](DOCKER.md) and [CLI.md](CLI.md).
+
+### SQL Migrations Split on Real Statement Boundaries
+
+`scripts/upgrade.php` runs a `.sql` migration one statement at a time. It used to find the statement boundaries with two patterns: delete everything from `--` to the end of the line, then split wherever a `;` ended a line. Valid SQL could break under that. A `--` inside a string, such as `DEFAULT '--'`, cut the line short. A `;` at the end of a line inside a quoted string, a function body or a `DO` block, or a block comment, split the statement in the middle.
+
+The upgrade script now uses `src/PostgresSqlSplitter.php`, which reads the SQL the way PostgreSQL does. It leaves quoted strings and identifiers (including doubled quotes and `E'...'` escape strings), dollar-quoted bodies and tags, line comments and nested block comments intact. It reads the connection's `standard_conforming_strings` setting before each statement, so a `SET` earlier in the same migration is respected. If a string, quoted identifier, comment or dollar-quoted body is never closed, the migration stops with an error naming the line and byte offset, and the migration is rolled back as for any other error.
+
+Every `.sql` migration shipped with BinktermPHP produces the same statements as before. The difference for you is in what reaches PostgreSQL: comments in a migration are now sent along with the statement they belong to, so they can appear in a PostgreSQL error message, and several statements written on one line are now run as separate statements. PHP migrations are not affected.
+
+Only the upgrade script uses the new splitter. `scripts/install.php`, which loads the base schema on a new install, keeps its existing parser. See [PostgreSQLDependencies.md](PostgreSQLDependencies.md).
+
+### Docker: telnet Client Added for the BBSLink Door
+
+The BBSLink native door (`bbslinknative`) uses the `telnet` command to connect to BBSLink. The container image did not include it, so the door could not make that connection inside Docker. The image now installs the `telnet` package. Rebuild the image to include it: `docker compose build` followed by `docker compose up -d`.
 
 ### Admin Daemon Keeps Log Lines It Cannot Write
 
@@ -442,7 +462,14 @@ If you set `TELNET_TLS_CERT` and `TELNET_TLS_KEY` to your own certificate and ke
 
 Check that the TLS listener is up after restarting the telnet daemon. Each TLS connection is logged with the negotiated version, cipher and key size, for example `TLS connection from 192.0.2.10 [TLSv1.3 TLS_AES_256_GCM_SHA384 256-bit]`. See [TelnetServer.md](TelnetServer.md).
 
----
+### Login Takes the Same Time for Unknown Usernames
+
+Checking a password is deliberately slow. When a login named an account that exists, BinktermPHP checked the password and the attempt took that long to fail. When the username did not exist, there was no password to check, so the attempt failed almost at once. Anyone who timed the responses could tell which usernames are registered, and then concentrate guessing on those.
+
+A login with an unknown username now checks the password against a placeholder hash that no password matches, using the same algorithm and cost that new passwords are stored with. A wrong password for a real account and any password for an unknown account therefore take about the same time and give the same error. The placeholder is built without hashing anything, so this adds no extra work per request beyond the one check.
+
+This applies to every place that checks a username and password: the web login, Telnet and SSH (which sign in through the web login), FTP, NNTP and QWK HTTP downloads.
+
 
 ## Upgrade Instructions
 
