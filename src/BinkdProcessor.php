@@ -173,6 +173,7 @@ class BinkdProcessor
             @unlink($metadataFile);
         }
 
+        $handle = null;
         try {
             $handle = fopen($filename, 'rb');
             if (!$handle) {
@@ -184,7 +185,6 @@ class BinkdProcessor
             // Read packet header (58 bytes)
             $header = fread($handle, 58);
             if (strlen($header) < 58) {
-                fclose($handle);
                 $error = "Invalid packet header in $packetName: only " . strlen($header) . " bytes read, expected 58";
                 $this->log("[BINKD] $error");
                 throw new \Exception($error);
@@ -204,7 +204,6 @@ class BinkdProcessor
                 if ($expectedPktPassword !== '') {
                     $incomingPktPassword = $packetInfo['pkt_password'] ?? '';
                     if (!hash_equals(strtolower($expectedPktPassword), strtolower($incomingPktPassword))) {
-                        fclose($handle);
                         $error = "Packet password mismatch for $packetName from $origAddress — rejecting packet";
                         $this->log("[BINKD] SECURITY: $error");
                         throw new \Exception($error);
@@ -212,7 +211,6 @@ class BinkdProcessor
                     $this->log("[BINKD] Packet password verified for $origAddress");
                 }
             } catch (\Exception $e) {
-                fclose($handle);
                 $error = "Failed to parse packet header for $packetName: " . $e->getMessage();
                 $this->log("[BINKD] $error");
                 throw new \Exception($error);
@@ -253,8 +251,6 @@ class BinkdProcessor
                 }
             }
 
-            fclose($handle);
-
             // If echomail was rejected, throw error to move packet to error dir
             if ($echomailRejected) {
                 $error = "Packet $packetName rejected: echomail not allowed from insecure sessions";
@@ -289,6 +285,10 @@ class BinkdProcessor
             $this->log("[BINKD] $error");
             $this->logPacket($filename, 'IN', 'error');
             throw $e;
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
         }
     }
 
@@ -596,7 +596,10 @@ class BinkdProcessor
             $origAddr .= '.' . $origPoint;
         }
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-        $domain =$binkpConfig->getDomainByAddress($origAddr);
+        // Prefer the message author's network when it can be resolved.
+        // Echomail authors may be outside the configured uplink route, however,
+        // so retain the packet's known network domain as the fallback.
+        $domain = $binkpConfig->getDomainByAddress($origAddr) ?: $packetDomain;
 
         $destAddr = $destZone . ':' . $destNet . '/' . $destNode;
         if ($destPoint > 0) {
@@ -804,7 +807,16 @@ class BinkdProcessor
 
         $address = $origZone . ':' . $origNet . '/' . $origNode;
         try {
-            return \BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getDomainByAddress($address) ?: null;
+            $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
+            // An incoming packet from a configured uplink has an authoritative
+            // domain regardless of which outbound routing patterns it serves.
+            $uplink = $config->getUplinkByAddress($address);
+            if ($uplink !== null && !empty($uplink['domain'])) {
+                return $uplink['domain'];
+            }
+
+            return $config->getDomainByAddress($address) ?: null;
         } catch (\Throwable) {
             return null;
         }
@@ -1444,7 +1456,12 @@ class BinkdProcessor
         }
 
         // Get or create echoarea
-        $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
+        $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain, $refusal);
+        if (!$echoarea) {
+            $pktName = $packetInfo['packet_name'] ?? '?';
+            $this->log("[BINKD] Dropping echomail AREA:{$echoareaTag} from " . ($message['fromName'] ?? '?') . " <" . ($message['origAddr'] ?? '?') . "> packet={$pktName}: " . ($refusal ?? 'area unavailable'));
+            return;
+        }
 
         //$this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -1671,8 +1688,18 @@ class BinkdProcessor
         }
     }
 
-    private function getOrCreateEchoarea($tag,$domain)
+    /**
+     * Find (or auto-create) the network echo area an inbound message belongs to.
+     *
+     * Returns null, with $refusal set, when the message must not be stored:
+     * without a resolved network domain the lookup would match (or create)
+     * a domain-less area, which is how local areas are stored; a match that
+     * is a local area must never receive network mail; and a tag that matches
+     * more than one area (domains differing only by case) is ambiguous.
+     */
+    private function getOrCreateEchoarea($tag, $domain, ?string &$refusal = null)
     {
+        $refusal = null;
         $tag = strtoupper($tag);
         // Normalize domain the same way EchoareaImporter/NetworkManager do, so a
         // mixed-case value in binkp.json's uplink config still matches the
@@ -1681,8 +1708,17 @@ class BinkdProcessor
         if ($domain === '') {
             $domain = null;
         }
+        if ($domain === null) {
+            $refusal = 'network domain could not be resolved';
+            return null;
+        }
 
-        $echoarea = $this->findEchoareaByTagAndDomain($tag, $domain);
+        $matches = $this->findEchoareasByTagAndDomain($tag, $domain);
+        if (count($matches) > 1) {
+            $refusal = count($matches) . " areas match {$tag}@{$domain} (domain differs only by case)";
+            return null;
+        }
+        $echoarea = $matches[0] ?? false;
 
         if (!$echoarea) {
             $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active, domain) VALUES (?, ?, TRUE,?)");
@@ -1692,6 +1728,11 @@ class BinkdProcessor
             $this->log("Auto-Creating new echomail area '$tag'@'" . ($domain ?? '') . "'");
         } else {
             //$this->log("getOrCreateEchoarea: Found echomail area tag $tag@$domain");
+        }
+
+        if ($echoarea && !empty($echoarea['is_local'])) {
+            $refusal = "area {$tag}@{$domain} is a local area";
+            return null;
         }
 
         return $echoarea;
@@ -1708,6 +1749,21 @@ class BinkdProcessor
         }
 
         return $stmt->fetch();
+    }
+
+    /**
+     * Every echo area matching a tag in a (case-insensitive) network domain.
+     * echoareas is unique on (tag, domain) case-sensitively, so more than one
+     * row can match when domains differ only by case.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function findEchoareasByTagAndDomain(string $tag, string $domain): array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND LOWER(domain) = LOWER(?) ORDER BY id");
+        $stmt->execute([$tag, $domain]);
+
+        return $stmt->fetchAll() ?: [];
     }
 
     private function parseFidonetDate($dateStr, $packetInfo = null, $tzutcOffsetMinutes = null)

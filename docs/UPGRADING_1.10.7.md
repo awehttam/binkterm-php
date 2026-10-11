@@ -7,27 +7,51 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Messaging](#messaging)
   - [Date Display Preferences](#date-display-preferences)
+  - [Fixed: Inbound Echomail Landed in Areas With an Empty Domain](#fixed-inbound-echomail-landed-in-areas-with-an-empty-domain)
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
+  - [Echomail No Longer Sent Through Another Network's Uplink](#echomail-no-longer-sent-through-another-networks-uplink)
+  - [Inbound Echomail Refused When It Would Land in a Local or Ambiguous Area](#inbound-echomail-refused-when-it-would-land-in-a-local-or-ambiguous-area)
 - [AreaFix / FileFix](#areafix-filefix)
   - [Structural Reply Parsing Across More Hub Mailers](#structural-reply-parsing-across-more-hub-mailers)
   - [Mandatory Preview Before Syncing Areas](#mandatory-preview-before-syncing-areas)
   - [Data-Driven Grammar Definitions](#data-driven-grammar-definitions)
   - [Per-Uplink Format Memory](#per-uplink-format-memory)
-- [Administration](#administration)
-  - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
-- [AreaFix / FileFix](#areafix--filefix)
   - [Automatic Area Sync on Reply Now Opt-In](#automatic-area-sync-on-reply-now-opt-in)
   - [Fixed: AreaFix Sync Set an Override Address on Echo Areas](#fixed-areafix-sync-set-an-override-address-on-echo-areas)
+- [Administration](#administration)
+  - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
+  - [Log Rotation by Size](#log-rotation-by-size)
+  - [SQL Migrations Split on Real Statement Boundaries](#sql-migrations-split-on-real-statement-boundaries)
+  - [Docker: telnet Client Added for the BBSLink Door](#docker-telnet-client-added-for-the-bbslink-door)
+  - [Admin Daemon Keeps Log Lines It Cannot Write](#admin-daemon-keeps-log-lines-it-cannot-write)
+- [Web Interface](#web-interface)
+  - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
+  - [Login Page Honors "Remember Me"](#login-page-honors-remember-me)
+  - [Recovery From a Stale CSRF Token](#recovery-from-a-stale-csrf-token)
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
+  - [MRC Chat Loads Its Libraries From the Bundled Copies](#mrc-chat-loads-its-libraries-from-the-bundled-copies)
+  - [DOS Doors Redraw After the Browser Reconnects](#dos-doors-redraw-after-the-browser-reconnects)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
   - [SysopNet Added to the Networks List](#sysopnet-added-to-the-networks-list)
   - [Networks Listed Alphabetically](#networks-listed-alphabetically)
+- [BBS Directory](#bbs-directory)
+  - [Geocoding Provider Failures No Longer Cached](#geocoding-provider-failures-no-longer-cached)
+  - [Geocoding Backfill Skips Known No-Match Locations](#geocoding-backfill-skips-known-no-match-locations)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
+  - [Default Terminal Registration Secret No Longer Trusted](#default-terminal-registration-secret-no-longer-trusted)
+  - [Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked](#telnet-and-ssh-sessions-disconnected-when-their-web-session-is-revoked)
+  - [Docker: Config JSON Files No Longer World-Readable](#docker-config-json-files-no-longer-world-readable)
+  - [BinkP Debug Logging No Longer Records Password Material](#binkp-debug-logging-no-longer-records-password-material)
+  - [Auto Feed Verifies TLS and Allows Only http(s) Feeds](#auto-feed-verifies-tls-and-allows-only-https-feeds)
+  - [Telnet TLS Offers TLS 1.3 and Validates Your Certificate](#telnet-tls-offers-tls-13-and-validates-your-certificate)
+  - [Login Takes the Same Time for Unknown Usernames](#login-takes-the-same-time-for-unknown-usernames)
+  - [WebDoor API Only Serves Installed, Enabled Games](#webdoor-api-only-serves-installed-enabled-games)
+  - [Telnet Drops Idle Connections Sooner Before Login](#telnet-drops-idle-connections-sooner-before-login)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -39,6 +63,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Date display preferences:** users and sysops can now choose between relative timestamps ("4d ago") and exact date/time for message lists and headers, and choose whether echomail is ordered and displayed by received date or written date.
 - **Message search scoped by network and interest:** searching for messages from the Echo Areas page now respects the network and interest filters selected there, and searching while browsing a single interest on the Echomail page now stays within that interest's echo areas, instead of always searching every echo area.
+- **Fixed: inbound echomail landed in areas with an empty domain:** the network domain for incoming echomail is now taken from the uplink that delivered the packet, instead of only from the message author's address. Authors outside the uplink's routing patterns no longer produce messages with an empty domain.
+- **Echomail no longer sent through another network's uplink:** when an echo area's network has no uplink configured, its outbound echomail used to be sent through the default uplink, which belongs to a different network. It now stays local and a warning is logged.
+- **Inbound echomail refused when it would land in a local or ambiguous area:** incoming echomail is now dropped, with a log line, instead of being filed in an area that is flagged local, in an area with no network domain, or in one of several areas whose domains differ only by letter case.
 
 ### AreaFix / FileFix
 
@@ -46,20 +73,29 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Mandatory preview before syncing areas:** clicking "Sync Areas to Local BBS" (from the latest reply, or from any individual incoming message in the Message History table) now shows a preview of exactly which areas will be created, reactivated, deactivated, or left unchanged. Nothing is written to the database until this preview is explicitly confirmed.
 - **Data-driven grammar definitions:** a new **Admin -> Area Management -> AreaFix Grammars** page lets a sysop teach AreaFix a new hub reply format without a code change, either by hand or by pasting a sample reply and asking the built-in AI assistant to suggest one. Suggestions are always added disabled for review before saving.
 - **Per-uplink format memory:** BinktermPHP now remembers which reply format last matched each hub's confirmed sync, tries that format first on the hub's next reply, and flags it on the preview screen if the format changes unexpectedly. The remembered format for each uplink can be viewed, forced, or cleared from **Admin -> BBS Settings -> BinkP Uplinks -> Edit Uplink**.
+- **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
+- **Fixed: AreaFix sync set an override address on echo areas:** syncing areas from a hub's AreaFix reply filled in the echo area's **Uplink Address** ("Override Uplink FidoNet address") field on every area it created or touched. The sync no longer sets it, and deactivating areas missing from the hub's list is now scoped by network domain and tag instead of by that address.
 
 ### Administration
 
 - **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
+- **Log rotation by size:** `scripts/logrotate.php` has a new `--max-size` option that rotates only logs that have grown past a size, so the script can run often without touching small logs. Docker installs can set `LOGROTATE_MAX_SIZE` to use it. The script also gained `--logs-dir`, and lowering `--keep` now removes the extra old generations on the next run.
+- **Admin daemon keeps log lines it cannot write:** when a process cannot write its own log file and forwards the line to the admin daemon, and the daemon cannot write that file either, the line is now recorded in `data/logs/admin_daemon.log` as a warning instead of being discarded.
+- **SQL migrations split on real statement boundaries:** the upgrade script now finds the end of each statement in a `.sql` migration by reading the SQL, instead of by pattern matching. A `;` or `--` inside a quoted string, a function body or a block comment no longer corrupts the migration. Every migration shipped with BinktermPHP is split exactly as before.
+- **Docker: telnet client added for the BBSLink door:** the container image now includes the `telnet` package, which the BBSLink native door (`bbslinknative`) needs. Rebuild the image to get it.
 
-### AreaFix / FileFix
+### Web Interface
 
-- **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
-- **Fixed: AreaFix sync set an override address on echo areas:** syncing areas from a hub's AreaFix reply filled in the echo area's **Uplink Address** ("Override Uplink FidoNet address") field on every area it created or touched. The sync no longer sets it, and deactivating areas missing from the hub's list is now scoped by network domain and tag instead of by that address.
+- **Fresh assets after an upgrade:** the service worker now asks the server whether a file has changed before saving it to its cache after an upgrade, so browsers no longer keep an old copy of a CSS or JavaScript file from before the upgrade.
+- **Login page honors "Remember me":** the checkbox on the login page was never sent to the server, so every web login got a 30-day session cookie. Leaving it unchecked now gives a cookie that the browser discards when it closes.
+- **Recovery from a stale CSRF token:** logging in as the same user somewhere else, in another browser or over Telnet or SSH, used to make every already-open page and terminal session fail with "Invalid CSRF token" until it was reloaded or reconnected. Web pages and terminal sessions now fetch the current token and recover on their own. A new `GET /api/auth/csrf-token` endpoint supplies the token.
 
 ### Web Doors
 
 - **Longer browser caching for door assets:** icons and screenshots served from `/door-assets/` now use `Cache-Control: public, max-age=604800, stale-while-revalidate=86400` (up from a 24-hour max-age), plus ETag/Last-Modified conditional requests, so repeat visits reload door pages faster and generate less server load.
 - **RLogin door asset sizes stored in the database:** icon and screenshot byte sizes for RLogin doors are now stored alongside the image data instead of being recomputed on every request, reducing memory overhead when serving those assets.
+- **MRC chat loads its libraries from the bundled copies:** the MRC web door now loads Bootstrap, jQuery and its icons from the copies bundled with BinktermPHP instead of public CDNs, so it works under a strict Content Security Policy and without access to those CDNs.
+- **DOS doors redraw after the browser reconnects:** when a browser's connection to a running DOS door drops and comes back within `DOSDOOR_RECONNECT_TIMEOUT`, the terminal now shows the current door screen again instead of staying blank until the door next writes.
 
 ### MeshCore
 
@@ -70,9 +106,24 @@ Make sure you have a current backup of your database and files before upgrading.
 - **SysopNet added to the networks list:** SysopNet (zone 23, hub 23:1/1), an FTN for sysops run by sysops, is now registered automatically on upgrade, so it appears in **Admin -> Networks** without being created by hand.
 - **Networks listed alphabetically:** the network list in **Admin -> Networks** and the network dropdown when editing an uplink are now sorted purely by name.
 
+### BBS Directory
+
+- **Geocoding provider failures no longer cached:** a failed request to the geocoding provider, such as a timeout or an outage, was stored the same way as a genuine "no match" answer, so the location was never looked up again. Failures are now never cached and are retried on the next run.
+- **Geocoding backfill skips known no-match locations:** locations the provider has already said it cannot find no longer take up places in a limited backfill batch, so newer entries further down the directory are no longer starved of coordinates.
+
 ### Security
 
 - **Secure flag on session cookies:** the `binktermphp_session` cookie now sets the `Secure` flag whenever the site is served over HTTPS, so the cookie is no longer sent over a plain HTTP connection even if one is reachable.
+- **Default terminal registration secret no longer trusted:** an unset `TERMINAL_REGISTRATION_SECRET`, or the published default `Chang3Me`, is no longer accepted as proof that a request came from the telnet/SSH daemons. Docker installs generate a site-specific secret automatically; other installs must set one in `.env`.
+- **Failed-login throttle:** repeated failed logins are now limited per account and per source IP across the web login, telnet, SSH, FTP, NNTP and QWK HTTP downloads. By default an account allows 5 failures and an IP allows 20 within 15 minutes; once either limit is reached, further attempts fail exactly like a wrong password until the window passes. Set `AUTH_LOGIN_USER_MAX`, `AUTH_LOGIN_IP_MAX` and `AUTH_LOGIN_WINDOW` in `.env` to change the limits (see [CONFIGURATION.md](CONFIGURATION.md#failed-login-throttle)). The upgrade migration creates the `auth_login_attempts` table.
+- **Telnet and SSH sessions disconnected when their web session is revoked:** a connected Telnet or SSH user, including one playing a door, is now signed out shortly after their web session is revoked, expires, or is deleted by a password reset. Previously the terminal session kept running with full access until the user disconnected.
+- **Docker: config JSON files no longer world-readable:** the container now restricts the top-level `config/*.json` files, which hold uplink passwords and API keys, to the owner and group at startup. Previously they were readable by any user in the container.
+- **BinkP debug logging no longer records password material:** with debug logging on, BinkP authentication logged the first characters of the received and expected passwords and the CRAM-MD5 challenge with its digest. Only outcomes, lengths and a hint about why a password did not match are logged now, unless you set `BINKP_LOG_SENSITIVE_AUTH=true`.
+- **Auto Feed verifies TLS and allows only http(s) feeds:** RSS and Atom feeds are now fetched with HTTPS certificate and host name verification, and only `http://` and `https://` URLs are accepted. A feed with an invalid or self-signed certificate now fails instead of being fetched.
+- **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable.
+- **Login takes the same time for unknown usernames:** a login with a username that does not exist used to fail faster than a login with a real username and a wrong password, which let anyone tell which accounts exist by timing the responses. Both failures now take about the same time.
+- **WebDoor API only serves installed, enabled games:** the session, storage and leaderboard endpoints used under `/api/webdoor/` now accept only a `game_id` that names an installed WebDoor which is enabled and whose requirements are met. Any other id gets a `404` and nothing is read or written. Before, any string was accepted and created session, save and leaderboard rows.
+- **Telnet drops idle connections sooner before login:** a Telnet connection that sits silent at the login, register or reset-password prompts is now disconnected after 90 seconds instead of the 7 minutes allowed for a signed-in session. Set `TELNET_PREAUTH_IDLE_TIMEOUT` in `.env` to change it.
 
 ## Messaging
 
@@ -92,6 +143,36 @@ Previously, only admin users could choose to order echomail by written date; thi
 The Echo Areas page lets you filter the area list down to one or more networks and interests using the **Network** and **Interests** dropdowns. The "Search Messages" box on that same page now carries those selections into the search, so results are limited to matching echo areas instead of every echo area on the system. Leaving both dropdowns on their "All" default still searches everything.
 
 On the Echomail page, searching while browsing a single interest under the Interests tab is likewise scoped to that interest's echo areas. Searching from a specific echo area continues to scope to that single area, as before, taking priority over any network or interest scope.
+
+### Fixed: Inbound Echomail Landed in Areas With an Empty Domain
+
+When echomail arrived in a packet, the network domain was worked out only from the message author's address, by matching it against the routing patterns of your configured uplinks. Authors on systems outside those patterns do not match, which is the usual case for echomail, so their messages were stored with an empty domain and ended up in echo areas not tied to any network.
+
+The domain is now taken from the uplink the packet came from, which is authoritative whatever the author's address is. The author's address is still used first for a message when it resolves to a network, and the packet's uplink domain is used when it does not.
+
+Messages already stored with an empty domain are not changed by the upgrade.
+
+### Echomail No Longer Sent Through Another Network's Uplink
+
+Outbound echomail for a networked echo area goes to the area's **Uplink Address** if one is set (see **Admin -> Echo Areas**), and otherwise to the uplink configured for the area's network in **Admin -> BBS Settings -> BinkP Uplinks**. When the network had no uplink, BinktermPHP used to fall back to the default uplink, which can belong to an unrelated network. Messages posted to the area, and inbound echomail relayed onward, were then written into that other network's packet.
+
+That fallback is gone. If an area's network has no uplink, the message stays on your system, is not queued for sending, and `data/logs/server.log` records a warning like `No uplink configured for network 'examplenet' (echoarea EXAMPLE_TAG); not routing to another network's uplink`.
+
+After upgrading, check the log for this warning. For each network named in it, add the uplink for that network under **Admin -> BBS Settings -> BinkP Uplinks**, then post the message again. Messages that were kept local before you added the uplink are not sent automatically.
+
+### Inbound Echomail Refused When It Would Land in a Local or Ambiguous Area
+
+A network echo area has a network domain. A local-only area has no domain and is flagged as local in **Admin -> Echo Areas**. Incoming echomail was looked up by tag and domain, and when the domain could not be worked out, the lookup matched any area with that tag and no domain. That is how local areas are stored, so network mail could be filed in a local area, or a new area with no domain could be created for it. A tag could also match two areas whose domains differ only by letter case, and the first one silently won.
+
+Incoming echomail is now dropped, and nothing is created, in these cases:
+
+- the network domain of the message could not be determined;
+- the area it matches is flagged local;
+- more than one area matches the tag, with domains that differ only by letter case.
+
+Each dropped message is recorded in the log with the area tag, the sender, the packet name and the reason, for example `[BINKD] Dropping echomail AREA:EXAMPLE_TAG from Some Name <999:1/2> packet=0001abcd.pkt: area EXAMPLE_TAG@examplenet is a local area`. A dropped message is not stored anywhere and is not retried. Areas that have a domain and are not local, and the automatic creation of an area for a message with a known domain, work as before.
+
+After upgrading, check `data/logs/` for `Dropping echomail AREA:` lines. If a network echo area has no domain, set its domain in **Admin -> Echo Areas**. If two areas share a tag and differ only in the case of their domain, delete or merge one of them. If an area should be local-only, mark it local.
 
 ## AreaFix / FileFix
 
@@ -142,20 +223,6 @@ A given hub's AreaFix/FileFix robot always replies in the same format, so Binkte
 
 The remembered format for each uplink is visible and directly editable from **Admin -> BBS Settings -> BinkP Uplinks -> Edit Uplink**: a "Remembered Reply Format" panel shows the current format for AreaFix and FileFix, with buttons to force it to a specific format or clear it. Clearing is useful after you've confirmed a hub's format really did change; forcing is useful to pre-seed a known format for a brand-new uplink before its first reply arrives.
 
-## Administration
-
-### Fixed: user-manager.php create Command
-
-`scripts/user-manager.php create` previously failed on every PostgreSQL install with:
-
-```
-SQLSTATE[42804]: column "is_active" is of type boolean but expression is of type integer
-```
-
-This was left over from the project's earlier SQLite-based schema, where `is_active` accepted an integer. The command now inserts a proper boolean and reads back the new user's id via `RETURNING id` instead of `lastInsertId()`. If you were creating operator accounts by editing the database directly to work around this, you can now use `scripts/user-manager.php create` normally again.
-
-## AreaFix / FileFix
-
 ### Automatic Area Sync on Reply Now Opt-In
 
 When your BBS receives a netmail reply from a hub's AreaFix or FileFix robot that looks like an area list (for example, the response to a `%LIST` or `%QUERY` command), BinktermPHP can automatically create matching `echoareas` or `file_areas` rows and activate them, using the descriptions the hub reports.
@@ -177,6 +244,92 @@ Syncing areas from an AreaFix reply (the **Sync to Echo Areas** button, or autom
 When the *deactivate missing* option is used, it now deactivates active areas in the same network domain whose tag is not in the hub's list. Previously it only considered areas whose Uplink Address matched the hub, which would have skipped areas that have no override.
 
 Echo areas that were already given an Uplink Address by an earlier sync keep it, because it cannot be distinguished from an address a sysop entered on purpose. If you see an override you did not intend, open the area in **Admin -> Echo Areas** and clear the **Uplink Address** field.
+
+## Administration
+
+### Fixed: user-manager.php create Command
+
+`scripts/user-manager.php create` previously failed on every PostgreSQL install with:
+
+```
+SQLSTATE[42804]: column "is_active" is of type boolean but expression is of type integer
+```
+
+This was left over from the project's earlier SQLite-based schema, where `is_active` accepted an integer. The command now inserts a proper boolean and reads back the new user's id via `RETURNING id` instead of `lastInsertId()`. If you were creating operator accounts by editing the database directly to work around this, you can now use `scripts/user-manager.php create` normally again.
+
+### Log Rotation by Size
+
+`scripts/logrotate.php` rotated every log on each run, so keeping a fast-growing log such as `binkp_poll.log` small meant rotating all logs more often. It now takes a size threshold:
+
+```bash
+php scripts/logrotate.php --keep=5 --max-size=10M
+```
+
+- **`--max-size=SIZE`** rotates only a `*.log` file that is at least this large. SIZE is a number of bytes or a number with a `K`, `M` or `G` suffix. A value that is not a valid size makes the script exit with an error. Without the option every log is rotated, as before.
+- **`--logs-dir=PATH`** rotates a different directory from `data/logs`. Rotated copies go in `old/` under that directory.
+- **`--keep=N`** now also deletes old generations beyond N when you lower it between runs. Before, only the single oldest generation was removed, so lowering it left the extra files in place.
+- **`--dry-run`** now starts its "Rotated" lines with `[dry-run]`.
+
+To cap a fast-growing log, schedule the script more often and let `--max-size` decide what is rotated. For example, an hourly cron entry with `--keep=5 --max-size=10M` leaves small logs alone.
+
+**Docker:** the container's log rotation job accepts an optional `LOGROTATE_MAX_SIZE`, for example `10M`, which is passed to the script as `--max-size`. Set it in the `environment` section of `docker-compose.override.yml`, and also set `LOGROTATE_SCHEDULE` to something more frequent than the weekly default (`0 0 * * 0`). A value that is not a number with an optional `K`, `M` or `G` suffix is ignored, with a warning in the container log. When it is unset, behavior is unchanged. See [DOCKER.md](DOCKER.md) and [CLI.md](CLI.md).
+
+### SQL Migrations Split on Real Statement Boundaries
+
+`scripts/upgrade.php` runs a `.sql` migration one statement at a time. It used to find the statement boundaries with two patterns: delete everything from `--` to the end of the line, then split wherever a `;` ended a line. Valid SQL could break under that. A `--` inside a string, such as `DEFAULT '--'`, cut the line short. A `;` at the end of a line inside a quoted string, a function body or a `DO` block, or a block comment, split the statement in the middle.
+
+The upgrade script now uses `src/PostgresSqlSplitter.php`, which reads the SQL the way PostgreSQL does. It leaves quoted strings and identifiers (including doubled quotes and `E'...'` escape strings), dollar-quoted bodies and tags, line comments and nested block comments intact. It reads the connection's `standard_conforming_strings` setting before each statement, so a `SET` earlier in the same migration is respected. If a string, quoted identifier, comment or dollar-quoted body is never closed, the migration stops with an error naming the line and byte offset, and the migration is rolled back as for any other error.
+
+Every `.sql` migration shipped with BinktermPHP produces the same statements as before. The difference for you is in what reaches PostgreSQL: comments in a migration are now sent along with the statement they belong to, so they can appear in a PostgreSQL error message, and several statements written on one line are now run as separate statements. PHP migrations are not affected.
+
+Only the upgrade script uses the new splitter. `scripts/install.php`, which loads the base schema on a new install, keeps its existing parser. See [PostgreSQLDependencies.md](PostgreSQLDependencies.md).
+
+### Docker: telnet Client Added for the BBSLink Door
+
+The BBSLink native door (`bbslinknative`) uses the `telnet` command to connect to BBSLink. The container image did not include it, so the door could not make that connection inside Docker. The image now installs the `telnet` package. Rebuild the image to include it: `docker compose build` followed by `docker compose up -d`.
+
+### Admin Daemon Keeps Log Lines It Cannot Write
+
+When a BinktermPHP process cannot append to its own log file, for example because the file was created by a different system user than the one the process runs as, it sends the log line to the admin daemon over UDP, and the daemon writes it for them. The daemon runs as a single service account, so the same ownership mismatch can stop it from writing that file too. The daemon ignored that failure, and the line was lost without a trace. This most often cost the detailed protocol trace of a BinkP session, which is the information needed to diagnose a session that stalled or hung.
+
+When the daemon cannot write the target file, it now logs a warning to `data/logs/admin_daemon.log` that names the intended log file and the process id, and contains the full text of the lost line. The line is therefore kept, though in `admin_daemon.log` instead of the file it was meant for. If the file that cannot be written is `admin_daemon.log` itself, nothing is recorded, because there is nowhere else to write it.
+
+This does not fix the underlying permissions problem. If you see these warnings, correct the owner or mode of the named log file so the process that writes it can append to it.
+
+## Web Interface
+
+### Fresh Assets After an Upgrade
+
+BinktermPHP's service worker keeps its own cache of CSS, JavaScript and other static files, and starts a new, empty cache whenever a release changes the cache name. It filled the new cache with ordinary requests, which a browser may answer from its own HTTP cache. A browser that still held a file from before the upgrade could therefore put that old copy into the new cache, and keep serving it until the cache name changed again. The symptom was a page that looked or behaved like the previous version after an upgrade, until the user force-reloaded.
+
+Files that are not yet in the service worker's cache are now requested with revalidation: the browser asks the server whether its copy is still current, which costs a small "not modified" reply when it is, and downloads the file when it is not.
+
+### Login Page Honors "Remember Me"
+
+The login page has a "Remember me" checkbox, but its state was never sent to the server. Every web login received a session cookie that lasts 30 days, whether the box was checked or not.
+
+The login page now sends the checkbox state:
+
+- **Checked:** the session cookie lasts 30 days, as before.
+- **Unchecked:** the session cookie has no expiry, so the browser discards it when it closes and the user must sign in again the next time they open the browser.
+
+A client that does not send the setting at all, such as an older script calling `POST /api/auth/login`, still receives the 30-day cookie. Only a value of `true` counts as checked once the setting is sent.
+
+### Recovery From a Stale CSRF Token
+
+Each user has one CSRF token, which is replaced every time that user logs in. A browser page keeps the token it was given when it loaded, and a Telnet or SSH session keeps the token from its own login. When the same user logged in anywhere else, for example in a second browser or by connecting over Telnet while a tab was open, the token held by every other open page and terminal session became stale. Their next save, post or send was rejected with "Invalid CSRF token", and kept being rejected until the page was reloaded or the terminal session reconnected.
+
+Stale tokens are now repaired automatically:
+
+- **Pages using `fetch()`:** when a same-origin POST, PUT, PATCH or DELETE is rejected because of a stale token, the page fetches the current token, updates itself and repeats the request once. The user sees nothing.
+- **Pages using jQuery:** the rejected request is not repeated. The page fetches the current token so that the user's next action succeeds, so that one action may still need to be tried again.
+- **Telnet and SSH sessions:** a rejected request is repeated once with the current token, and later requests in that session use it.
+
+A rejected request was never carried out, so repeating it cannot do the same thing twice. The server still checks every request against the live token, and other 403 errors are not repeated.
+
+The token comes from the new `GET /api/auth/csrf-token`, which requires a signed-in session and returns the session's current token without changing it. It exposes nothing that signed-in pages do not already contain, and a page on another site cannot read it. See [API.md](API.md).
+
+Restart the telnet and SSH daemons so they load the new code; `scripts/restart_daemons.sh` does this.
 
 ## Web Doors
 
@@ -201,6 +354,18 @@ If you update a door's icon or screenshot file, its changed modification time (o
 
 RLogin doors store their icon and screenshot images as binary data directly in the `rlogin_doors` table, since these doors have no directory on disk. Their byte sizes are now stored in new `icon_size` and `screenshot_size` columns on that table, populated whenever an icon or screenshot is uploaded through **Admin -> RLogin Doors**. Existing icons and screenshots are backfilled automatically by the upgrade migration, so their sizes are recorded immediately without needing to re-upload anything.
 
+### MRC Chat Loads Its Libraries From the Bundled Copies
+
+The MRC chat page loaded Bootstrap 5.1.3, Bootstrap Icons and jQuery 3.6.0 from jsDelivr and code.jquery.com. With a strict Content Security Policy, or on a server without access to those hosts, the page rendered without styling, scripts or icons. It now uses the Bootstrap 5.3.0, jQuery 3.7.1 and Font Awesome 6.4.0 copies that the rest of BinktermPHP already serves from `/vendor/`, so nothing is fetched from a third party.
+
+### DOS Doors Redraw After the Browser Reconnects
+
+If the browser's connection to a running DOS door dropped and came back within `DOSDOOR_RECONNECT_TIMEOUT` (30 seconds by default), the session was reattached but the terminal stayed blank until the door next wrote something, and anything the door wrote while the connection was down was discarded. After a short network drop or a page reload, the player was left looking at an empty screen over a game that was still running.
+
+The DOS door bridge now keeps the most recent terminal output of each session, up to 512 Ki characters, and sends it to the browser as soon as it reconnects, so the current screen is drawn again. Output the door produces while the connection is down is kept the same way. The log line `WebSocket not ready, dropping N bytes` is replaced by one saying the output was buffered for replay.
+
+Only the most recent output is kept, so a very long session replays its latest part rather than everything since the door started. Restart the DOS door bridge so it loads the new code.
+
 ## MeshCore
 
 ### Radio Settings Link on the Dashboard
@@ -217,13 +382,150 @@ The upgrade migration registers SysopNet (domain `sysopnet`, https://sysopnet.co
 
 The network list in **Admin -> Networks**, and the network dropdown in the uplink editor under **Admin -> BBS Settings -> BinkP Uplinks**, previously showed all built-in networks first and then any other networks (such as locally created ones, or SysopNet) in a separate group below them. They are now sorted by name in a single list, regardless of whether a network is built in.
 
+## BBS Directory
+
+### Geocoding Provider Failures No Longer Cached
+
+The BBS directory looks up map coordinates for each listed location and keeps the answers in the `geocode_cache` table. A failed request to the provider (a network error, timeout, error response or unreadable reply) used to be saved as an empty answer, exactly like the provider replying that it found no match. A short outage during an automated backfill could therefore leave locations permanently without coordinates.
+
+Now only real answers are cached: a result with coordinates, or a successful reply with no match. A failed request is not cached, never replaces an existing cache entry, and is tried again on the next run.
+
+The upgrade migration adds a `status` column to `geocode_cache`. Existing rows that have coordinates are marked as successes, and existing rows without coordinates are marked as no-match, because there is no way to tell whether an old empty row was a real no-match or an earlier failure. The migration does not look those locations up again.
+
+### Geocoding Backfill Skips Known No-Match Locations
+
+`scripts/geocode_bbs_directory.php` backfills coordinates for directory entries that have a location but no coordinates. When run with a limit, it picked the entries with the lowest ids first. Entries whose locations can never be found stayed at the front on every run and used up the whole batch, so newer entries were never reached.
+
+The backfill now leaves out locations already cached as no-match before applying the limit, and examines at most 2000 candidate entries per run (or 20 times the limit, if that is larger). The script prints a new line, "Rows excluded (known permanent no_result)", with the number of entries it left out.
+
+An entry whose location text is changed is looked up again automatically, because the cache is keyed on the location text. To retry a location without changing its text, delete its row from `geocode_cache`.
+
 ## Security
 
 ### Secure Flag on Session Cookies
 
 The `binktermphp_session` cookie is now marked `Secure` whenever the site's effective URL uses HTTPS, determined from the `SITE_URL` environment variable (or, if that isn't set, from the request's own HTTPS signal). This prevents the browser from sending the session cookie over a plain HTTP connection, closing off a path where the session id could otherwise be exposed on the wire. Installations that serve BinktermPHP over HTTPS behind a reverse proxy should ensure `SITE_URL` in `.env` is set to the `https://` URL so this detection works correctly.
 
----
+### Default Terminal Registration Secret No Longer Trusted
+
+The telnet and SSH daemons send `TERMINAL_REGISTRATION_SECRET` to the web API to report the connecting user's real IP address and to mark registrations as terminal-originated (which skips the browser-only anti-spam checks). Until now an unset value fell back to the published default `Chang3Me`, so any HTTP client could send that value to set its own recorded session IP and to skip the registration anti-spam checks.
+
+The web side now treats an unset, empty, or `Chang3Me` value as "no secret configured" and ignores those headers.
+
+**Docker:** the container generates a random `TERMINAL_REGISTRATION_SECRET` on first start when your `.env` leaves it unset or set to `Chang3Me`, and reuses it on later restarts. Web and terminal daemons read the same generated value.
+
+**Other installs:** if your `.env` does not set a site-specific value, set one now and restart the web server and the telnet/SSH daemons:
+
+```ini
+TERMINAL_REGISTRATION_SECRET=<a long random string, e.g. the output of: openssl rand -hex 32>
+```
+
+Until it is set:
+
+- telnet/SSH sessions are recorded with the server's own address instead of the caller's IP;
+- telnet/SSH registrations are treated like browser registrations and are rejected by the browser timing check ("Session expired");
+- `scripts/setup.php` prints a warning with a generated value you can paste into `.env`, and the server log records a warning when a terminal registration arrives.
+
+### Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked
+
+A Telnet or SSH login creates a web auth session, which was checked only once, at login. If that session was later removed, the terminal session stayed connected with full access, and so did any door the user was playing. A session can be removed by:
+
+- **Revoke** or **Revoke all sessions** in **Settings**;
+- a password reset, which deletes all of the user's sessions;
+- the session expiring, or the account being deactivated.
+
+The terminal server now re-checks the session at most every 30 seconds while the user is at a prompt or waiting for a keypress, and while a door is running. Once the session is gone, the user sees "Your session was signed out elsewhere - disconnecting..." and is disconnected. A user inside a door is taken out of the door first. Once a session is found revoked it stays revoked.
+
+A database error during the re-check is logged and is not treated as a revocation, so a brief database outage does not disconnect users. Nothing is checked before login.
+
+The message is a new `ui.terminalserver.server.session_revoked` key, added to all six locales. Restart the telnet and SSH daemons so they load the new code; `scripts/restart_daemons.sh` does this.
+
+### Docker: Config JSON Files No Longer World-Readable
+
+The container entrypoint set `config/`, `data/` and `dosbox-bridge/` to mode 775 on every start. That left files such as `config/binkp.json` (BinkP uplink passwords) and `config/lovlynet.json` (LovlyNet keys) readable by every user in the container.
+
+After setting those permissions, the entrypoint now sets every top-level `config/*.json` file to mode 640: readable and writable by the `binkterm` user and group, with no access for anyone else. The web server user (`www-data`) belongs to that group, so PHP still reads the files. The `config/` directory stays at 775 so the admin daemon can still create and replace files.
+
+This applies on the next container start. If you mount `config/` from the host, the files on the host are changed to 640 as well, so check that any host-side tools or backup jobs reading them run as a user or group that can still do so.
+
+### BinkP Debug Logging No Longer Records Password Material
+
+With debug logging enabled, BinkP authentication wrote the first characters of both the password received from the remote system and the password expected for it to the log. For CRAM-MD5 it also wrote the challenge together with the digest. Anyone who can read the log can use a logged challenge and digest to guess the shared session password offline.
+
+By default the log now records only the outcome of each authentication, the password lengths, and a hint that does not reveal the password: whether the lengths differ, the letter case differs, or there is stray whitespace.
+
+When you need the full detail to troubleshoot authentication with a particular peer, add this to `.env` and restart the BinkP daemons:
+
+```ini
+BINKP_LOG_SENSITIVE_AUTH=true
+```
+
+While it is on, the password prefixes and CRAM-MD5 challenge and digest values are logged again, and a warning is logged once per session to show that it is enabled. Remove the setting when you are done, and treat any log written while it was on as containing secrets. See [CONFIGURATION.md](CONFIGURATION.md) for the setting.
+
+### Auto Feed Verifies TLS and Allows Only http(s) Feeds
+
+The RSS poster fetched feeds with HTTPS certificate and host name checks turned off, followed redirects automatically, and accepted a URL with any scheme. Anyone able to tamper with the connection to a feed, or to redirect it, could supply content that was then posted into echo areas.
+
+Feeds are now fetched with these rules:
+
+- Only `http://` and `https://` URLs are fetched. Any other scheme, such as `file://`, fails.
+- The HTTPS certificate must be trusted by the server's system certificate store and must match the feed's host name.
+- Redirects are followed one at a time, up to 5. Each one must stay on `http` or `https`, and a feed fetched over `https://` is not allowed to redirect to plain `http://`.
+
+A feed that fails these checks is not posted for that run, and the error is recorded in the log of the RSS poster. Error messages leave out any user name, password and query string from the feed URL.
+
+Check **Admin -> Auto Feed** after upgrading. A feed whose server has an expired, self-signed or mismatched certificate used to work and will now fail until the server's certificate is fixed. There is no setting to turn verification off. A feed that redirects from `https://` to `http://` also fails, so change the feed's URL to the final `https://` address. See [Autofeed.md](Autofeed.md).
+
+### Telnet TLS Offers TLS 1.3 and Validates Your Certificate
+
+The TLS Telnet listener (port 8023 by default) only offered TLS 1.0 to 1.2, with a fixed cipher list. It now offers every version from a minimum you choose up to TLS 1.3, so a modern client negotiates TLS 1.3 and an old BBS terminal program can still connect with an older version. Two new settings in `.env` control this:
+
+```ini
+TELNET_TLS_MIN_VERSION=1.0
+TELNET_TLS_CIPHERS=DEFAULT:@SECLEVEL=0
+```
+
+- **`TELNET_TLS_MIN_VERSION`** is the oldest version accepted: `1.0`, `1.1`, `1.2` or `1.3`. The default is `1.0`, so existing callers keep working. Once you know none of your users need the older versions, set it to `1.2` or higher. An invalid value is logged as a warning and treated as `1.0`.
+- **`TELNET_TLS_CIPHERS`** is the OpenSSL cipher list. The default matches what was used before. Set a stricter list to harden the listener at the cost of older clients.
+
+If you set `TELNET_TLS_CERT` and `TELNET_TLS_KEY` to your own certificate and key, the daemon now checks them when it starts: both files must exist and be readable, be valid PEM, and the certificate must match the key. If any check fails, the daemon logs the exact reason and starts with the TLS listener off, while the plain Telnet listener keeps running. It does not create a self-signed certificate in place of the one you configured. A self-signed pair is generated under `data/telnet/` only when both settings are left unset.
+
+Check that the TLS listener is up after restarting the telnet daemon. Each TLS connection is logged with the negotiated version, cipher and key size, for example `TLS connection from 192.0.2.10 [TLSv1.3 TLS_AES_256_GCM_SHA384 256-bit]`. See [TelnetServer.md](TelnetServer.md).
+
+### Login Takes the Same Time for Unknown Usernames
+
+Checking a password is deliberately slow. When a login named an account that exists, BinktermPHP checked the password and the attempt took that long to fail. When the username did not exist, there was no password to check, so the attempt failed almost at once. Anyone who timed the responses could tell which usernames are registered, and then concentrate guessing on those.
+
+A login with an unknown username now checks the password against a placeholder hash that no password matches, using the same algorithm and cost that new passwords are stored with. A wrong password for a real account and any password for an unknown account therefore take about the same time and give the same error. The placeholder is built without hashing anything, so this adds no extra work per request beyond the one check.
+
+This applies to every place that checks a username and password: the web login, Telnet and SSH (which sign in through the web login), FTP, NNTP and QWK HTTP downloads.
+
+### WebDoor API Only Serves Installed, Enabled Games
+
+WebDoor games call `/api/webdoor/session`, `/api/webdoor/storage` and `/api/webdoor/leaderboard` to keep sessions, save slots and high scores. The game is identified by the `game_id` query parameter or, when that is absent, by the `/webdoors/{id}/` page in the request's referer. The API used to accept any value, and fell back to `unknown` when there was none, so a signed-in user could create session, save and leaderboard rows for a game that does not exist, is switched off, or does not meet its requirements.
+
+The id must now name an installed WebDoor, matched by its directory name or its manifest `game.id`, that is enabled and whose manifest requirements are met. The API then uses the manifest's own id, whichever of the two the request used. For any other id, or when no id can be determined, the API answers `404` with the error `errors.webdoor.game_unavailable` ("This game is not available") and reads or writes nothing.
+
+Rows already stored under ids that no longer match an installed WebDoor are left in place and are not served. A game that is disabled in **Admin -> Doors -> WebDoors** stops being able to load or save data until it is enabled again.
+
+The error is a new key in `errors.php`, added to all six locales. See [WebDoors.md](WebDoors.md).
+
+### Telnet Drops Idle Connections Sooner Before Login
+
+Port scanners often open a Telnet connection, read the banner and then say nothing. Each such connection holds a handler process until the idle timer ends it, and before login that timer was the same 7 minutes (420 seconds) used for signed-in users.
+
+The login, register and reset-password prompts now use a shorter idle limit of 90 seconds. Any keystroke resets it, so a person reading the login screen and typing at a normal pace is not cut off. Telnet option negotiation and terminal reports sent by the client do not count as activity, so a client that only sends those is disconnected on schedule. Once the user signs in, the session goes back to the normal idle warning and disconnect times.
+
+To change the limit, set this in `.env` and restart the telnet daemon:
+
+```ini
+TELNET_PREAUTH_IDLE_TIMEOUT=90
+```
+
+The value is in seconds. A value below `15` is ignored and the default of 90 is used, because it could disconnect someone who is still typing their username.
+
+This frees idle sockets; it does not prevent abuse. A client that sends a keystroke every so often can still hold a pre-login connection open. SSH users sign in at the SSH layer before reaching the BBS, so this limit does not apply to them. See [TelnetServer.md](TelnetServer.md).
+
 
 ## Upgrade Instructions
 

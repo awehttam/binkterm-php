@@ -200,7 +200,7 @@ class BinkpClient
             //$this->log("Handshake completed with {$address}");
 
             if (!$session->processSession()) {
-                throw new \Exception('Session processing failed');
+                throw new \Exception('Session ended abnormally without reaching clean termination (e.g. a hard EOB/inactivity timeout or premature disconnect - see protocol log)');
             }
 
             $this->log("Session completed successfully with {$address}");

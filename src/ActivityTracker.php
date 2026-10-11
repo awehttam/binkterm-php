@@ -48,6 +48,26 @@ class ActivityTracker
     const TYPE_PGP_KEY_DELETE           = 22;
 
     /**
+     * Record exactly one successful-login event for a caller.
+     *
+     * This is the single place that defines what a TYPE_LOGIN row looks like:
+     * object_name carries the arrival service ('web', 'telnet', 'ssh',
+     * 'packetbbs', ...) so the admin "logins by source" breakdown and the
+     * caller-count queries (Auth::getTotalLoginCount / getTodaysCallers /
+     * getActiveTodayCount) all read one row per successful login. Every login
+     * boundary must call this once and only once; nothing downstream of a
+     * boundary (daemon post-login setup, later commands) may emit it again.
+     *
+     * @param int|null    $userId  The authenticated user's ID.
+     * @param string      $service The service the login arrived on.
+     * @param string|null $ip      The caller's real address, when the boundary knows it.
+     */
+    public static function trackLogin(?int $userId, string $service, ?string $ip = null): void
+    {
+        self::track($userId, self::TYPE_LOGIN, null, $service, $ip !== null && $ip !== '' ? ['ip' => $ip] : []);
+    }
+
+    /**
      * Record an activity event.
      *
      * Fails silently — a tracking failure must never interrupt the tracked action.
