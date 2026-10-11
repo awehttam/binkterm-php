@@ -980,31 +980,101 @@ $(document).ready(function() {
             }
         }
     });
+    // jQuery requests are not retried automatically; on a stale-CSRF rejection
+    // re-sync the cached token so the user's next action succeeds.
+    $(document).ajaxError(function(event, xhr) {
+        if (xhr.status === 403 && xhr.responseJSON
+            && xhr.responseJSON.error_code === 'errors.auth.invalid_csrf_token'
+            && typeof window.resyncCsrfToken === 'function') {
+            window.resyncCsrfToken();
+        }
+    });
 });
 
 // Intercept native fetch() calls for same-origin state-changing requests
 // so that templates using fetch() directly also send the CSRF token.
+//
+// Stale-token self-heal: the CSRF token is stored per user and rotated on every
+// login, so another login of the same user (a second browser, or a Telnet/SSH
+// session) invalidates the token this page cached at render time. When a
+// mutating request comes back 403 errors.auth.invalid_csrf_token, re-sync the
+// token from GET /api/auth/csrf-token (read-only), update the meta tag, and
+// retry fetch() requests once. The server still validates every request.
 (function() {
     const _fetch = window.fetch;
+    const MUTATING = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
+    function csrfMeta() {
+        return document.querySelector('meta[name="csrf-token"]');
+    }
+
+    function isSameOrigin(url) {
+        return typeof url === 'string' &&
+            (url.startsWith('/') || url.startsWith(window.location.origin));
+    }
+
+    function setCsrfHeader(options, value) {
+        options.headers = options.headers || {};
+        if (options.headers instanceof Headers) {
+            options.headers.set('X-CSRF-Token', value);
+        } else {
+            options.headers['X-CSRF-Token'] = value;
+        }
+    }
+
+    // One in-flight re-sync shared by requests that fail together.
+    let resyncInflight = null;
+    function resyncCsrfToken() {
+        if (resyncInflight) return resyncInflight;
+        resyncInflight = _fetch('/api/auth/csrf-token', { headers: { 'Accept': 'application/json' } })
+            .then(r => (r.ok ? r.json() : null))
+            .then(data => {
+                const fresh = data && data.csrf_token;
+                if (!fresh) return null;
+                const meta = csrfMeta();
+                if (meta) meta.content = fresh;
+                return fresh;
+            })
+            .catch(() => null)
+            .finally(() => { resyncInflight = null; });
+        return resyncInflight;
+    }
+    window.resyncCsrfToken = resyncCsrfToken;
+
     window.fetch = function(url, options) {
         options = options || {};
         const method = (options.method || 'GET').toUpperCase();
-        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-            const isSameOrigin = typeof url === 'string' &&
-                (url.startsWith('/') || url.startsWith(window.location.origin));
-            if (isSameOrigin) {
-                const token = document.querySelector('meta[name="csrf-token"]');
-                if (token && token.content) {
-                    options.headers = options.headers || {};
-                    if (options.headers instanceof Headers) {
-                        options.headers.set('X-CSRF-Token', token.content);
-                    } else {
-                        options.headers['X-CSRF-Token'] = token.content;
-                    }
-                }
+        const guarded = MUTATING.includes(method) && isSameOrigin(url);
+        if (guarded) {
+            const meta = csrfMeta();
+            if (meta && meta.content) {
+                setCsrfHeader(options, meta.content);
             }
         }
-        return _fetch.call(this, url, options);
+
+        const inFlight = _fetch.call(this, url, options);
+        if (!guarded || options.__csrfRetried) {
+            return inFlight;
+        }
+
+        return inFlight.then(resp => {
+            if (resp.status !== 403) return resp;
+            return resp.clone().json().then(
+                data => {
+                    if (!data || data.error_code !== 'errors.auth.invalid_csrf_token') return resp;
+                    return resyncCsrfToken().then(fresh => {
+                        if (!fresh) return resp;
+                        const retry = Object.assign({}, options, { __csrfRetried: true });
+                        retry.headers = (options.headers instanceof Headers)
+                            ? new Headers(options.headers)
+                            : Object.assign({}, options.headers);
+                        setCsrfHeader(retry, fresh);
+                        return _fetch.call(this, url, retry);
+                    });
+                },
+                () => resp
+            );
+        });
     };
 }());
 

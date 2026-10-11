@@ -609,6 +609,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Numero de ranura invalido',
     'errors.webdoor.save_too_large' => 'Los datos guardados exceden el tamano maximo',
     'errors.webdoor.save_not_found' => 'Guardado no encontrado',
+    'errors.webdoor.game_unavailable' => 'Este juego no está disponible',
 
     // Door API
     'errors.door.door_name_required' => 'Se requiere el nombre de la puerta',

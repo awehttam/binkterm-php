@@ -122,6 +122,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $username = $input['username'] ?? '';
         $password = $input['password'] ?? '';
         $service = $input['service'] ?? 'web';
+        // Browser logins send the "Remember me" checkbox; clients that do not
+        // send it (terminal daemons, older scripts) keep the persistent cookie.
+        $remember = is_array($input) && array_key_exists('remember', $input)
+            ? $input['remember'] === true
+            : true;
 
         if (empty($username) || empty($password)) {
             apiError('errors.auth.missing_credentials', apiLocalizedText('errors.auth.missing_credentials', 'Username and password required'), 400);
@@ -133,11 +138,30 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // Shared failed-login throttle for every interactive credential login
+        // (Web, Telnet, TLS-Telnet, SSH initial password auth, SSH fallback
+        // BbsSession login) -- they all reach this one route. For the terminal
+        // daemons Auth::resolveClientIp() yields the end-user IP from the
+        // authenticated X-Binkterm-Client-IP header. A throttled attempt returns
+        // the identical generic failure as a wrong password below -- no lockout
+        // signal, no username-enumeration signal.
+        $clientIp = Auth::resolveClientIp();
+        $loginThrottle = new \BinktermPHP\Security\LoginThrottle();
+        if (!$loginThrottle->isAllowed($username, $clientIp)) {
+            apiError('errors.auth.invalid_credentials', apiLocalizedText('errors.auth.invalid_credentials', 'Invalid credentials'), 401);
+            return;
+        }
+
         $auth = new Auth();
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
-            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
+            // Successful auth: retire this identifier's failure counter. The
+            // source-IP counter is deliberately left to age out on its own so
+            // holding one valid account cannot reset an IP spray counter.
+            $loginThrottle->recordSuccess($username);
+
+            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions($remember));
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
             }
@@ -159,8 +183,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
             echo json_encode(['success' => true, 'csrf_token' => $csrfToken]);
         } else {
+            // Count only a real credential attempt that returned false --
+            // never a malformed request, network error, or client disconnect.
+            $loginThrottle->recordFailure($username, $clientIp);
+            $loginThrottle->cleanOld();
             apiError('errors.auth.invalid_credentials', apiLocalizedText('errors.auth.invalid_credentials', 'Invalid credentials'), 401);
         }
+    });
+
+    /**
+     * GET /api/auth/csrf-token
+     *
+     * Returns the current session's per-user CSRF token. The token is rotated
+     * on every login of the same user (Auth::createAuthenticatedSession), so a
+     * page or terminal session that cached it can become stale when the user
+     * logs in elsewhere; clients call this once to re-sync after a 403
+     * errors.auth.invalid_csrf_token and retry. Read-only: it never rotates the
+     * token, and it discloses nothing beyond what every authenticated page
+     * render already embeds (meta csrf-token); cross-origin pages cannot read
+     * the response.
+     */
+    SimpleRouter::get('/auth/csrf-token', function() {
+        header('Content-Type: application/json');
+        header('Cache-Control: no-store');
+        $user = RouteHelper::requireAuth();
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        echo json_encode(['success' => true, 'csrf_token' => (new UserMeta())->getValue($userId, 'csrf_token')]);
     });
 
     SimpleRouter::post('/auth/logout', function() {
@@ -320,13 +369,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $registrationSource = strtolower(trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_SOURCE'] ?? 'web')));
         $registrationToken = trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN'] ?? ''));
         $terminalClientIpHeader = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
-        $expectedRegistrationToken = trim((string)\BinktermPHP\Config::env(
-            'TERMINAL_REGISTRATION_SECRET',
-            'Chang3Me'
-        ));
+        $expectedRegistrationToken = \BinktermPHP\Config::terminalRegistrationSecret();
         $isTerminalRegistration = in_array($registrationSource, ['telnet', 'ssh'], true)
             && $expectedRegistrationToken !== ''
             && hash_equals($expectedRegistrationToken, $registrationToken);
+        if (in_array($registrationSource, ['telnet', 'ssh'], true) && $expectedRegistrationToken === '') {
+            getServerLogger()->warning(
+                'Terminal registration received but TERMINAL_REGISTRATION_SECRET is unset or still the published default; '
+                . 'treating it as a browser registration. Set a site-specific secret in .env and restart the terminal daemons.'
+            );
+        }
         $registrationIpAddress = $_SERVER['REMOTE_ADDR'] ?? '';
         if ($isTerminalRegistration && filter_var($terminalClientIpHeader, FILTER_VALIDATE_IP) !== false) {
             $registrationIpAddress = $terminalClientIpHeader;

@@ -98,7 +98,7 @@ final class ConfigHttpsTest extends TestCase
         self::assertIsInt($loginStart);
         self::assertIsInt($loginEnd);
         self::assertStringContainsString(
-            $this->sessionCookieCall(),
+            "setcookie('binktermphp_session', \$sessionId, Config::getSessionCookieOptions(\$remember));",
             substr($source, $loginStart, $loginEnd - $loginStart)
         );
     }

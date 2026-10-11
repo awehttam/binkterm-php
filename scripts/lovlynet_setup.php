@@ -377,7 +377,7 @@ function doRegistration($isUpdate = false) {
         echo "\nVerifying local /api/verify endpoint... ";
         $verifyUrl = rtrim($siteUrl, '/') . '/api/verify';
         $context = stream_context_create([
-            'http' => ['method' => 'GET', 'timeout' => 10, 'ignore_errors' => true],
+            'http' => ['method' => 'GET', 'timeout' => 10, 'ignore_errors' => true, 'user_agent' => 'BinktermPHP LovlyNet Setup/' . Version::getVersion()],
             'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]
         ]);
         $response = @file_get_contents($verifyUrl, false, $context);

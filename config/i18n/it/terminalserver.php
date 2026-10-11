@@ -97,6 +97,7 @@ return [
 
     // --- Idle timeout ---
     'ui.terminalserver.server.idle.disconnect'         => 'Timeout inattività - disconnessione...',
+    'ui.terminalserver.server.session_revoked' => 'La tua sessione è stata chiusa altrove - disconnessione...',
     'ui.terminalserver.server.idle.warning_line'       => 'Sei ancora lì? (Premi Invio per continuare)',
     'ui.terminalserver.server.idle.warning_key'        => 'Sei ancora lì? (Premi un tasto per continuare)',
 

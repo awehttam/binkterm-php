@@ -481,23 +481,11 @@ function isBlueskyProfileUrl($url) {
  * @throws Exception on fetch failure
  */
 function fetchRssFeed($url) {
-    $context = stream_context_create([
-        'http' => [
-            'timeout' => 30,
-            'user_agent' => 'BinktermPHP RSS Poster/1.0',
-            'follow_location' => true,
-            'max_redirects' => 5
-        ],
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false
-        ]
-    ]);
-
-    $xml = @file_get_contents($url, false, $context);
-
-    if ($xml === false) {
-        throw new Exception("Failed to fetch feed: $url");
+    // http(s) only, TLS certificates verified, every redirect hop checked.
+    try {
+        $xml = \BinktermPHP\AutoFeed\FeedFetch::get((string)$url, 'BinktermPHP RSS Poster/1.0');
+    } catch (\RuntimeException $e) {
+        throw new Exception($e->getMessage());
     }
 
     libxml_use_internal_errors(true);

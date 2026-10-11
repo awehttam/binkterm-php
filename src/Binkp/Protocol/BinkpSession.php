@@ -133,6 +133,8 @@ class BinkpSession
         return $this->currentUplink;
     }
     
+    private ?bool $sensitiveAuthLogging = null;
+
     public function setLogger($logger)
     {
         $this->logger = $logger;
@@ -190,6 +192,28 @@ class BinkpSession
     {
         $this->extraOutboundFiles[] = $path;
         $this->extraOutboundFilesByName[basename($path)] = $path;
+    }
+
+    /**
+     * Whether authentication secrets may be written to the log.
+     *
+     * Off by default: DEBUG logging shows authentication outcomes, lengths and
+     * mismatch hints, but never password characters or CRAM-MD5 challenge and
+     * digest values (a logged challenge+digest pair allows an offline guess of
+     * the shared secret). BINKP_LOG_SENSITIVE_AUTH=true restores those values
+     * for troubleshooting and logs a warning once per session.
+     */
+    private function sensitiveAuthLogging(): bool
+    {
+        if ($this->sensitiveAuthLogging === null) {
+            $raw = \BinktermPHP\Config::env('BINKP_LOG_SENSITIVE_AUTH', 'false');
+            $this->sensitiveAuthLogging = filter_var($raw, FILTER_VALIDATE_BOOLEAN);
+            if ($this->sensitiveAuthLogging) {
+                $this->log('BINKP_LOG_SENSITIVE_AUTH is enabled: password prefixes and CRAM-MD5 challenge/digest values are being written to this log. Turn it off when troubleshooting is done.', 'WARNING');
+            }
+        }
+
+        return $this->sensitiveAuthLogging;
     }
 
     public function log($message, $level = 'INFO')
@@ -686,13 +710,26 @@ class BinkpSession
             }
 
             $this->cleanup();
+
+            // STATE_TERMINATED is only ever reached via a clean, expected exit -
+            // the peer-close-first grace period completing, or the peer closing
+            // the connection after both sides have exchanged M_EOB (see the two
+            // assignments above). Every other way this loop can end - the hard
+            // EOB/inactivity timeout, or the peer closing before the EOB
+            // exchange completed - breaks out of the loop WITHOUT reaching that
+            // state. Prior to the 2026-09-13 BinkP incident hardening (S3),
+            // this method returned true unconditionally here, so an abnormal
+            // 300-second timeout was indistinguishable from a real success to
+            // every caller and to the session log. See
+            // docs/checkpoints/BinkP_FidoAgora_InboundHang_2026-09-13.md.
             if ($this->state === self::STATE_TERMINATED) {
                 $this->log('Session completed successfully', 'INFO');
-            } else {
-                $this->log("Session ended (final state: {$this->state})", 'WARNING');
+                return true;
             }
-            return true;
-            
+
+            $this->log("Session ended abnormally without reaching clean termination (final state: {$this->state})", 'WARNING');
+            return false;
+
         } catch (\Exception $e) {
             $this->log("Session failed: " . $e->getMessage(), 'ERROR');
             $this->cleanup();
@@ -2548,10 +2585,25 @@ class BinkpSession
         // Log details for debugging authentication issues
         $receivedLen = strlen($password);
         $expectedLen = strlen($expectedPassword);
-        $receivedPreview = $receivedLen > 0 ? substr($password, 0, 3) . '...' : '(empty)';
-        $expectedPreview = $expectedLen > 0 ? substr($expectedPassword, 0, 3) . '...' : '(empty)';
-
-        $this->log("Password validation: received={$receivedPreview} (len={$receivedLen}), expected={$expectedPreview} (len={$expectedLen})", 'DEBUG');
+        if ($this->sensitiveAuthLogging()) {
+            $receivedPreview = $receivedLen > 0 ? substr($password, 0, 3) . '...' : '(empty)';
+            $expectedPreview = $expectedLen > 0 ? substr($expectedPassword, 0, 3) . '...' : '(empty)';
+            $this->log("Password validation: received={$receivedPreview} (len={$receivedLen}), expected={$expectedPreview} (len={$expectedLen})", 'DEBUG');
+        } else {
+            $hint = '';
+            if (!$match) {
+                if ($receivedLen !== $expectedLen) {
+                    $hint = trim($password) === trim($expectedPassword)
+                        ? ', differs only by leading/trailing whitespace'
+                        : ', length differs';
+                } elseif (strcasecmp($password, $expectedPassword) === 0) {
+                    $hint = ', differs only by letter case';
+                } else {
+                    $hint = ', same length, content differs';
+                }
+            }
+            $this->log("Password validation: received len={$receivedLen}, expected len={$expectedLen}{$hint}", 'DEBUG');
+        }
         $this->log("Password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
 
         if ($match) {
@@ -2743,7 +2795,8 @@ class BinkpSession
         $digest = hash_hmac('md5', $binaryChallenge, $password);
 
         $this->log("CRAM-MD5 HMAC digest: challenge_len=" . strlen($challenge) .
-            ", password_len=" . strlen($password) . ", digest=" . $digest, 'DEBUG');
+            ", password_len=" . strlen($password) .
+            ($this->sensitiveAuthLogging() ? ", digest=" . $digest : ''), 'DEBUG');
         return $digest;
     }
 
@@ -2759,7 +2812,9 @@ class BinkpSession
         // Match variable-length hex challenge (at least 16 chars, typically 32+)
         if (preg_match('/CRAM-MD5-([0-9a-fA-F]{16,})/', $nulData, $matches)) {
             $challenge = $matches[1];
-            $this->log("Parsed CRAM-MD5 challenge: " . $challenge . " (len=" . strlen($challenge) . ")", 'DEBUG');
+            $this->log($this->sensitiveAuthLogging()
+                ? "Parsed CRAM-MD5 challenge: " . $challenge . " (len=" . strlen($challenge) . ")"
+                : "Parsed CRAM-MD5 challenge (len=" . strlen($challenge) . ")", 'DEBUG');
             return $challenge;
         }
         return null;
@@ -2834,6 +2889,13 @@ class BinkpSession
         $this->cleanup();
         if ($this->socket && is_resource($this->socket)) {
             $this->drainAndShutdownSocket($this->socket);
+            // Must happen before fclose(): forgetSocket() needs the resource
+            // ID, which is meaningless once the resource is closed. Without
+            // this, a long-running process that opens further sockets later
+            // (e.g. binkp_poll.php --all) could have a freed resource ID
+            // reassigned to a new, unrelated socket and wrongly resume a
+            // stale partial frame from this connection against it.
+            BinkpFrame::forgetSocket($this->socket);
             fclose($this->socket);
             $this->socket = null;
         }

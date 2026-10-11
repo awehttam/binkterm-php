@@ -69,8 +69,45 @@ class BbsSession
     private const ANSI_RED     = "\033[31m";
     private const ANSI_BG_BLUE = "\033[44m";
 
+    // ===== IDLE TIMEOUT CONSTANTS =====
+    /**
+     * Idle-timeout defaults, in seconds.
+     *
+     * An authenticated session uses {@see AUTH_IDLE_WARNING_DEFAULT} /
+     * {@see AUTH_IDLE_DISCONNECT_DEFAULT} (a server-side session-init response may
+     * still override these with sysop-configured values).
+     *
+     * The pre-authentication phase — the login / register / reset-password
+     * prompts — instead uses a deliberately short window
+     * ({@see PREAUTH_IDLE_TIMEOUT_DEFAULT}, tunable via the
+     * `TELNET_PREAUTH_IDLE_TIMEOUT` env var). Idle Telnet scanners routinely
+     * connect and then sit silent; each such socket pins a forked handler.
+     * Shortening only the pre-auth deadline releases those handlers in ~90s
+     * instead of ~7 minutes without affecting a human who is reading the login
+     * screen and typing — any keystroke before authentication refreshes the
+     * timer. This is idle-socket hygiene, not a claim of abuse prevention.
+     */
+    public const AUTH_IDLE_WARNING_DEFAULT = 300;
+    public const AUTH_IDLE_DISCONNECT_DEFAULT = 420;
+    public const PREAUTH_IDLE_TIMEOUT_DEFAULT = 90;
+
+    /**
+     * Sentinel returned by {@see readTelnetLine()} when it consumed only Telnet
+     * protocol chatter (negotiation, terminal reports) with no application line
+     * started and nothing more immediately readable. It tells the idle-aware
+     * caller to yield and re-check its deadline rather than block on the next
+     * byte. Contains a NUL, so it can never collide with a real input line.
+     */
+    private const LINE_CHATTER_ONLY = "\x00chatter-only";
+
     /** @var resource */
     private $conn;
+
+    /** Seconds between re-validations of the logged-in web auth session. */
+    private const AUTH_SESSION_RECHECK_SECONDS = 30;
+    private ?string $authSessionId = null;
+    private int $authSessionCheckedAt = 0;
+    private bool $authSessionRevoked = false;
     private string $apiBase;
     private bool $debug;
     private bool $insecure;
@@ -167,7 +204,7 @@ class BbsSession
         // Auth::resolveClientIp(). Set here — one forked process per connection.
         TelnetUtils::setClientContext(
             $this->peerIp,
-            trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'))
+            Config::terminalRegistrationSecret()
         );
 
         $state = [
@@ -179,8 +216,8 @@ class BbsSession
             'terminal_info_logged' => false,
             'last_activity'          => time(),
             'idle_warned'            => false,
-            'idle_warning_timeout'   => 300,
-            'idle_disconnect_timeout'=> 420,
+            'idle_warning_timeout'   => self::AUTH_IDLE_WARNING_DEFAULT,
+            'idle_disconnect_timeout'=> self::AUTH_IDLE_DISCONNECT_DEFAULT,
             'pushback' => '',
             'locale'   => $this->systemLocale,
             'isTls'    => $this->isTls,
@@ -281,6 +318,12 @@ class BbsSession
             // SSH: already authenticated at the protocol layer
             $loginResult = $this->preAuthSession;
         } else {
+            // Shorten the idle deadline for the pre-auth prompts only. Applied
+            // here, inside the interactive-login branch, so an SSH session
+            // (already authenticated at the protocol layer, handled above) never
+            // enters this window.
+            $this->applyPreAuthIdleDefaults($state);
+
             $showQwkTransfer = BbsConfig::isFeatureEnabled('qwk');
             while ($loginResult === null) {
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
@@ -388,11 +431,17 @@ class BbsSession
 
         // ===== POST-LOGIN SETUP =====
 
+        // Restore normal authenticated idle semantics after the short pre-auth
+        // window (a no-op for SSH, which never shortened them). A server-side
+        // session-init response further below may still override these.
+        $this->applyAuthenticatedIdleDefaults($state);
+
         $session   = $loginResult['session'];
         $username  = $loginResult['username'];
         $loginTime = time();
 
         $state['csrf_token'] = $loginResult['csrf_token'] ?? null;
+        TelnetUtils::setCsrfToken($state['csrf_token']);
 
         $initResp = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/config/session-init', null, $session);
         $initData = $initResp['data'] ?? [];
@@ -418,6 +467,10 @@ class BbsSession
         );
         $state['is_admin'] = !empty($userRecord['is_admin']);
         $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
+        if ($userRecord) {
+            $this->authSessionId = (string)$session;
+            $this->authSessionCheckedAt = time();
+        }
 
         // Persist the negotiated terminal type so other subsystems (e.g. RLogin
         // door launches from the web UI) can fall back to "whatever client this
@@ -982,6 +1035,55 @@ class BbsSession
     /**
      * Translate a terminal server UI string from the 'terminalserver' catalog namespace.
      */
+    /**
+     * Whether this terminal session's web auth session has been revoked or has
+     * expired since login (self-service "revoke session"/"revoke all", a
+     * password reset, account deactivation, expiry). Re-validated at most every
+     * AUTH_SESSION_RECHECK_SECONDS; once revoked it stays revoked. A database
+     * error is not treated as revocation.
+     */
+    public function authSessionRevoked(): bool
+    {
+        if ($this->authSessionRevoked) {
+            return true;
+        }
+        if ($this->authSessionId === null) {
+            return false;
+        }
+        $now = time();
+        if ($now - $this->authSessionCheckedAt < self::AUTH_SESSION_RECHECK_SECONDS) {
+            return false;
+        }
+        $this->authSessionCheckedAt = $now;
+
+        try {
+            $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+        } catch (\Throwable $e) {
+            $this->log('Auth session re-check failed: ' . $e->getMessage());
+            return false;
+        }
+        if ($user) {
+            return false;
+        }
+
+        $this->log('Auth session revoked or expired; disconnecting');
+        return $this->authSessionRevoked = true;
+    }
+
+    /**
+     * Tell the caller their session ended elsewhere and signal disconnect.
+     *
+     * @return array{0:null,1:bool,2:bool}
+     */
+    private function disconnectRevokedSession($conn, array $state): array
+    {
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.session_revoked', 'Your session was signed out elsewhere - disconnecting...', [], $state['locale'] ?? ''), self::ANSI_YELLOW));
+        $this->writeLine($conn, '');
+
+        return [null, false, true];
+    }
+
     public function t(string $key, string $fallback, array $params = [], string $locale = ''): string
     {
         $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['terminalserver']);
@@ -1735,6 +1837,9 @@ class BbsSession
      */
     public function readKeyWithTimeout($conn, array &$state, int $timeoutMs): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed   = time() - ($state['last_activity'] ?? time());
         $warnAt    = (int)($state['idle_warning_timeout'] ?? 300);
         $disconnAt = (int)($state['idle_disconnect_timeout'] ?? 420);
@@ -2820,11 +2925,58 @@ class BbsSession
     // ===== READ WITH IDLE TIMEOUT =====
 
     /**
+     * Pre-authentication idle timeout, in seconds.
+     *
+     * {@see PREAUTH_IDLE_TIMEOUT_DEFAULT}, overridable via the
+     * `TELNET_PREAUTH_IDLE_TIMEOUT` env var. Values below 15s are rejected as a
+     * misconfiguration (they would cut off a human mid-login) and fall back to
+     * the default.
+     */
+    public static function preAuthIdleTimeoutSeconds(): int
+    {
+        $seconds = (int) Config::env(
+            'TELNET_PREAUTH_IDLE_TIMEOUT',
+            (string) self::PREAUTH_IDLE_TIMEOUT_DEFAULT
+        );
+
+        return $seconds >= 15 ? $seconds : self::PREAUTH_IDLE_TIMEOUT_DEFAULT;
+    }
+
+    /**
+     * Apply the short pre-auth idle window to the session state. Called only on
+     * the interactive-login path (never for an SSH protocol-authenticated
+     * session). Warning and disconnect deadlines are set equal so the pre-auth
+     * phase disconnects in one clean step with the existing idle message.
+     */
+    private function applyPreAuthIdleDefaults(array &$state): void
+    {
+        $seconds = self::preAuthIdleTimeoutSeconds();
+        $state['idle_warned']             = false;
+        $state['idle_warning_timeout']    = $seconds;
+        $state['idle_disconnect_timeout'] = $seconds;
+    }
+
+    /**
+     * Restore the normal authenticated-session idle deadlines. Called once at
+     * the start of post-login setup, before any idle-aware read; a server-side
+     * session-init response may subsequently override these values.
+     */
+    private function applyAuthenticatedIdleDefaults(array &$state): void
+    {
+        $state['idle_warned']             = false;
+        $state['idle_warning_timeout']    = self::AUTH_IDLE_WARNING_DEFAULT;
+        $state['idle_disconnect_timeout'] = self::AUTH_IDLE_DISCONNECT_DEFAULT;
+    }
+
+    /**
      * Read a line from the socket with idle-timeout management.
      * Returns [string|null $line, bool $timedOut, bool $shouldDisconnect].
      */
     private function readTelnetLineWithTimeout($conn, array &$state): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed    = time() - $state['last_activity'];
         $warnAt     = $state['idle_warning_timeout'];
         $disconnAt  = $state['idle_disconnect_timeout'];
@@ -2853,6 +3005,11 @@ class BbsSession
         if ($hasData === 0)     { return ['', true, false]; }
 
         $line = $this->readTelnetLine($conn, $state);
+        if ($line === self::LINE_CHATTER_ONLY) {
+            // Only Telnet protocol chatter was available — not user input. Loop
+            // back to the idle-deadline check without refreshing last_activity.
+            return ['', true, false];
+        }
         if ($line !== null) {
             $state['last_activity'] = time();
             $state['idle_warned']   = false;
@@ -2866,6 +3023,9 @@ class BbsSession
      */
     private function readTelnetKeyWithTimeout($conn, array &$state): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed   = time() - $state['last_activity'];
         $warnAt    = $state['idle_warning_timeout'];
         $disconnAt = $state['idle_disconnect_timeout'];
@@ -2975,6 +3135,17 @@ class BbsSession
                 return null;
             }
             if ($char === "\x00") {
+                // Telnet protocol chatter, not user input. If no line has begun
+                // and nothing more is waiting, yield to the idle-aware caller
+                // instead of blocking on the next byte — the idle deadline is
+                // only re-checked between lines, so a client that streams
+                // chatter but never presses Enter would otherwise sit past it.
+                if ($line === '' && ($state['pushback'] ?? '') === '') {
+                    $r = [$conn]; $w = $e = null;
+                    if (@stream_select($r, $w, $e, 0, 0) < 1) {
+                        return self::LINE_CHATTER_ONLY;
+                    }
+                }
                 continue;
             }
 
@@ -3652,6 +3823,14 @@ class BbsSession
                 if ($opt !== null && $cmdByte === self::WILL && ord($opt) === self::OPT_TTYPE) {
                     $this->requestTerminalType($conn);
                 }
+                // Mirror the SB branch: if nothing else is waiting, return the
+                // protocol-chatter marker rather than blocking on the next byte.
+                if (($state['pushback'] ?? '') === '') {
+                    $rr = [$conn]; $rw = $rex = null;
+                    if (@stream_select($rr, $rw, $rex, 0, 0) < 1) {
+                        return "\x00";
+                    }
+                }
                 return $this->readRawChar($conn, $state); // skip negotiation; return next real char
             }
             if ($cmdByte === self::SB) {
@@ -3848,7 +4027,7 @@ class BbsSession
             // shared terminal secret) on every request. This keeps the session's
             // recorded IP — and registration screening — pointed at the user, not
             // the server. See Auth::resolveClientIp().
-            $terminalSecret = trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+            $terminalSecret = Config::terminalRegistrationSecret();
             if ($terminalSecret !== ''
                 && $this->peerIp !== null
                 && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
