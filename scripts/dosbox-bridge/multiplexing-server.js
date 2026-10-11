@@ -154,6 +154,12 @@ let RECONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 30; /
 let DEBUG_KEEP_FILES = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true'; // Set to 'true' to disable cleanup
 let CARRIER_LOSS_TIMEOUT = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000; // ms to wait after carrier loss
 
+// Keep a bounded copy of terminal output so a browser that reconnects within
+// the reconnect window can redraw the current door screen. The bound is in
+// JavaScript string units (already-decoded text), so trimming never splits a
+// UTF-8 byte sequence; a split surrogate pair at the cut is dropped.
+const TERMINAL_REPLAY_MAX_CHARS = 512 * 1024;
+
 // Comma-separated list of proxy IPs whose X-Forwarded-For header is trusted.
 // Only connections originating from one of these addresses will have their
 // remote IP replaced by the forwarded value. Default: 127.0.0.1 only.
@@ -418,6 +424,14 @@ class SessionManager {
             // Refresh logger with latest IP in case of reconnect from different address
             session.slog = slog;
             this.setupWebSocketHandlers(session);
+
+            if (session.terminalReplay) {
+                session.slog.log(
+                    `[WS] Replaying ${session.terminalReplay.length} characters of terminal output`
+                );
+                ws.send(session.terminalReplay);
+            }
+
             return;
         }
 
@@ -437,6 +451,7 @@ class SessionManager {
             emulatorPid: null,       // Emulator PID
             bytesFromEmulator: 0,
             bytesToEmulator: 0,
+            terminalReplay: '',
             startTime: Date.now(),
             disconnectTimer: null,
             isRemoving: false
@@ -1041,10 +1056,26 @@ class SessionManager {
                     utf8Data = typeof data === 'string' ? data : data.toString('utf8');
                 }
 
+                // Preserve the same UTF-8 terminal stream sent to xterm.js so
+                // reconnecting clients can reconstruct the current display.
+                session.terminalReplay += utf8Data;
+
+                if (session.terminalReplay.length > TERMINAL_REPLAY_MAX_CHARS) {
+                    session.terminalReplay = session.terminalReplay.slice(
+                        -TERMINAL_REPLAY_MAX_CHARS
+                    );
+                    const firstUnit = session.terminalReplay.charCodeAt(0);
+                    if (firstUnit >= 0xDC00 && firstUnit <= 0xDFFF) {
+                        session.terminalReplay = session.terminalReplay.slice(1);
+                    }
+                }
+
                 if (session.ws && session.ws.readyState === WebSocket.OPEN) {
                     session.ws.send(utf8Data);
                 } else {
-                    console.warn(`[${emulatorName}->WS] WebSocket not ready, dropping ${data.length} bytes`);
+                    session.slog.log(
+                        `[${emulatorName}->WS] WebSocket not ready; buffered ${data.length} bytes for replay`
+                    );
                 }
             } catch (err) {
                 session.slog.error(`[${emulatorName}] Encoding error:`, err.message);
