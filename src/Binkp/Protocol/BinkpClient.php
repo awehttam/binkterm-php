@@ -73,6 +73,75 @@ class BinkpClient
     }
     
     /**
+     * Directory holding the per-remote-host BinkP session lock files.
+     *
+     * Defaults to data/run/binkp-host-locks (alongside the other runtime
+     * locks and PID files, owned by the application user, mode 0775). Can be
+     * overridden with BINKP_HOST_LOCK_DIR; every process that dials uplinks
+     * (scheduler, admin daemon, binkp_poll.php) must resolve the same path.
+     */
+    public static function hostLockDir(): string
+    {
+        $configured = trim((string)\BinktermPHP\Config::env('BINKP_HOST_LOCK_DIR', ''));
+        if ($configured !== '') {
+            return rtrim($configured, '/');
+        }
+
+        return dirname(__DIR__, 3) . '/data/run/binkp-host-locks';
+    }
+
+    /**
+     * Acquire the flock()-based per-hostname:port serialization lock.
+     *
+     * Returns the open file handle on success, or null if the lock could NOT
+     * be acquired for ANY reason (lock file unavailable, or the bounded wait
+     * expired while another session held it). Null NEVER means "safe to
+     * proceed without the lock" - callers (see connect()) must treat null as
+     * a hard "do not dial" signal; dialing anyway would let two sessions to
+     * the same physical remote host run concurrently.
+     */
+    private function acquireHostLock(string $hostname, int $port, int $timeoutSeconds = 90)
+    {
+        $lockDir = self::hostLockDir();
+        if (!is_dir($lockDir)) {
+            @mkdir($lockDir, 0775, true);
+        }
+
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', strtolower($hostname)) . '_' . $port;
+        $lockPath = $lockDir . '/' . $safeName . '.lock';
+
+        $handle = @fopen($lockPath, 'c');
+        if ($handle === false) {
+            $this->log("Could not open host lock file {$lockPath}; refusing to dial to {$hostname}:{$port} without serialization", 'ERROR');
+            return null;
+        }
+
+        $start = time();
+        while (!flock($handle, LOCK_EX | LOCK_NB)) {
+            if (time() - $start >= $timeoutSeconds) {
+                $this->log("Timed out after {$timeoutSeconds}s waiting for host lock on {$hostname}:{$port}; another session is still active, deferring this poll", 'WARNING');
+                fclose($handle);
+                return null;
+            }
+            usleep(250000);
+        }
+
+        $this->log("Acquired host lock for {$hostname}:{$port}", 'DEBUG');
+        return $handle;
+    }
+
+    private function releaseHostLock($handle, string $hostname, int $port): void
+    {
+        if ($handle === null) {
+            return;
+        }
+
+        flock($handle, LOCK_UN);
+        fclose($handle);
+        $this->log("Released host lock for {$hostname}:{$port}", 'DEBUG');
+    }
+
+    /**
      * @param bool $forceAnonymous When true, never fall back to a configured
      *                             uplink's or hub node's stored session
      *                             password/CRAM-MD5 secret, even if $address
@@ -116,6 +185,21 @@ class BinkpClient
         $password = $forceAnonymous
             ? ($callerPassword ?? '')
             : ($password !== null ? $password : ($uplink['password'] ?? ''));
+
+        $hostLock = $this->acquireHostLock($hostname, $port);
+        if ($hostLock === null) {
+            // Lock not acquired - another session to this physical host is
+            // still active (or the lock itself is unavailable). Never dial
+            // without it; fail cleanly so the caller's existing poll-failure
+            // handling (Scheduler, scripts/binkp_poll.php) defers/retries on
+            // its own normal schedule instead of racing the still-active
+            // session.
+            throw new HostLockBusyException(
+                "Host {$hostname}:{$port} is busy with another BinkP session (or its lock is unavailable); poll deferred for {$address}"
+            );
+        }
+
+        try {
 
         $this->log("Connecting to {$hostname}:{$port} ({$address})");
         if ($uplink) {
@@ -227,6 +311,10 @@ class BinkpClient
             }
             // Don't close socket here either - let the session handle cleanup
             throw $e;
+        }
+
+        } finally {
+            $this->releaseHostLock($hostLock, $hostname, $port);
         }
     }
 
