@@ -389,6 +389,7 @@ class CrashmailService
 
             // If no password and insecure not allowed, fail
             if (empty($password) && !$this->config->getCrashmailAllowInsecure()) {
+                \BinktermPHP\Binkp\Protocol\BinkpFrame::forgetSocket($socket);
                 fclose($socket);
                 throw new \Exception("No password for destination and insecure delivery disabled");
             }
@@ -571,6 +572,7 @@ class CrashmailService
         } catch (\Exception $e) {
             $this->logger->error("Session error: " . $e->getMessage());
             if (is_resource($socket)) {
+                \BinktermPHP\Binkp\Protocol\BinkpFrame::forgetSocket($socket);
                 fclose($socket);
             }
             throw $e;

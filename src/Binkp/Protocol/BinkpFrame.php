@@ -39,6 +39,19 @@ class BinkpFrame
     private $command;
     private $data;
     private static $lastReadDiagnostics = null;
+
+    /**
+     * Per-socket resumable parse state for parseFromSocket($socket, true).
+     * Keyed by get_resource_id($socket). Holds whatever prefix of the
+     * current frame's header/body has been read off the wire so far, so a
+     * genuinely non-blocking call that finds a frame only partially
+     * delivered can return immediately without losing those bytes, and a
+     * later call resumes exactly where the previous one left off instead of
+     * misreading the remaining payload bytes as a fresh header.
+     *
+     * @var array<int,array{header:string,haveHeader:bool,isCommand:bool,length:int,body:string}>
+     */
+    private static array $pending = [];
     
     public function __construct($length = 0, $isCommand = false, $command = 0, $data = '')
     {
@@ -60,73 +73,181 @@ class BinkpFrame
         return new self($length, false, 0, $data);
     }
     
+    /**
+     * Parse one complete frame from $socket.
+     *
+     * $nonBlocking=false (default): fully blocking, used only during the
+     * handshake and other phases that are meant to wait for the peer. This
+     * preserves the exact prior behavior of reading straight through
+     * readExactly()'s own blocking/timeout/EOF handling.
+     *
+     * $nonBlocking=true: genuinely non-blocking across the ENTIRE read, not
+     * just an upfront readiness check. Every caller of this mode already
+     * polls in a loop (parseFromSocket returning null -> usleep -> retry), so
+     * a single call must never itself wait for bytes that have not arrived
+     * yet — including bytes belonging to a frame that started arriving but
+     * is not yet complete (a fragmented/slow-delivered frame). Partial bytes
+     * are preserved in $pending, keyed by socket, and a later call resumes
+     * from exactly where the previous one left off rather than re-reading a
+     * "header" that is really mid-payload.
+     */
     public static function parseFromSocket($socket, $nonBlocking = false)
     {
         self::$lastReadDiagnostics = null;
+        $key = $nonBlocking ? self::pendingKey($socket) : null;
+        $st = ($key !== null ? (self::$pending[$key] ?? null) : null)
+            ?? ['header' => '', 'haveHeader' => false, 'isCommand' => false, 'length' => 0, 'body' => ''];
 
-        if ($nonBlocking) {
-            // Check if data is available before attempting to read
-            $read = [$socket];
-            $write = null;
-            $except = null;
-            $result = stream_select($read, $write, $except, 0, 100000); // 100ms timeout
-            if ($result === 0) {
-                // No data available
+        if (!$st['haveHeader']) {
+            $need = 2 - strlen($st['header']);
+            $st['header'] .= $nonBlocking
+                ? self::readAvailableNonBlocking($socket, $need, 'header')
+                : self::readExactly($socket, $need, 'header');
+
+            if (strlen($st['header']) < 2) {
+                self::storePending($key, $st, $nonBlocking);
+                return null;
+            }
+
+            $lengthAndFlags = unpack('n', $st['header'])[1];
+            $st['isCommand'] = ($lengthAndFlags & self::COMMAND_FRAME) !== 0;
+            $st['length'] = $lengthAndFlags & 0x7FFF;
+            $st['haveHeader'] = true;
+
+            if ($st['length'] > self::MAX_FRAME_SIZE) {
+                if ($key !== null) {
+                    unset(self::$pending[$key]);
+                }
+                throw new \Exception("Frame too large: {$st['length']}");
+            }
+        }
+
+        // Command frames carry their mandatory command byte inside the
+        // header's length field (length = 1 command byte + payload). A
+        // command frame advertising length=0 is malformed per FSP-1011, but
+        // a command byte is still read defensively — matching this method's
+        // pre-existing behavior for that edge case.
+        $bodyNeeded = $st['isCommand'] ? max($st['length'], 1) : $st['length'];
+
+        if ($bodyNeeded > 0) {
+            $need = $bodyNeeded - strlen($st['body']);
+            if ($need > 0) {
+                $st['body'] .= $nonBlocking
+                    ? self::readAvailableNonBlocking($socket, $need, $st['isCommand'] ? 'command' : 'payload')
+                    : self::readExactly($socket, $need, $st['isCommand'] ? 'command' : 'payload');
+            }
+
+            if (strlen($st['body']) < $bodyNeeded) {
+                self::storePending($key, $st, $nonBlocking);
                 return null;
             }
         }
 
-        $header = self::readExactly($socket, 2, 'header');
-        if (strlen($header) < 2) {
-            return null;
+        if ($key !== null) {
+            unset(self::$pending[$key]);
         }
-        
-        $lengthAndFlags = unpack('n', $header)[1];
-        $isCommand = ($lengthAndFlags & self::COMMAND_FRAME) !== 0;
-        $length = $lengthAndFlags & 0x7FFF;
-        
-        if ($length > self::MAX_FRAME_SIZE) {
-            throw new \Exception("Frame too large: {$length}");
+
+        if ($st['isCommand']) {
+            $command = ord($st['body'][0] ?? "\0");
+            $payload = substr($st['body'], 1);
+            return new self($st['length'], true, $command, $payload);
         }
-        
-        $payload = '';
-        if ($length > 0) {
-            if ($isCommand) {
-                $commandByte = self::readExactly($socket, 1, 'command');
-                if (strlen($commandByte) < 1) {
-                    return null;
-                }
-                $command = ord($commandByte);
-                $length--;
-                
-                if ($length > 0) {
-                    $payload = self::readExactly($socket, $length, 'payload');
-                    if (strlen($payload) < $length) {
-                        return null;
-                    }
-                }
-                
-                return new self($length + 1, true, $command, $payload);
-            } else {
-                $payload = self::readExactly($socket, $length, 'payload');
-                if (strlen($payload) < $length) {
-                    return null;
-                }
-                return new self($length, false, 0, $payload);
-            }
-        }
-        
-        if ($isCommand) {
-            $commandByte = self::readExactly($socket, 1, 'command');
-            if (strlen($commandByte) < 1) {
-                return null;
-            }
-            return new self($length, $isCommand, ord($commandByte), '');
-        }
-        
-        return new self($length, $isCommand, 0, '');
+
+        return new self($st['length'], false, 0, $st['body']);
     }
-    
+
+    /**
+     * Stashes (or discards) resumable parse state for a nonBlocking caller.
+     * Blocking callers ($key === null) never persist partial state: a
+     * blocking read that comes up short already means a real error/EOF/
+     * timeout (readExactly only returns short for one of those reasons), so
+     * there is nothing valid left to resume.
+     */
+    private static function storePending(?int $key, array $st, bool $nonBlocking): void
+    {
+        if ($key === null) {
+            return;
+        }
+
+        $reason = self::$lastReadDiagnostics['reason'] ?? null;
+        if ($reason === 'eof' || $reason === 'read_error') {
+            // The connection is dead; nothing to resume.
+            unset(self::$pending[$key]);
+            return;
+        }
+
+        self::$pending[$key] = $st;
+    }
+
+    private static function pendingKey($socket): int
+    {
+        return get_resource_id($socket);
+    }
+
+    /**
+     * Forgets any resumable parse state kept for $socket. Callers that reuse
+     * PHP resource IDs across sockets within one long-running process (a
+     * closed socket's ID can be reassigned to a later, unrelated socket)
+     * must call this once a socket is done with, so a stale partial frame
+     * from a previous connection can never be misapplied to a new one.
+     */
+    public static function forgetSocket($socket): void
+    {
+        if (!is_resource($socket)) {
+            return;
+        }
+        unset(self::$pending[self::pendingKey($socket)]);
+    }
+
+    /**
+     * Makes at most one genuinely non-blocking read attempt for up to
+     * $maxLength bytes and returns immediately with whatever is available
+     * now (possibly nothing) - never waiting for more to arrive. This is
+     * what actually makes parseFromSocket($socket, true) nonblocking across
+     * a fragmented frame: the old implementation only checked stream_select()
+     * once up front, then fell into readExactly()'s blocking fread() loop
+     * for the rest of the frame, which could block for the full configured
+     * socket timeout if the peer paused mid-delivery.
+     *
+     * Distinguishes "nothing available yet" (returns '', no diagnostics -
+     * completely normal for a fragmented/slow delivery) from a genuine EOF
+     * (sets $lastReadDiagnostics with reason 'eof', same as readExactly(),
+     * so callers' existing EOF-based session-close logic keeps working).
+     */
+    private static function readAvailableNonBlocking($socket, int $maxLength, string $phase): string
+    {
+        if ($maxLength <= 0 || !is_resource($socket)) {
+            return '';
+        }
+
+        // All sockets this codebase hands to parseFromSocket() are kept in
+        // blocking mode between calls (BinkpClient/BinkpServer both call
+        // stream_set_blocking($socket, true) once when the session starts).
+        // Flip to non-blocking for exactly this one read, then flip back
+        // immediately so every other caller of this socket (writes, the
+        // blocking $nonBlocking=false path, etc.) sees the mode it expects.
+        stream_set_blocking($socket, false);
+        $chunk = fread($socket, $maxLength);
+        stream_set_blocking($socket, true);
+
+        if ($chunk === false) {
+            self::$lastReadDiagnostics = self::buildReadDiagnostics($socket, $phase, $maxLength, 0, 'read_error');
+            return '';
+        }
+
+        if ($chunk === '') {
+            $meta = stream_get_meta_data($socket);
+            if (!empty($meta['eof'])) {
+                self::$lastReadDiagnostics = self::buildReadDiagnostics($socket, $phase, $maxLength, 0, 'eof');
+            }
+            // Otherwise: genuinely nothing available yet. Not an error -
+            // this is the normal, expected case for a fragmented or
+            // slow-arriving frame and must not be treated as one.
+        }
+
+        return $chunk;
+    }
+
     private static function readExactly($socket, $length, string $phase = 'read')
     {
         $data = '';

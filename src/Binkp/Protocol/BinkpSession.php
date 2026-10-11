@@ -2876,6 +2876,13 @@ class BinkpSession
         $this->cleanup();
         if ($this->socket && is_resource($this->socket)) {
             $this->drainAndShutdownSocket($this->socket);
+            // Must happen before fclose(): forgetSocket() needs the resource
+            // ID, which is meaningless once the resource is closed. Without
+            // this, a long-running process that opens further sockets later
+            // (e.g. binkp_poll.php --all) could have a freed resource ID
+            // reassigned to a new, unrelated socket and wrongly resume a
+            // stale partial frame from this connection against it.
+            BinkpFrame::forgetSocket($this->socket);
             fclose($this->socket);
             $this->socket = null;
         }
