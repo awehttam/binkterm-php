@@ -173,6 +173,7 @@ class BinkdProcessor
             @unlink($metadataFile);
         }
 
+        $handle = null;
         try {
             $handle = fopen($filename, 'rb');
             if (!$handle) {
@@ -184,7 +185,6 @@ class BinkdProcessor
             // Read packet header (58 bytes)
             $header = fread($handle, 58);
             if (strlen($header) < 58) {
-                fclose($handle);
                 $error = "Invalid packet header in $packetName: only " . strlen($header) . " bytes read, expected 58";
                 $this->log("[BINKD] $error");
                 throw new \Exception($error);
@@ -204,7 +204,6 @@ class BinkdProcessor
                 if ($expectedPktPassword !== '') {
                     $incomingPktPassword = $packetInfo['pkt_password'] ?? '';
                     if (!hash_equals(strtolower($expectedPktPassword), strtolower($incomingPktPassword))) {
-                        fclose($handle);
                         $error = "Packet password mismatch for $packetName from $origAddress — rejecting packet";
                         $this->log("[BINKD] SECURITY: $error");
                         throw new \Exception($error);
@@ -212,7 +211,6 @@ class BinkdProcessor
                     $this->log("[BINKD] Packet password verified for $origAddress");
                 }
             } catch (\Exception $e) {
-                fclose($handle);
                 $error = "Failed to parse packet header for $packetName: " . $e->getMessage();
                 $this->log("[BINKD] $error");
                 throw new \Exception($error);
@@ -253,8 +251,6 @@ class BinkdProcessor
                 }
             }
 
-            fclose($handle);
-
             // If echomail was rejected, throw error to move packet to error dir
             if ($echomailRejected) {
                 $error = "Packet $packetName rejected: echomail not allowed from insecure sessions";
@@ -289,6 +285,10 @@ class BinkdProcessor
             $this->log("[BINKD] $error");
             $this->logPacket($filename, 'IN', 'error');
             throw $e;
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
         }
     }
 
