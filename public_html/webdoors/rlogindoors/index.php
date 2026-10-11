@@ -407,28 +407,76 @@ if (empty($doorId)) {
                     const wsUrl = wsBaseUrl + (wsToken ? '?token=' + encodeURIComponent(wsToken) : '');
                     socket = new WebSocket(wsUrl);
 
+                    let heartbeatTimer = null;
                     socket.onopen = () => {
                         updateStatus(I18N.statusConnected, 'connected');
                         term.writeln('\x1b[1;32m' + I18N.connectedLine + '\x1b[0m');
                         term.writeln('');
                         term.focus();
+
+                        // Send periodic client-side ping to keep intermediate reverse proxies and tunnels active
+                        if (heartbeatTimer) clearInterval(heartbeatTimer);
+                        heartbeatTimer = setInterval(() => {
+                            if (socket && socket.readyState === WebSocket.OPEN) {
+                                socket.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+                            }
+                        }, 25000);
                     };
 
+                    let pendingAnsiChunk = '';
                     socket.onmessage = (event) => {
                         let data = event.data;
                         if (typeof data === 'string') {
+                            // Ignore pong replies to client keepalives
+                            if (data.charCodeAt(0) === 0x7B) {
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (parsed.type === 'pong') return;
+                                } catch (_) {}
+                            }
+
+                            if (pendingAnsiChunk) {
+                                data = pendingAnsiChunk + data;
+                                pendingAnsiChunk = '';
+                            }
                             data = data.replace(/\x7f/g, '\b \b');
+
+                            // If data ends with a partial escape sequence (\x1b, \x1b[, \x1b[2), hold it for the next chunk
+                            const partialMatch = data.match(/\x1b(\[2?)?$/);
+                            if (partialMatch) {
+                                pendingAnsiChunk = partialMatch[0];
+                                data = data.slice(0, -pendingAnsiChunk.length);
+                            }
+
+                            // In MS-DOS ANSI.SYS, \x1b[2J clears screen AND homes cursor to (1,1).
+                            // Standard VT100 / xterm.js erases the screen but leaves cursor position unchanged.
+                            // Translate to ensure DOS doors relying on ANSI.SYS cursor homing align correctly.
+                            data = data.replace(/\x1b\[2J(?!\x1b\[H|\x1b\[1;1H|\x1b\[;H|\x1b\[1;1f)/g, '\x1b[2J\x1b[H');
                         }
-                        term.write(data);
+                        if (data.length > 0) {
+                            term.write(data);
+                        }
                     };
 
                     socket.onclose = (event) => {
+                        if (heartbeatTimer) {
+                            clearInterval(heartbeatTimer);
+                            heartbeatTimer = null;
+                        }
+                        if (pendingAnsiChunk) {
+                            term.write(pendingAnsiChunk);
+                            pendingAnsiChunk = '';
+                        }
                         updateStatus(I18N.statusDisconnected, 'disconnected');
                         term.writeln('');
                         term.writeln('\x1b[1;31m' + I18N.connectionClosedLine + '\x1b[0m');
                     };
 
                     socket.onerror = (error) => {
+                        if (heartbeatTimer) {
+                            clearInterval(heartbeatTimer);
+                            heartbeatTimer = null;
+                        }
                         updateStatus(I18N.statusConnectionError, 'disconnected');
                         term.writeln('\x1b[1;31m' + I18N.connectionErrorLine + '\x1b[0m');
                         console.error('WebSocket error:', error);
