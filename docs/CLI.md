@@ -864,18 +864,38 @@ php scripts/generate_ad.php --output=bbs_ads/myad.ans
 
 ## Log Rotate
 
-Rotates and archives log files in `data/logs/`, keeping a configurable number of old logs.
+Rotates and archives log files in `data/logs/`, keeping a configurable number of
+old logs. Each rotated generation is copied aside, the active log is truncated in
+place (so long-running daemons keep writing to the same file — no restart needed),
+and the copy is gzip-compressed into `data/logs/old/<name>.<N>.gz` (`.0` is newest).
 
 ```bash
-# Rotate logs, keep 10 most recent
+# Rotate every log, keep 10 most recent generations
 php scripts/logrotate.php
 
-# Keep only 5 logs
+# Keep only 5 generations
 php scripts/logrotate.php --keep=5
 
-# Preview without rotating
+# Only rotate a log that has actually grown past 10 MB. Safe to run often
+# (e.g. hourly) because smaller logs are left untouched.
+php scripts/logrotate.php --keep=5 --max-size=10M
+
+# Preview without touching anything
 php scripts/logrotate.php --dry-run
 ```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--keep=N` | `10` | Compressed generations to retain per log. Lowering it between runs prunes the now-excess generations on the next run. |
+| `--max-size=SIZE` | *(unset — rotate every log)* | Only rotate a `*.log` at least this large. Plain bytes or a `K`/`M`/`G` suffix (e.g. `10M`). Use this when scheduling the job frequently. |
+| `--logs-dir=PATH` | `data/logs` | Directory to rotate; compressed generations still go in `PATH/old/`. Mainly for tests. |
+| `--dry-run` | off | Print the planned actions without modifying any file. |
+
+The BinkP logs (`binkp_poll.log`, `binkp_server.log`, `binkp_scheduler.log`) are
+covered by the `*.log` glob like every other log. `binkp_poll` had previously
+reached ~27 MB and `binkp_scheduler` ~16 MB with no rotation scheduled; a
+conservative policy for a small BBS is `--keep=5 --max-size=10M` run hourly from
+the same crontab that runs `binkp_poll.php`.
 
 ## Post Ad
 

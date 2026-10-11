@@ -98,8 +98,11 @@ Command-line options take precedence over `.env` values.
 | `TELNET_TLS_PORT` | `8023` | TLS listener port (equivalent to `--tls-port`) |
 | `TELNET_TLS_CERT` | (empty) | Path to TLS cert PEM (equivalent to `--tls-cert`) |
 | `TELNET_TLS_KEY` | (empty) | Path to TLS key PEM (equivalent to `--tls-key`) |
+| `TELNET_TLS_MIN_VERSION` | `1.0` | Minimum TLS version to accept (`1.0`/`1.1`/`1.2`/`1.3`); the floor and every version above it up to TLS 1.3 are offered. Invalid values fall back to `1.0` |
+| `TELNET_TLS_CIPHERS` | `DEFAULT:@SECLEVEL=0` | OpenSSL cipher list for the TLS listener |
 | `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window; `0` disables rate limiting |
 | `TELNET_RATE_LIMIT_WINDOW` | `60` | Rate-limit window duration in seconds |
+| `TELNET_PREAUTH_IDLE_TIMEOUT` | `90` | Seconds of inactivity at the login / register prompts before the connection is dropped. Values below `15` are treated as a misconfiguration and ignored. Authenticated sessions are unaffected |
 | `TELNET_TRUSTED_PROXIES` | `127.0.0.1,::1` | Comma-separated source IPs allowed to supply a PROXY protocol header (see [Proxied Connections](#proxied-connections-proxy-protocol)) |
 | `TELNET_PROXY_HEADER_TIMEOUT` | `2` | Seconds to wait for a PROXY header from a trusted source before treating the connection as direct |
 
@@ -134,7 +137,30 @@ TELNET_TLS_CERT=/etc/ssl/mycert.pem
 TELNET_TLS_KEY=/etc/ssl/mykey.pem
 ```
 
-TLS connections are logged with the cipher suite and key size (e.g., `TLS connection from 1.2.3.4 [TLSv1.2 AES128-GCM-SHA256 128-bit]`).
+When you supply your own cert/key the daemon validates the pair at start-up —
+the files must exist, be readable, be valid PEM, and the certificate must
+match the private key. If any of those checks fail the daemon logs the exact
+reason and starts with the **TLS listener disabled** (the plain-text listener
+is unaffected); it does **not** silently self-sign over your configured paths.
+The auto-generated self-signed pair is only created when `TELNET_TLS_CERT` /
+`TELNET_TLS_KEY` are left unset.
+
+### Protocol versions and ciphers
+
+By default the listener accepts TLS 1.0 through TLS 1.3. A modern client
+negotiates TLS 1.3; an old BBS SSL stack that only speaks TLS 1.0/1.1 still
+connects. Raise the floor once you know your users don't need the deprecated
+versions:
+
+```ini
+TELNET_TLS_MIN_VERSION=1.2
+```
+
+`TELNET_TLS_CIPHERS` overrides the OpenSSL cipher list (default
+`DEFAULT:@SECLEVEL=0`, kept permissive for legacy SSL stacks).
+
+TLS connections are logged with the negotiated protocol, cipher suite and key
+size (e.g., `TLS connection from 1.2.3.4 [TLSv1.3 TLS_AES_256_GCM_SHA384 256-bit]`).
 
 ## Running as a Service
 
@@ -258,6 +284,27 @@ elapsed since that first connection, not since the most recent one.
 The defaults allow 5 connections per minute per IP, which is sufficient for
 any legitimate user. Adjust `TELNET_RATE_LIMIT_MAX` downward if you are seeing
 active floods, or set it to `0` on private/LAN-only installs.
+
+### Pre-authentication Idle Timeout
+
+Scanners routinely open a Telnet connection, read the banner, and then sit
+silent — each such socket holds a forked handler until the idle timer fires.
+To shed those quickly, the login / register / reset-password prompts use a
+short idle deadline (`TELNET_PREAUTH_IDLE_TIMEOUT`, default **90 seconds**)
+instead of the full authenticated-session idle timeout. Any keystroke before
+authentication refreshes the timer, so a caller reading the login screen and
+typing at a normal pace is never cut off. On a successful login the session
+switches to the normal authenticated idle thresholds (the values returned by
+`GET /api/config/session-init`, or the built-in `300` s warning / `420` s
+disconnect defaults). Telnet protocol negotiation alone does not count as
+activity.
+
+SSH sessions authenticate at the protocol layer before the BBS menu, so an
+authenticated SSH caller never enters this pre-auth window; an SSH client that
+is dropped to the BBS login prompt without a session does.
+
+This is idle-socket hygiene, not abuse prevention — a client that deliberately
+trickles keystrokes can still hold a pre-auth connection open.
 
 ### Proxied Connections (PROXY protocol)
 

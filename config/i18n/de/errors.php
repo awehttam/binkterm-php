@@ -608,6 +608,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Ungültig: slot number',
     'errors.webdoor.save_too_large' => 'data exceeds Maximum size speichern',
     'errors.webdoor.save_not_found' => 'nicht gefunden speichern',
+    'errors.webdoor.game_unavailable' => 'Dieses Spiel ist nicht verfügbar',
 
     // Door API
     'errors.door.door_name_required' => 'Door name erforderlich',

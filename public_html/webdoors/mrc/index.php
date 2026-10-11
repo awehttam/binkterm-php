@@ -79,8 +79,8 @@ if ($configuredRealtimeTransportMode === 'auto') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MRC Chat</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/vendor/bootstrap-5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
     <!-- User's selected BBS theme (provides CSS variable overrides) -->
     <link href="<?php echo htmlspecialchars($stylesheet); ?>" rel="stylesheet">
     <link href="/css/ansisys.css" rel="stylesheet">
@@ -124,20 +124,20 @@ if ($configuredRealtimeTransportMode === 'auto') {
                         </select>
                         <small class="mrc-text-muted flex-grow-1" id="current-room-topic"></small>
                         <div id="connection-status" class="mrc-text-muted small">
-                            <i class="bi bi-circle-fill text-secondary"></i>
+                            <i class="fa-solid fa-circle text-secondary"></i>
                         </div>
                         <div class="badge bg-warning text-dark d-none" id="private-chat-indicator">
                             <span>Direct:</span>
                             <span class="ms-1" id="private-chat-user"></span>
                             <button type="button" class="btn btn-sm btn-link p-0 ms-2" id="private-chat-exit" title="Return to room chat">
-                                <i class="bi bi-x-lg"></i>
+                                <i class="fa-solid fa-xmark"></i>
                             </button>
                         </div>
                         <button class="btn btn-sm btn-outline-secondary" id="refresh-btn" title="Refresh messages">
-                            <i class="bi bi-arrow-clockwise"></i>
+                            <i class="fa-solid fa-rotate-right"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-danger" id="disconnect-btn" title="Disconnect from MRC">
-                            <i class="bi bi-box-arrow-right"></i>
+                            <i class="fa-solid fa-right-from-bracket"></i>
                         </button>
                     </div>
                 </div>
@@ -166,7 +166,7 @@ if ($configuredRealtimeTransportMode === 'auto') {
                                    maxlength="140"
                                    autocomplete="off">
                             <button class="btn btn-primary" type="submit" id="send-btn" tabindex="-1">
-                                <i class="bi bi-send"></i> Send
+                                <i class="fa-solid fa-paper-plane"></i> Send
                             </button>
                         </div>
                         <div class="form-text mt-1 mrc-text-muted">
@@ -180,7 +180,7 @@ if ($configuredRealtimeTransportMode === 'auto') {
             <div class="border-start" id="mrc-sidebar-right">
                 <div class="p-3">
                     <h5 class="mb-3">
-                        <i class="bi bi-people"></i> Users
+                        <i class="fa-solid fa-users"></i> Users
                         <span class="badge bg-secondary" id="user-count">0</span>
                         <span class="badge bg-warning text-dark ms-2 d-none" id="private-unread-count">0</span>
                     </h5>
@@ -194,9 +194,9 @@ if ($configuredRealtimeTransportMode === 'auto') {
     </div>
 
     <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/vendor/jquery-3.7.1/jquery-3.7.1.min.js"></script>
     <!-- Pipe/ANSI color code parser -->
     <script src="/js/ansisys.js"></script>
     <script>

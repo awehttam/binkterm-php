@@ -75,6 +75,7 @@ return [
     'ui.terminalserver.server.whos_online.status_view' => 'Voir profil',
     'ui.terminalserver.server.whos_online.status_back' => 'Retour',
     'ui.terminalserver.server.idle.disconnect' => 'Délai d\'inactivité dépassé - déconnexion...',
+    'ui.terminalserver.server.session_revoked' => 'Votre session a été fermée ailleurs - déconnexion...',
     'ui.terminalserver.server.idle.warning_line' => 'Êtes-vous toujours là ? (Appuyez sur Entrée pour continuer)',
     'ui.terminalserver.server.idle.warning_key' => 'Êtes-vous toujours là ? (Appuyez sur une touche pour continuer)',
     'ui.terminalserver.server.press_any_key' => 'Appuyez sur une touche pour revenir...',

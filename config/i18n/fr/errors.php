@@ -469,6 +469,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Numéro d\'emplacement invalide',
     'errors.webdoor.save_too_large' => 'Les données de sauvegarde dépassent la taille maximale',
     'errors.webdoor.save_not_found' => 'Sauvegarde introuvable',
+    'errors.webdoor.game_unavailable' => 'Ce jeu n\'est pas disponible',
     'errors.door.door_name_required' => 'Nom de la porte requis',
     'errors.door.admin_only' => 'Cette porte est réservée aux administrateurs',
     'errors.door.insufficient_credits' => 'Crédits insuffisants',
