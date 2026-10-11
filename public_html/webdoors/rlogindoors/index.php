@@ -51,10 +51,14 @@ if (empty($doorId)) {
 <html lang="<?= htmlspecialchars($locale, ENT_QUOTES) ?>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken, ENT_QUOTES) ?>">
-    <title><?= htmlspecialchars($t('ui.rlogindoor_player.page_title', 'RLogin Door Player'), ENT_QUOTES) ?></title>
+<?php
+$mobileAssetVer = (string)@filemtime(__DIR__ . '/../../js/binkterm-mobile-terminal.js') ?: '20261009_2';
+?>
+    <link rel="stylesheet" href="/vendor/fontawesome-6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/webdoors/terminal/assets/xterm.css">
+    <link rel="stylesheet" href="/css/binkterm-mobile-terminal.css?v=<?= htmlspecialchars($mobileAssetVer, ENT_QUOTES) ?>">
     <style>
         * {
             margin: 0;
@@ -66,29 +70,6 @@ if (empty($doorId)) {
             height: 100%;
             overflow: hidden;
             background: #000;
-        }
-
-        .terminal-controls {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            align-items: center;
-            padding: 5px 10px;
-            background: #1a1a2e;
-            height: 35px;
-            border-bottom: 1px solid #333;
-        }
-
-        #terminal-container {
-            position: absolute;
-            top: 35px;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            overflow: hidden;
         }
 
         #terminal-container .xterm {
@@ -195,16 +176,23 @@ if (empty($doorId)) {
 <body>
     <div class="terminal-controls">
         <h5 class="door-header" id="doorTitle"><?= htmlspecialchars($t('ui.rlogindoor_player.page_title', 'RLogin Door Player'), ENT_QUOTES) ?></h5>
-        <div id="connectionStatus" class="connection-status status-disconnected">
-            <?= htmlspecialchars($t('ui.dosdoor_player.status_prefix', 'Status:'), ENT_QUOTES) ?> <?= htmlspecialchars($t('ui.dosdoor_player.status_disconnected', 'Disconnected'), ENT_QUOTES) ?>
+        <div class="terminal-controls-right">
+            <button id="contrastBtn" type="button" class="btn-contrast" title="Toggle High Contrast">
+                <i class="fas fa-adjust"></i> <span>Contrast</span>
+            </button>
+            <div id="connectionStatus" class="connection-status status-disconnected">
+                <?= htmlspecialchars($t('ui.dosdoor_player.status_prefix', 'Status:'), ENT_QUOTES) ?> <?= htmlspecialchars($t('ui.dosdoor_player.status_disconnected', 'Disconnected'), ENT_QUOTES) ?>
+            </div>
+            <button id="endSessionBtn"><?= htmlspecialchars($t('ui.dosdoor_player.end_session', 'End Session'), ENT_QUOTES) ?></button>
         </div>
-        <button id="endSessionBtn"><?= htmlspecialchars($t('ui.dosdoor_player.end_session', 'End Session'), ENT_QUOTES) ?></button>
     </div>
     <div id="terminal-container"></div>
 
     <script src="/webdoors/terminal/assets/xterm.js"></script>
+    <script src="/js/binkterm-mobile-terminal.js?v=<?= htmlspecialchars($mobileAssetVer, ENT_QUOTES) ?>"></script>
     <script>
         let term = null;
+        let mobileAddon = null;
         const TERM_COLS = 80;
         const TERM_ROWS = 25;
         let socket = null;
@@ -308,6 +296,31 @@ if (empty($doorId)) {
 
             term.open(container);
             term.resize(TERM_COLS, TERM_ROWS);
+
+            // Prevent mouse wheel from generating spurious cursor escape sequences or mouse tracking
+            container.addEventListener('wheel', (e) => {
+                const vp = container.querySelector('.binkterm-mobile-viewport');
+                if (!vp || vp.scrollHeight <= vp.clientHeight) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            }, { capture: true, passive: false });
+
+            if (window.BinktermMobileTerminalAddon) {
+                mobileAddon = new BinktermMobileTerminalAddon({
+                    doorId: doorId,
+                    cols: TERM_COLS,
+                    rows: TERM_ROWS,
+                    isNative: true, // RLogin hosts expect standard ANSI
+                    onKey: (data) => {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send(data);
+                        }
+                    }
+                });
+                term.loadAddon(mobileAddon);
+            }
+
             scheduleFixedTerminalSize();
 
             // Plain passthrough - rlogin-connected hosts expect standard ANSI
@@ -394,6 +407,9 @@ if (empty($doorId)) {
                     if (doorTitle && data.session.door_name) {
                         doorTitle.textContent = data.session.door_name;
                         document.title = data.session.door_name + ' - ' + I18N.documentTitleSuffix;
+                    }
+                    if (mobileAddon) {
+                        mobileAddon.setDoorInfo(doorId, data.session.door_name, data.session.mobile_layout);
                     }
 
                     term.clear();
@@ -525,6 +541,10 @@ if (empty($doorId)) {
         }
 
         function setFixedTerminalSize() {
+            if (mobileAddon) {
+                mobileAddon.rescale();
+                return;
+            }
             if (!term || !term.element) {
                 return;
             }

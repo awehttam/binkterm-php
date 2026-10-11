@@ -167,7 +167,7 @@ self.addEventListener('fetch', (event) => {
 
     // Admin-only files are excluded from caching — they change frequently during
     // development and are only loaded for admins, so per-user caching isn't worth it.
-    const adminPaths = ['/js/admin-terminal.js', '/js/xterm.js', '/js/xterm-addon-fit.js', '/css/xterm.css'];
+    const adminPaths = ['/js/admin-terminal.js', '/js/xterm.js', '/js/xterm-addon-fit.js', '/css/xterm.css', '/js/binkterm-mobile-terminal.js', '/css/binkterm-mobile-terminal.css'];
     if (adminPaths.includes(url.pathname)) {
         return;
     }
