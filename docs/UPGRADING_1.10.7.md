@@ -10,6 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Fixed: Inbound Echomail Landed in Areas With an Empty Domain](#fixed-inbound-echomail-landed-in-areas-with-an-empty-domain)
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
   - [Echomail No Longer Sent Through Another Network's Uplink](#echomail-no-longer-sent-through-another-networks-uplink)
+  - [Inbound Echomail Refused When It Would Land in a Local or Ambiguous Area](#inbound-echomail-refused-when-it-would-land-in-a-local-or-ambiguous-area)
 - [AreaFix / FileFix](#areafix-filefix)
   - [Structural Reply Parsing Across More Hub Mailers](#structural-reply-parsing-across-more-hub-mailers)
   - [Mandatory Preview Before Syncing Areas](#mandatory-preview-before-syncing-areas)
@@ -31,6 +32,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
   - [MRC Chat Loads Its Libraries From the Bundled Copies](#mrc-chat-loads-its-libraries-from-the-bundled-copies)
+  - [DOS Doors Redraw After the Browser Reconnects](#dos-doors-redraw-after-the-browser-reconnects)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
@@ -63,6 +65,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Message search scoped by network and interest:** searching for messages from the Echo Areas page now respects the network and interest filters selected there, and searching while browsing a single interest on the Echomail page now stays within that interest's echo areas, instead of always searching every echo area.
 - **Fixed: inbound echomail landed in areas with an empty domain:** the network domain for incoming echomail is now taken from the uplink that delivered the packet, instead of only from the message author's address. Authors outside the uplink's routing patterns no longer produce messages with an empty domain.
 - **Echomail no longer sent through another network's uplink:** when an echo area's network has no uplink configured, its outbound echomail used to be sent through the default uplink, which belongs to a different network. It now stays local and a warning is logged.
+- **Inbound echomail refused when it would land in a local or ambiguous area:** incoming echomail is now dropped, with a log line, instead of being filed in an area that is flagged local, in an area with no network domain, or in one of several areas whose domains differ only by letter case.
 
 ### AreaFix / FileFix
 
@@ -92,6 +95,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Longer browser caching for door assets:** icons and screenshots served from `/door-assets/` now use `Cache-Control: public, max-age=604800, stale-while-revalidate=86400` (up from a 24-hour max-age), plus ETag/Last-Modified conditional requests, so repeat visits reload door pages faster and generate less server load.
 - **RLogin door asset sizes stored in the database:** icon and screenshot byte sizes for RLogin doors are now stored alongside the image data instead of being recomputed on every request, reducing memory overhead when serving those assets.
 - **MRC chat loads its libraries from the bundled copies:** the MRC web door now loads Bootstrap, jQuery and its icons from the copies bundled with BinktermPHP instead of public CDNs, so it works under a strict Content Security Policy and without access to those CDNs.
+- **DOS doors redraw after the browser reconnects:** when a browser's connection to a running DOS door drops and comes back within `DOSDOOR_RECONNECT_TIMEOUT`, the terminal now shows the current door screen again instead of staying blank until the door next writes.
 
 ### MeshCore
 
@@ -155,6 +159,20 @@ Outbound echomail for a networked echo area goes to the area's **Uplink Address*
 That fallback is gone. If an area's network has no uplink, the message stays on your system, is not queued for sending, and `data/logs/server.log` records a warning like `No uplink configured for network 'examplenet' (echoarea EXAMPLE_TAG); not routing to another network's uplink`.
 
 After upgrading, check the log for this warning. For each network named in it, add the uplink for that network under **Admin -> BBS Settings -> BinkP Uplinks**, then post the message again. Messages that were kept local before you added the uplink are not sent automatically.
+
+### Inbound Echomail Refused When It Would Land in a Local or Ambiguous Area
+
+A network echo area has a network domain. A local-only area has no domain and is flagged as local in **Admin -> Echo Areas**. Incoming echomail was looked up by tag and domain, and when the domain could not be worked out, the lookup matched any area with that tag and no domain. That is how local areas are stored, so network mail could be filed in a local area, or a new area with no domain could be created for it. A tag could also match two areas whose domains differ only by letter case, and the first one silently won.
+
+Incoming echomail is now dropped, and nothing is created, in these cases:
+
+- the network domain of the message could not be determined;
+- the area it matches is flagged local;
+- more than one area matches the tag, with domains that differ only by letter case.
+
+Each dropped message is recorded in the log with the area tag, the sender, the packet name and the reason, for example `[BINKD] Dropping echomail AREA:EXAMPLE_TAG from Some Name <999:1/2> packet=0001abcd.pkt: area EXAMPLE_TAG@examplenet is a local area`. A dropped message is not stored anywhere and is not retried. Areas that have a domain and are not local, and the automatic creation of an area for a message with a known domain, work as before.
+
+After upgrading, check `data/logs/` for `Dropping echomail AREA:` lines. If a network echo area has no domain, set its domain in **Admin -> Echo Areas**. If two areas share a tag and differ only in the case of their domain, delete or merge one of them. If an area should be local-only, mark it local.
 
 ## AreaFix / FileFix
 
@@ -339,6 +357,14 @@ RLogin doors store their icon and screenshot images as binary data directly in t
 ### MRC Chat Loads Its Libraries From the Bundled Copies
 
 The MRC chat page loaded Bootstrap 5.1.3, Bootstrap Icons and jQuery 3.6.0 from jsDelivr and code.jquery.com. With a strict Content Security Policy, or on a server without access to those hosts, the page rendered without styling, scripts or icons. It now uses the Bootstrap 5.3.0, jQuery 3.7.1 and Font Awesome 6.4.0 copies that the rest of BinktermPHP already serves from `/vendor/`, so nothing is fetched from a third party.
+
+### DOS Doors Redraw After the Browser Reconnects
+
+If the browser's connection to a running DOS door dropped and came back within `DOSDOOR_RECONNECT_TIMEOUT` (30 seconds by default), the session was reattached but the terminal stayed blank until the door next wrote something, and anything the door wrote while the connection was down was discarded. After a short network drop or a page reload, the player was left looking at an empty screen over a game that was still running.
+
+The DOS door bridge now keeps the most recent terminal output of each session, up to 512 Ki characters, and sends it to the browser as soon as it reconnects, so the current screen is drawn again. Output the door produces while the connection is down is kept the same way. The log line `WebSocket not ready, dropping N bytes` is replaced by one saying the output was buffered for replay.
+
+Only the most recent output is kept, so a very long session replays its latest part rather than everything since the door started. Restart the DOS door bridge so it loads the new code.
 
 ## MeshCore
 
