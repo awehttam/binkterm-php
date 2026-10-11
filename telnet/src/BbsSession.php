@@ -488,13 +488,11 @@ class BbsSession
         $transport = $this->isSsh ? 'ssh' : 'telnet';
         $this->log("Login: {$username} from {$peerName} via {$transport}");
 
-        \BinktermPHP\ActivityTracker::track(
-            $userRecord['user_id'] ?? null,
-            \BinktermPHP\ActivityTracker::TYPE_LOGIN,
-            null,
-            $transport,
-            ['ip' => $peerIp]
-        );
+        // The login event for this session was already recorded, tagged with
+        // this transport and the caller IP, by the boundary that issued the
+        // session (POST /api/auth/login, or /api/register for an auto-approved
+        // terminal registration). Recording it again here double-counted every
+        // Telnet/SSH login in Today's Callers and the total login count.
 
         $config = BinkpConfig::getInstance();
         $this->setTerminalTitle($conn, $config->getSystemName());
