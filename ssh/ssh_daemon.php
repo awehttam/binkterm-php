@@ -7,6 +7,8 @@ require_once __DIR__ . '/src/SshStreamWrapper.php';
 require_once __DIR__ . '/src/SshServer.php';
 require_once __DIR__ . '/../telnet/src/BbsSession.php';
 require_once __DIR__ . '/../telnet/src/TelnetUtils.php';
+require_once __DIR__ . '/../telnet/src/TerminalLineEditor.php';
+require_once __DIR__ . '/../telnet/src/TerminalLineHistory.php';
 require_once __DIR__ . '/../telnet/src/TerminalMarkupRenderer.php';
 require_once __DIR__ . '/../telnet/src/AnsiCanvasRenderer.php';
 require_once __DIR__ . '/../telnet/src/AnsiArtViewer.php';

@@ -5,6 +5,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/src/TelnetServer.php';
 require_once __DIR__ . '/src/BbsSession.php';
 require_once __DIR__ . '/src/TelnetUtils.php';
+require_once __DIR__ . '/src/TerminalLineEditor.php';
+require_once __DIR__ . '/src/TerminalLineHistory.php';
 require_once __DIR__ . '/src/TerminalMarkupRenderer.php';
 require_once __DIR__ . '/src/AnsiCanvasRenderer.php';
 require_once __DIR__ . '/src/AnsiArtViewer.php';
