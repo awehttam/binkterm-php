@@ -168,11 +168,11 @@ class BinkpServer
                 try {
                     $this->handleConnectionSync($clientSocket, $connectionId, $clientIP);
                 } catch (\Throwable $e) {
-                    $this->log("Unhandled error in connection child for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+                    $this->logQuietly("Unhandled error in connection child for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+                } finally {
+                    // Exit child process
+                    exit(0);
                 }
-
-                // Exit child process
-                exit(0);
             } else {
                 // Parent process
                 // Close the client socket in parent - child owns it now
@@ -238,12 +238,12 @@ class BinkpServer
             }
 
         } catch (\Throwable $e) {
-            $this->log("Connection error for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+            $this->logQuietly("Connection error for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
             if (isset($sessionLogger)) {
                 try {
                     $sessionLogger->endSession('failed', $e->getMessage());
                 } catch (\Throwable $logError) {
-                    $this->log("Failed to record session failure for {$clientIP} ({$connectionId}): " . $logError->getMessage(), 'ERROR');
+                    $this->logQuietly("Failed to record session failure for {$clientIP} ({$connectionId}): " . $logError->getMessage(), 'ERROR');
                 }
             }
         } finally {
@@ -265,19 +265,30 @@ class BinkpServer
      */
     private function releaseConnection($clientSocket, bool $exported, $stream, $session, $clientIP, $connectionId): void
     {
-        if ($session !== null) {
-            try {
+        try {
+            if ($session !== null) {
                 $session->close();
-            } catch (\Throwable $e) {
-                $this->log("Error closing session for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+            }
+        } catch (\Throwable $e) {
+            $this->logQuietly("Error closing session for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+        } finally {
+            if ($exported) {
+                // No session, or its close() failed before closing the stream.
+                $this->closeStream($stream);
+            } else {
+                $this->closeRawSocket($clientSocket);
             }
         }
+    }
 
-        if ($exported) {
-            // No session, or its close() failed before closing the stream.
-            $this->closeStream($stream);
-        } else {
-            $this->closeRawSocket($clientSocket);
+    /**
+     * Log from cleanup code without letting a logger failure escape.
+     */
+    private function logQuietly(string $message, string $level): void
+    {
+        try {
+            $this->log($message, $level);
+        } catch (\Throwable $e) {
         }
     }
 
@@ -295,7 +306,7 @@ class BinkpServer
             BinkpFrame::forgetSocket($stream);
             fclose($stream);
         } catch (\Throwable $e) {
-            $this->log("Failed to close connection stream: " . $e->getMessage(), 'ERROR');
+            $this->logQuietly("Failed to close connection stream: " . $e->getMessage(), 'ERROR');
         }
     }
 
@@ -312,7 +323,7 @@ class BinkpServer
         try {
             socket_close($socket);
         } catch (\Throwable $e) {
-            $this->log("Failed to close client socket: " . $e->getMessage(), 'ERROR');
+            $this->logQuietly("Failed to close client socket: " . $e->getMessage(), 'ERROR');
         }
     }
 
@@ -357,7 +368,7 @@ class BinkpServer
             // can throw \Error/\TypeError on PHP 8 (e.g. an already-closed
             // socket) — not just \Exception — so this must catch the full
             // \Throwable surface to avoid escaping into acceptConnection().
-            $this->log("Failed to send busy message: " . $e->getMessage(), 'ERROR');
+            $this->logQuietly("Failed to send busy message: " . $e->getMessage(), 'ERROR');
         } finally {
             $this->closeStream($stream);
         }

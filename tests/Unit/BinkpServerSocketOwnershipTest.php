@@ -232,4 +232,70 @@ final class BinkpServerSocketOwnershipTest extends TestCase
         self::assertSame('', $this->readPeerUntilEof(), 'the stream must still be closed after session close() failed');
         self::assertSame($baseline - 1, self::openFdCount());
     }
+
+    // ---- Cleanup survives a failing logger --------------------------------
+
+    private static function throwingLogger(): object
+    {
+        return new class {
+            public function log($level, $message, $context = []): void
+            {
+                throw new \RuntimeException('logger unavailable');
+            }
+        };
+    }
+
+    public function testHandleConnectionSyncContainsPreExportFailure(): void
+    {
+        // A closed \Socket makes the first socket call throw \Error before
+        // export; handleConnectionSync() must contain it.
+        $server = self::makeServer(self::config(), $log);
+        $socket = socket_create(AF_UNIX, SOCK_STREAM, 0);
+        socket_close($socket);
+
+        self::invokePrivate($server, 'handleConnectionSync', [$socket, 'test-conn', '127.0.0.1']);
+
+        self::assertNotEmpty(preg_grep('/Connection error for 127\.0\.0\.1/', $log));
+    }
+
+    public function testHandleConnectionSyncClosesDescriptorAndThrowsNothingWhenLoggerFails(): void
+    {
+        $server = new BinkpServer(self::configFailingAfterExport(), self::throwingLogger());
+        $socket = $this->makeSocketPair();
+        $baseline = self::openFdCount();
+
+        self::invokePrivate($server, 'handleConnectionSync', [$socket, 'test-conn', '127.0.0.1']);
+
+        self::assertSame('', $this->readPeerUntilEof());
+        self::assertSame($baseline - 1, self::openFdCount());
+    }
+
+    public function testReleaseClosesDescriptorWhenSessionCloseAndLoggerBothFail(): void
+    {
+        $server = new BinkpServer(self::config(), self::throwingLogger());
+        $socket = $this->makeSocketPair();
+        $baseline = self::openFdCount();
+
+        $stream = socket_export_stream($socket);
+        $session = new class($stream, false, self::config()) extends BinkpSession {
+            public function close()
+            {
+                throw new \RuntimeException('simulated cleanup failure');
+            }
+        };
+
+        self::invokePrivate($server, 'releaseConnection', [$socket, true, $stream, $session, '127.0.0.1', 'test-conn']);
+
+        self::assertSame('', $this->readPeerUntilEof());
+        self::assertSame($baseline - 1, self::openFdCount());
+    }
+
+    public function testSendBusyThrowsNothingWhenLoggerFails(): void
+    {
+        $server = new BinkpServer(self::configFailingAfterExport(), self::throwingLogger());
+        $socket = $this->makeSocketPair();
+
+        self::assertTrue(self::invokePrivate($server, 'sendBusy', [$socket, 'Maximum connections reached']));
+        self::assertSame('', $this->readPeerUntilEof());
+    }
 }
