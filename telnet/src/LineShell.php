@@ -190,25 +190,49 @@ class LineShell implements TerminalShellInterface
 
     private function readPromptLine($conn, array &$state, string $prompt, bool $echo = true, ?callable $redrawFn = null): ?string
     {
-        $buffer = '';
+        // Shared, UTF-8-safe editing. `$echo === false` is the sensitive path
+        // (passwords) — masked, and never offered history.
+        $editor   = new TerminalLineEditor('', 255, true);
+        $histKey  = $echo ? trim((string)($state['line_prompt_history_key'] ?? '')) : '';
+        $histIdx  = 0;
         $lastRows = (int)($state['rows'] ?? 24);
         $lastCols = (int)($state['cols'] ?? 80);
 
-        $renderInput = function () use ($conn, &$state, $prompt, $echo, &$buffer, $redrawFn): void {
+        $paintFrame = function () use ($conn, &$state, $prompt, $redrawFn): void {
             if ($redrawFn !== null) {
                 $redrawFn($state);
             }
             if ($prompt !== '') {
                 TelnetUtils::safeWrite($conn, TelnetUtils::colorize($prompt, TelnetUtils::ANSI_CYAN));
             }
-            TelnetUtils::safeWrite($conn, $echo ? $buffer : str_repeat('*', strlen($buffer)));
+        };
+        $paintInput = function () use ($conn, $prompt, $echo, $editor): void {
+            $shown = $echo ? $editor->value() : str_repeat('*', $editor->length());
+            // Rewrite just the current line: CR, clear to EOL, prompt, value.
+            TelnetUtils::safeWrite(
+                $conn,
+                "\r\033[K"
+                . ($prompt !== '' ? TelnetUtils::colorize($prompt, TelnetUtils::ANSI_CYAN) : '')
+                . $shown
+            );
+            // Park the terminal cursor at the logical insertion point.
+            $back = $editor->length() - $editor->cursor();
+            if ($back > 0) {
+                TelnetUtils::safeWrite($conn, "\033[{$back}D");
+            }
+        };
+        $drain = function () use ($conn, &$state): void {
+            if (method_exists($this->server, 'drainPendingInput')) {
+                $this->server->drainPendingInput($conn, $state);
+            }
         };
 
-        $renderInput();
+        $paintFrame();
 
         while (true) {
-            $char = $this->server->readRawChar($conn, $state);
-            if ($char === null) {
+            $key = $this->server->readLineKeyWithIdleCheck($conn, $state);
+            if ($key === null) {
+                $drain();
                 return null;
             }
 
@@ -217,40 +241,47 @@ class LineShell implements TerminalShellInterface
             if ($newRows !== $lastRows || $newCols !== $lastCols) {
                 $lastRows = $newRows;
                 $lastCols = $newCols;
-                $renderInput();
+                $paintFrame();
+                $paintInput();
                 continue;
             }
 
-            if ($char === "\x00") {
+            if ($key === '' || $key === 'ESC') {
+                // Bare ESC on a plain line prompt has historically been a no-op
+                // here (not a cancel) — keep that.
                 continue;
             }
 
-            $byte = ord($char[0]);
-            if ($byte === 3) {
+            if ($histKey !== '' && ($key === 'UP' || $key === 'DOWN')) {
+                [$histIdx, $recalled] = TerminalLineHistory::step($state, $histKey, $histIdx, $key === 'UP' ? 1 : -1);
+                $editor->setValue($recalled ?? '');
+                $paintInput();
+                continue;
+            }
+
+            $result = $editor->apply($key);
+
+            if ($result === TerminalLineEditor::RESULT_SUBMIT) {
+                TelnetUtils::safeWrite($conn, "\r\n");
+                $drain();
+                $value = $editor->value();
+                if ($histKey !== '') {
+                    TerminalLineHistory::push($state, $histKey, $value);
+                }
+                return $value;
+            }
+            if ($result === TerminalLineEditor::RESULT_CANCEL && $key === 'CTRL_C') {
                 TelnetUtils::safeWrite($conn, "^C\r\n");
+                $drain();
                 return null;
             }
-            if ($byte === 10 || $byte === 13) {
-                TelnetUtils::safeWrite($conn, "\r\n");
-                return $buffer;
-            }
-            if ($byte === 8 || $byte === 127) {
-                if ($buffer !== '') {
-                    $buffer = substr($buffer, 0, -1);
-                    if ($echo) {
-                        TelnetUtils::safeWrite($conn, "\x08 \x08");
-                    } else {
-                        $renderInput();
-                    }
-                }
-                continue;
-            }
-            if (strlen($char) > 1 || $byte === 27 || $byte < 32 || $byte > 126) {
-                continue;
-            }
 
-            $buffer .= chr($byte);
-            TelnetUtils::safeWrite($conn, $echo ? chr($byte) : '*');
+            // Coalesce a paste / type-ahead burst — repaint once it drains.
+            if (method_exists($this->server, 'hasBufferedInput')
+                && $this->server->hasBufferedInput($conn, $state)) {
+                continue;
+            }
+            $paintInput();
         }
     }
 

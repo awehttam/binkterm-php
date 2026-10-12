@@ -271,11 +271,11 @@ class MrcClient {
         const statusEl = $('#connection-status');
 
         if (!enabled) {
-            statusEl.html('<i class="bi bi-circle-fill text-danger" title="MRC Disabled"></i>');
+            statusEl.html('<i class="fa-solid fa-circle text-danger" title="MRC Disabled"></i>');
         } else if (connected) {
-            statusEl.html('<i class="bi bi-circle-fill text-success" title="Connected"></i>');
+            statusEl.html('<i class="fa-solid fa-circle text-success" title="Connected"></i>');
         } else {
-            statusEl.html('<i class="bi bi-circle-fill text-warning" title="Connecting..."></i>');
+            statusEl.html('<i class="fa-solid fa-circle text-warning" title="Connecting..."></i>');
         }
 
         const overlay = $('#mrc-daemon-overlay');

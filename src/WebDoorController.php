@@ -61,7 +61,10 @@ class WebDoorController
         }
 
         // Get game ID from query param or referer
-        $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
+        $gameId = $this->resolveGameId();
+        if ($gameId === null) {
+            return $this->errorResponse('errors.webdoor.game_unavailable', 'This game is not available', 404);
+        }
         $this->gameId = $gameId;
 
         // Check for existing valid session
@@ -168,7 +171,10 @@ class WebDoorController
             return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
-        $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
+        $gameId = $this->resolveGameId();
+        if ($gameId === null) {
+            return $this->errorResponse('errors.webdoor.game_unavailable', 'This game is not available', 404);
+        }
 
         $stmt = $this->db->prepare('
             SELECT slot, metadata, saved_at
@@ -213,7 +219,10 @@ class WebDoorController
             return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
-        $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
+        $gameId = $this->resolveGameId();
+        if ($gameId === null) {
+            return $this->errorResponse('errors.webdoor.game_unavailable', 'This game is not available', 404);
+        }
 
         $stmt = $this->db->prepare('
             SELECT slot, data, metadata, saved_at
@@ -250,7 +259,10 @@ class WebDoorController
             return $this->errorResponse('errors.webdoor.invalid_slot', 'Invalid slot number', 400);
         }
 
-        $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
+        $gameId = $this->resolveGameId();
+        if ($gameId === null) {
+            return $this->errorResponse('errors.webdoor.game_unavailable', 'This game is not available', 404);
+        }
         $input = $this->getJsonInput();
 
         $data = $input['data'] ?? [];
@@ -293,7 +305,10 @@ class WebDoorController
             return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
-        $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
+        $gameId = $this->resolveGameId();
+        if ($gameId === null) {
+            return $this->errorResponse('errors.webdoor.game_unavailable', 'This game is not available', 404);
+        }
 
         $stmt = $this->db->prepare('
             DELETE FROM webdoor_storage
@@ -315,7 +330,10 @@ class WebDoorController
             return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
-        $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
+        $gameId = $this->resolveGameId();
+        if ($gameId === null) {
+            return $this->errorResponse('errors.webdoor.game_unavailable', 'This game is not available', 404);
+        }
         $limit = min((int)($_GET['limit'] ?? 10), 100);
         $scope = $_GET['scope'] ?? 'all';
 
@@ -407,7 +425,10 @@ class WebDoorController
             return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
-        $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
+        $gameId = $this->resolveGameId();
+        if ($gameId === null) {
+            return $this->errorResponse('errors.webdoor.game_unavailable', 'This game is not available', 404);
+        }
         $input = $this->getJsonInput();
 
         $score = (int)($input['score'] ?? 0);
@@ -454,6 +475,38 @@ class WebDoorController
             'is_personal_best' => $isPersonalBest,
             'previous_best' => $previousBest !== null ? (int)$previousBest : null
         ];
+    }
+
+    /**
+     * The requested WebDoor (explicit game_id, or the /webdoors/{id}/ referer),
+     * resolved to its canonical manifest id - or null when it is not an
+     * installed, enabled WebDoor whose requirements are met. Sessions, saves
+     * and leaderboard entries are only ever read or written for such games.
+     */
+    private function resolveGameId(): ?string
+    {
+        $requested = $_GET['game_id'] ?? $this->detectGameIdFromReferer();
+        if (!is_string($requested) || $requested === '') {
+            return null;
+        }
+
+        foreach (WebDoorManifest::listManifests() as $entry) {
+            if ($entry['id'] !== $requested && $entry['path'] !== $requested) {
+                continue;
+            }
+            if (!isset($entry['manifest']['game']) || !GameConfig::isEnabled($entry['id'])) {
+                return null;
+            }
+            // Same requirement check the game page and listing use (defined in
+            // routes/webdoor-routes.php, which serves every WebDoor API call).
+            if (function_exists('checkManifestRequirements') && !checkManifestRequirements($entry['manifest'])) {
+                return null;
+            }
+
+            return $entry['id'];
+        }
+
+        return null;
     }
 
     /**

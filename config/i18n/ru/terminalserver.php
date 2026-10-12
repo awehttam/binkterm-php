@@ -97,6 +97,7 @@ return [
 
     // --- Idle timeout ---
     'ui.terminalserver.server.idle.disconnect' => 'Таймаут бездействия — отключение…',
+    'ui.terminalserver.server.session_revoked' => 'Ваш сеанс был завершён в другом месте — отключение…',
     'ui.terminalserver.server.idle.warning_line' => 'Вы ещё здесь? (Нажмите Enter, чтобы продолжить)',
     'ui.terminalserver.server.idle.warning_key' => 'Вы ещё здесь? (Нажмите любую клавишу, чтобы продолжить)',
 

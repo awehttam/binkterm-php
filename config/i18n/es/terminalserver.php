@@ -98,6 +98,7 @@ return [
 
     // --- Idle timeout ---
     'ui.terminalserver.server.idle.disconnect'         => 'Tiempo de inactividad agotado - desconectando...',
+    'ui.terminalserver.server.session_revoked' => 'Tu sesión se cerró desde otro lugar - desconectando...',
     'ui.terminalserver.server.idle.warning_line'       => '¿Sigue ahí? (Presione Enter para continuar)',
     'ui.terminalserver.server.idle.warning_key'        => '¿Sigue ahí? (Presione cualquier tecla para continuar)',
 

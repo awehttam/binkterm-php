@@ -77,7 +77,7 @@ class DoorSessionManager
      * @return array Session information
      * @throws Exception If session cannot be started
      */
-    public function startSession(int $userId, string $doorName, array $userData, string $doorType = 'dos'): array
+    public function startSession(int $userId, string $doorName, array $userData, string $doorType = 'dos', ?int $maxNodes = null): array
     {
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? 'cli';
         $this->logger->info("[StartSession] BEGIN - User: $userId, Door: $doorName, Type: $doorType, IP: $remoteAddr");
@@ -104,8 +104,9 @@ class DoorSessionManager
         $doorDisplayName = $doorInfo['name'] ?? $doorName;
 
         try {
-            // Find available node number (starts transaction with row-level lock)
-            $node = $this->findAvailableNode();
+            // Find available node number (starts the admission transaction;
+            // enforces $maxNodes for this door inside the same critical section)
+            $node = $this->findAvailableNode($doorName, $maxNodes);
             if ($node === null) {
                 $this->logger->error("[StartSession] No available nodes (max {$this->maxSessions} sessions)");
                 // Transaction already rolled back in findAvailableNode()
@@ -180,6 +181,8 @@ class DoorSessionManager
 
             return $session;
 
+        } catch (DoorCapacityException $e) {
+            throw $e;
         } catch (Exception $e) {
             // Rollback transaction if it's still active
             if ($this->db->inTransaction()) {
@@ -668,21 +671,47 @@ class DoorSessionManager
     }
 
     /**
-     * Find available node number
-     *
-     * Uses row-level locking to prevent race conditions when multiple
-     * sessions start concurrently.
-     *
-     * @return int|null Node number or null if none available
+     * Advisory lock key serializing door admission (capacity check + node
+     * allocation + insert) across all processes.
      */
-    private function findAvailableNode(): ?int
+    public const ADMISSION_LOCK_KEY = 4017538266112247;
+
+    /**
+     * Find an available node number inside the admission critical section.
+     *
+     * Starts a transaction and takes a transaction-scoped advisory lock, so
+     * concurrent launches are serialized until the caller inserts its session
+     * and commits. Row locks alone are not enough: when no session rows exist
+     * (or a new node is free) two transactions can both see the same free node
+     * and the same per-door count.
+     *
+     * @param string|null $doorId   Door being launched (for the per-door cap)
+     * @param int|null    $maxNodes Per-door session cap, or null for no cap
+     * @return int|null Node number, or null if all nodes are in use
+     * @throws DoorCapacityException when the door already has $maxNodes active sessions
+     */
+    private function findAvailableNode(?string $doorId = null, ?int $maxNodes = null): ?int
     {
-        // Start a transaction with row-level locking to prevent race conditions
         $this->db->beginTransaction();
 
         try {
-            // Lock active sessions for reading (prevents concurrent allocation of same node)
-            // FOR UPDATE locks the rows, preventing other transactions from modifying them
+            $this->db->query('SELECT pg_advisory_xact_lock(' . self::ADMISSION_LOCK_KEY . ')')->closeCursor();
+
+            if ($doorId !== null && $maxNodes !== null) {
+                $capStmt = $this->db->prepare("
+                    SELECT COUNT(*) FROM door_sessions
+                    WHERE door_id = ? AND ended_at IS NULL AND expires_at > NOW()
+                ");
+                $capStmt->execute([$doorId]);
+                $activeForDoor = (int)$capStmt->fetchColumn();
+
+                if ($activeForDoor >= $maxNodes) {
+                    $this->db->rollBack();
+                    $this->logger->warning("[NodeAlloc] Door '$doorId' at capacity ($activeForDoor/$maxNodes)");
+                    throw new DoorCapacityException($doorId, $maxNodes, $activeForDoor);
+                }
+            }
+
             $stmt = $this->db->query("
                 SELECT node_number FROM door_sessions
                 WHERE ended_at IS NULL
@@ -707,8 +736,12 @@ class DoorSessionManager
             $this->logger->warning("[NodeAlloc] No available nodes (max " . $this->maxSessions . ")");
             return null;
 
+        } catch (DoorCapacityException $e) {
+            throw $e;
         } catch (\Exception $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error("[NodeAlloc] Error: " . $e->getMessage());
             throw $e;
         }

@@ -223,7 +223,7 @@ class BinkpServer
                         $this->log("Failed to trigger packet processing: " . $e->getMessage(), 'ERROR');
                     }
                 } else {
-                    $sessionLogger->endSession('failed', 'Session processing failed');
+                    $sessionLogger->endSession('failed', 'Session ended abnormally without reaching clean termination (e.g. a hard EOB/inactivity timeout or premature disconnect - see protocol log)');
                     $this->log("Session failed for {$clientIP} ({$connectionId})", 'ERROR');
                 }
             } else {

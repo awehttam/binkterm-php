@@ -8,11 +8,11 @@ use PHPUnit\Framework\TestCase;
 
 class ArtFormatDetectorTest extends TestCase
 {
-    public function testExplicitPetsciiEncodingStillWins(): void
+    public function testExplicitPetsciiEncodingIsNotAnArtFormat(): void
     {
         $body = "10 PRINT \"HELLO\"\n20 GOTO 10\n";
 
-        $this->assertSame('petscii', ArtFormatDetector::detectArtFormat($body, 'PETSCII'));
+        $this->assertNull(ArtFormatDetector::detectArtFormat($body, 'PETSCII'));
     }
 
     public function testAnsiSequencesAreDetected(): void

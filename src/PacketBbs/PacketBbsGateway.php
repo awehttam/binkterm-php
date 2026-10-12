@@ -40,18 +40,12 @@ class PacketBbsGateway
     private PacketBbsSession $sessionRepo;
     private MessageHandler $messageHandler;
 
-    /** Inactivity before a session is considered expired (minutes). */
-    private int $sessionTimeout;
-
     public function __construct()
     {
         $this->db             = Database::getInstance()->getPdo();
         $this->logger         = new Logger(Config::getLogPath('packetbbs.log'), Logger::LEVEL_INFO, false);
         $this->sessionRepo    = new PacketBbsSession();
         $this->messageHandler = new MessageHandler();
-
-        $cfg = BbsConfig::getConfig()['packet_bbs'] ?? [];
-        $this->sessionTimeout = (int)($cfg['session_timeout_minutes'] ?? 15);
     }
 
     // -------------------------------------------------------------------------
@@ -71,7 +65,7 @@ class PacketBbsGateway
             $nodeId,
             $authNodeId,
             $interface,
-            substr($command, 0, 80)
+            $this->commandNameForLog($command)
         ));
 
         // Reject commands only when the bridge device itself is not registered.
@@ -87,7 +81,7 @@ class PacketBbsGateway
 
         // Opportunistic cleanup (5% of requests): sessions and login attempt records.
         if (rand(1, 100) <= 5) {
-            $this->sessionRepo->cleanExpired($this->sessionTimeout);
+            $this->sessionRepo->cleanExpired();
             (new PacketBbsLoginRateLimit())->cleanOld();
         }
 
@@ -103,30 +97,33 @@ class PacketBbsGateway
         $renderer = new PacketBbsTextRenderer($interface);
         $state = $this->getSessionState($session);
 
-        // Check session expiry: if last_activity is older than timeout and user_id is set,
-        // clear auth state so they must re-login (but keep session row so context is preserved)
-        if ($session['user_id'] && $this->isExpired($session)) {
-            $expiredBbsSessionId = (string)($session['bbs_session_id'] ?? '');
-            if ($expiredBbsSessionId !== '') {
-                (new Auth())->logout($expiredBbsSessionId);
-            }
-            $this->sessionRepo->update($nodeId, [
-                'user_id'            => null,
-                'bbs_session_id'     => null,
-                'menu_state'         => 'main',
-                'pagination_cursor'  => 1,
-                'pagination_context' => null,
-                'compose_buffer'     => null,
-                'compose_type'       => null,
-                'compose_meta'       => null,
-                'session_state'      => [],
-            ]);
-            $session = $this->sessionRepo->load($nodeId);
+        // Retrieval has already revoked idle authentication and cleared drafts/context.
+        // Consume the retained notice without executing the requested command.
+        if (!empty($state['auth_expired'])) {
+            $this->sessionRepo->update($nodeId, ['session_state' => []]);
             return 'Session expired. LOGIN again.';
         }
 
-        // Keep the user's online presence fresh on every command.
+        // Fail closed: an authenticated PacketBBS identity is only as valid as
+        // the user_sessions row it is linked to. If that link is missing or no
+        // longer validates (revoked elsewhere: admin kick, revoke-all, logout,
+        // expiry, deactivated user), drop the identity now with the idle-expiry
+        // reset, consume the notice in this reply, and do not execute the
+        // requested command. No replacement session is ever created here.
         $activeBbsSessionId = (string)($session['bbs_session_id'] ?? '');
+        if (!empty($session['user_id'])
+            && ($activeBbsSessionId === '' || !(new Auth())->validateSession($activeBbsSessionId))
+        ) {
+            $this->logger->warning(sprintf('revoked unlinked identity node=%s user=%d', $nodeId, (int)$session['user_id']));
+            $this->sessionRepo->revokeUnlinkedAuthentication($nodeId);
+            $this->sessionRepo->update($nodeId, ['session_state' => []]);
+            return 'Session expired. LOGIN again.';
+        }
+
+        // Only refresh activity after expiry evaluation (including ordinary guest input).
+        $this->sessionRepo->update($nodeId, []);
+
+        // Keep the user's online presence fresh on every command.
         if ($session['user_id'] && $activeBbsSessionId !== '') {
             (new Auth())->updateSessionActivity($activeBbsSessionId, 'PacketBBS');
         }
@@ -306,6 +303,25 @@ class PacketBbsGateway
     }
 
     /**
+     * Log only recognized command names, never arguments or free-form input.
+     * This also covers malformed login lines and text entered in compose/chat mode.
+     */
+    private function commandNameForLog(string $command): string
+    {
+        $verb = strtoupper(preg_split('/\s+/', trim($command), 2)[0]);
+        $known = [
+            'H', 'HELP', '?', 'ABOUT', 'HF', 'FULLHELP', 'HELPFUL', 'HELPFULL',
+            'L', 'LOGIN', 'BU', 'BULLETINS', 'Q', 'QUIT', 'W', 'WHO', 'U', 'STATUS',
+            'N', 'MAIL', 'NM', 'NETMAIL', 'NR', 'NRP', 'NS', 'S', 'SEND',
+            'A', 'E', 'AREAS', 'T', 'ER', 'AREA', 'EM', 'EMR', 'EP', 'POST',
+            'R', 'READ', 'Y', 'RP', 'REPLY', 'M', 'MORE', 'B', 'P', 'PREV',
+            'CL', 'C', 'CHAT', 'SA', 'SEARCHAREAS', 'SM', 'SEARCHMAIL',
+            'WX', 'WEATHER', 'WEB', 'WEBSITE', 'CANCEL', '/CANCEL', '/C', '/SEND', '/S', '.',
+        ];
+        return in_array($verb, $known, true) ? $verb : 'INPUT';
+    }
+
+    /**
      * Check whether a node_id exists in the sysop-managed nodes table.
      */
     private function isKnownNode(string $nodeId): bool
@@ -387,21 +403,6 @@ class PacketBbsGateway
     // -------------------------------------------------------------------------
     // Command handlers
     // -------------------------------------------------------------------------
-
-    private function isExpired(array $session): bool
-    {
-        if (empty($session['last_activity_at'])) {
-            return false;
-        }
-        try {
-            $last    = new \DateTime($session['last_activity_at']);
-            $now     = new \DateTime('now', new \DateTimeZone('UTC'));
-            $diffMin = ($now->getTimestamp() - $last->getTimestamp()) / 60;
-            return $diffMin > $this->sessionTimeout;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
 
     /**
      * Handle a line of input while in compose mode.
@@ -599,7 +600,7 @@ class PacketBbsGateway
         // Rate limit check before any database lookup — blocks by both node and username.
         $rateLimit = new PacketBbsLoginRateLimit();
         if (!$rateLimit->check($nodeId, $username)) {
-            $this->logger->warning(sprintf('login rate limited node=%s user=%s', $nodeId, $username));
+            $this->logger->warning(sprintf('login rate limited node=%s', $nodeId));
             return 'Too many tries. Wait a bit.';
         }
 
@@ -612,7 +613,7 @@ class PacketBbsGateway
 
         if (!$user) {
             $rateLimit->recordFailure($nodeId, $username);
-            $this->logger->warning(sprintf('login failed (user not found) node=%s user=%s', $nodeId, $username));
+            $this->logger->warning(sprintf('login failed (user not found) node=%s', $nodeId));
             return 'Login failed.';
         }
 
@@ -623,9 +624,8 @@ class PacketBbsGateway
         if ($totpEnabled !== '1' || !$totpSecret) {
             $rateLimit->recordFailure($nodeId, $username);
             $this->logger->warning(sprintf(
-                'login failed (totp not enrolled) node=%s user=%s',
-                $nodeId,
-                $username
+                'login failed (totp not enrolled) node=%s',
+                $nodeId
             ));
             return 'Login failed.';
         }
@@ -633,26 +633,34 @@ class PacketBbsGateway
         // Verify the submitted code — never log the code itself.
         if (!PacketBbsTotp::verifyCode($totpSecret, $code, $this->db, (int)$user['id'])) {
             $rateLimit->recordFailure($nodeId, $username);
-            $this->logger->warning(sprintf('login failed (invalid code) node=%s user=%s', $nodeId, $username));
+            $this->logger->warning(sprintf('login failed (invalid code) node=%s', $nodeId));
             return 'Login failed.';
         }
 
         $rateLimit->recordSuccess($nodeId, $username);
 
+        $auth = new Auth();
+
         // Revoke any previous online session for this node (re-login case).
         $oldBbsSessionId = (string)($session['bbs_session_id'] ?? '');
         if ($oldBbsSessionId !== '') {
-            (new Auth())->logout($oldBbsSessionId);
+            $auth->logout($oldBbsSessionId);
         }
 
         // Create a user_sessions entry so this user appears in online-user
         // lists and can be selected as a DM target from the web interface.
-        $bbsSessionId = (new Auth())->createSessionForConnection(
+        $bbsSessionId = $auth->createSessionForConnection(
             (int)$user['id'],
             'packetbbs',
             '',
             $nodeId
         );
+
+        // This LOGIN is a successful login like any other boundary: stamp
+        // users.last_login and record exactly one login event for it. Later
+        // commands on the session never re-emit; a revoke + LOGIN is a new login.
+        $auth->updateLastLogin((int)$user['id']);
+        ActivityTracker::trackLogin((int)$user['id'], 'packetbbs');
 
         $this->sessionRepo->update($nodeId, [
             'user_id'            => $user['id'],
@@ -666,7 +674,7 @@ class PacketBbsGateway
             'session_state'      => [],
         ]);
 
-        $this->logger->info(sprintf('login ok node=%s user=%s', $nodeId, $user['username']));
+        $this->logger->info(sprintf('login ok node=%s user_id=%d', $nodeId, (int)$user['id']));
 
         $response = sprintf('Hi %s. HELP for commands.', $user['username']);
         $unread = (new \BinktermPHP\BulletinManager())->getUnreadBulletins((int)$user['id']);
@@ -2279,6 +2287,22 @@ class PacketBbsGateway
      */
     public function getPendingMessages(string $nodeId): array
     {
+        $session = $this->sessionRepo->load($nodeId);
+        if (empty($session['user_id'])) {
+            return [];
+        }
+
+        // Same fail-closed rule as handleCommand(): queued private content is
+        // never delivered to an identity whose linked user_sessions row no
+        // longer validates. The reset discards the queue; the retained notice
+        // is consumed by the node's next command, exactly like idle expiry.
+        $activeBbsSessionId = (string)($session['bbs_session_id'] ?? '');
+        if ($activeBbsSessionId === '' || !(new Auth())->validateSession($activeBbsSessionId)) {
+            $this->logger->warning(sprintf('revoked unlinked identity on poll node=%s user=%d', $nodeId, (int)$session['user_id']));
+            $this->sessionRepo->revokeUnlinkedAuthentication($nodeId);
+            return [];
+        }
+
         $stmt = $this->db->prepare(
             "SELECT id, payload FROM packet_bbs_outbound_queue
              WHERE node_id = ? AND sent_at IS NULL

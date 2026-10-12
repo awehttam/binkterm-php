@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         postgresql-client \
         rsync \
         supervisor \
+        telnet \
         unzip \
         # DOSBox-X for DOS door support with headless operation
         dosbox-x \

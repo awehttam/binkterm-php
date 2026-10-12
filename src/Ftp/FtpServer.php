@@ -402,12 +402,22 @@ class FtpServer implements LoopServiceInterface
             return;
         }
 
-        $auth = new Auth();
-        $user = $auth->authenticateCredentials($username, $password);
-        if ($user === false) {
+        $remoteIp = (string)$this->clients[$clientId]['remote_ip'];
+        $throttle = new \BinktermPHP\Security\LoginThrottle();
+        if (!$throttle->isAllowed($username, $remoteIp)) {
             $this->sendResponse($clientId, 530, 'Login incorrect');
             return;
         }
+
+        $auth = new Auth();
+        $user = $auth->authenticateCredentials($username, $password);
+        if ($user === false) {
+            $throttle->recordFailure($username, $remoteIp);
+            $throttle->cleanOld();
+            $this->sendResponse($clientId, 530, 'Login incorrect');
+            return;
+        }
+        $throttle->recordSuccess($username);
 
         $sessionId = $auth->createSessionForConnection(
             (int)$user['id'],
