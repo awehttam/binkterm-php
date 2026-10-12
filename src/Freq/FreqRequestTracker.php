@@ -55,17 +55,20 @@ class FreqRequestTracker
     }
 
     /**
-     * Undo recordAttempt() when the session was never dialed because the
-     * remote host was busy with another BinkP session. last_attempt_at is
-     * kept, so the next retry still waits FREQ_POLL_INTERVAL.
+     * Mark that an attempt has started without counting it yet. Called before
+     * waiting for the remote host's BinkP session lock, so the scheduler does
+     * not start another retry while this one waits. recordAttempt() is called
+     * once the lock is held and the session is about to dial; a poll deferred
+     * because the host was busy therefore never counts toward
+     * FREQ_MAX_ATTEMPTS.
      *
      * @param int $id Record ID
      */
-    public function revertAttempt(int $id): void
+    public function touchLastAttempt(int $id): void
     {
         $stmt = $this->db->prepare("
             UPDATE freq_requests_outbound
-            SET attempts = GREATEST(attempts - 1, 0)
+            SET last_attempt_at = NOW()
             WHERE id = ?
         ");
         $stmt->execute([$id]);

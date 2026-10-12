@@ -143,6 +143,107 @@ final class BinkpHostLockStrictnessTest extends TestCase
         }
     }
 
+    public function testExistingLockDirectoryOwnedByThisAccountIsRepaired(): void
+    {
+        mkdir($this->lockDir, 0755);
+        chmod($this->lockDir, 0755);
+
+        $client = $this->newClient();
+        $lock = $this->invokeAcquire($client, 'repair-check.invalid', 24554, 1);
+        $this->invokeRelease($client, $lock, 'repair-check.invalid', 24554);
+
+        self::assertSame(02775, fileperms($this->lockDir) & 07777);
+    }
+
+    public function testBeforeDialRunsOnlyOnceTheLockIsHeld(): void
+    {
+        $calls = 0;
+
+        // Lock unavailable: the callback must not run.
+        file_put_contents($this->lockDir, 'not a directory');
+        $client = $this->newClient();
+        $client->setBeforeDial(function () use (&$calls): void {
+            $calls++;
+        });
+        try {
+            $client->connect('999:1/1', '127.0.0.1', 9);
+            self::fail('connect() must not proceed without the host lock');
+        } catch (HostLockUnavailableException $e) {
+        } finally {
+            @unlink($this->lockDir);
+        }
+        self::assertSame(0, $calls, 'no attempt is counted when nothing is dialed');
+
+        // Lock held: the callback runs once, before the (refused) dial.
+        $listener = stream_socket_server('tcp://127.0.0.1:0');
+        $port = (int)substr(strrchr(stream_socket_get_name($listener, false), ':'), 1);
+        fclose($listener);
+        try {
+            @$client->connect('999:1/1', '127.0.0.1', $port);
+            self::fail('the dial should be refused');
+        } catch (\Exception $e) {
+            self::assertStringContainsString('Failed to connect', $e->getMessage());
+        }
+        self::assertSame(1, $calls);
+    }
+
+    public function testFailedSessionConnectionIsClosedBeforeTheLockIsReleased(): void
+    {
+        // Keep call arguments in exception traces (as php.ini-development
+        // does), so nothing but connect()'s own cleanup can close the socket
+        // while the caller still holds the exception.
+        $previousIgnoreArgs = ini_set('zend.exception_ignore_args', '0');
+        $listener = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
+        self::assertNotFalse($listener, $errstr);
+        $port = (int)substr(strrchr(stream_socket_get_name($listener, false), ':'), 1);
+
+        // The third timeout lookup happens in socketToStream(), after the
+        // socket is connected and exported: the session fails part-way.
+        $config = new class {
+            private int $calls = 0;
+            public function getBinkpTimeout()
+            {
+                if (++$this->calls >= 3) {
+                    throw new \RuntimeException('simulated failure after export');
+                }
+                return 5;
+            }
+            public function getUplinkByAddress($address)
+            {
+                return null;
+            }
+        };
+        $logger = new class {
+            public function log($level, $message, $context = []): void
+            {
+            }
+        };
+
+        try {
+            (new BinkpClient($config, $logger))->connect('999:1/1', '127.0.0.1', $port);
+            self::fail('connect() should have failed');
+        } catch (\RuntimeException $e) {
+            self::assertSame('simulated failure after export', $e->getMessage());
+
+            $peer = stream_socket_accept($listener, 2);
+            self::assertNotFalse($peer);
+            stream_set_timeout($peer, 2);
+            $data = fread($peer, 16);
+            $meta = stream_get_meta_data($peer);
+            self::assertFalse($meta['timed_out'], 'the client side must already be closed when connect() returns');
+            self::assertSame('', $data);
+            fclose($peer);
+        } finally {
+            fclose($listener);
+            ini_set('zend.exception_ignore_args', (string)$previousIgnoreArgs);
+        }
+
+        // And the host lock is free again.
+        $client = $this->newClient();
+        $lock = $this->invokeAcquire($client, '127.0.0.1', $port, 1);
+        $this->invokeRelease($client, $lock, '127.0.0.1', $port);
+    }
+
     // ---- Cross-user participation (real processes, real uids) -------------
 
     private const SHARED_GID = 64999;
