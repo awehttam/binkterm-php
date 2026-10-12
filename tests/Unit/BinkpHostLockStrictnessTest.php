@@ -244,6 +244,38 @@ final class BinkpHostLockStrictnessTest extends TestCase
         $this->invokeRelease($client, $lock, '127.0.0.1', $port);
     }
 
+    public function testConnectionIsClosedEvenWhenSessionCloseThrows(): void
+    {
+        // connect() runs closeConnection() in its finally block, before the
+        // host lock is released. A session whose close() throws part-way must
+        // not leave the descriptor open.
+        $pair = [];
+        self::assertTrue(socket_create_pair(AF_UNIX, SOCK_STREAM, 0, $pair));
+        [$clientEnd, $peer] = $pair;
+        socket_set_option($peer, SOL_SOCKET, SO_RCVTIMEO, ['sec' => 2, 'usec' => 0]);
+
+        $stream = socket_export_stream($clientEnd);
+        $config = new class {
+            public function getBinkpTimeout()
+            {
+                return 5;
+            }
+        };
+        $session = new class($stream, true, $config) extends \BinktermPHP\Binkp\Protocol\BinkpSession {
+            public function close()
+            {
+                throw new \RuntimeException('simulated failure inside close()');
+            }
+        };
+
+        $method = new \ReflectionMethod(BinkpClient::class, 'closeConnection');
+        $method->setAccessible(true);
+        $method->invoke($this->newClient(), $clientEnd, $stream, $session);
+
+        self::assertSame('', socket_read($peer, 16), 'the peer must see EOF: the connection is closed');
+        socket_close($peer);
+    }
+
     // ---- Cross-user participation (real processes, real uids) -------------
 
     private const SHARED_GID = 64999;

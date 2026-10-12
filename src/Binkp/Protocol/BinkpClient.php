@@ -384,16 +384,21 @@ class BinkpClient
             if ($session !== null) {
                 $session->close();
             }
-            if (is_resource($stream)) {
-                BinkpFrame::forgetSocket($stream);
-                fclose($stream);
-            } elseif ($stream === null && $socket instanceof \Socket) {
-                // Never exported, or the export failed part-way. On an
-                // exported socket socket_close() also closes its stream.
-                socket_close($socket);
-            }
         } catch (\Throwable $e) {
-            // Already closed through another handle.
+            // Fall through: the stream may still be open.
+        } finally {
+            try {
+                if (is_resource($stream)) {
+                    BinkpFrame::forgetSocket($stream);
+                    fclose($stream);
+                } elseif ($stream === null && $socket instanceof \Socket) {
+                    // Never exported, or the export failed part-way. On an
+                    // exported socket socket_close() also closes its stream.
+                    socket_close($socket);
+                }
+            } catch (\Throwable $e) {
+                // Already closed through another handle.
+            }
         }
     }
 
