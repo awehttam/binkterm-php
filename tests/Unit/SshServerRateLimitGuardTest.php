@@ -40,7 +40,7 @@ final class SshServerRateLimitGuardTest extends TestCase
         $loop = self::acceptLoopSource();
 
         $checkPos = strpos($loop, '$this->rateLimiter->check(');
-        $forkPos  = strpos($loop, '$pid = pcntl_fork();');
+        $forkPos  = strpos($loop, '$this->forkConnectionChild()');
 
         self::assertNotFalse($checkPos, 'accept loop must call the rate limiter');
         self::assertNotFalse($forkPos, 'accept loop must fork per connection');
@@ -77,6 +77,7 @@ final class SshServerRateLimitGuardTest extends TestCase
 
         self::assertSame('198.51.100.7', $m->invoke($server, '198.51.100.7:51514'));
         self::assertSame('2001:db8::1', $m->invoke($server, '[2001:db8::1]:51514'));
+        self::assertSame('192.0.2.7', $m->invoke($server, '[::ffff:192.0.2.7]:51514'), 'IPv4-mapped IPv6 is reported as IPv4');
         self::assertNull($m->invoke($server, null));
         self::assertNull($m->invoke($server, ''));
         self::assertNull($m->invoke($server, 'not-an-address'));

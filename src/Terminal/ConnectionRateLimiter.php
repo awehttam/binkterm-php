@@ -3,16 +3,14 @@
 namespace BinktermPHP\Terminal;
 
 /**
- * Fixed-window per-source-IP connection rate limiter for the terminal
- * transports.
+ * Fixed-window per-source-IP connection rate limiter shared by the Telnet
+ * daemon (`TELNET_RATE_LIMIT_*`) and the SSH daemon (`SSH_RATE_LIMIT_*`).
+ * Both check it right after accept(), before forking or doing any protocol
+ * work.
  *
- * The algorithm is lifted verbatim from the Telnet daemon's proven
- * `TELNET_RATE_LIMIT_*` logic ({@see \BinktermPHP\TelnetServer\TelnetServer}'s
- * private `isRateLimited()` / `cleanRateTable()`), so a second transport can
- * apply the identical policy — the SSH daemon needs to reject a flooding source
- * IP *before* it forks or does any SSH/KEX/auth work. `TelnetServer` keeps its
- * own inline copy for now (changing it would mean touching the live, accepted
- * Telnet daemon); a later slice can migrate it onto this class.
+ * Addresses are normalized before they are counted ({@see normalizeIp()}), so
+ * an IPv4 client seen on a dual-stack listener as `::ffff:192.0.2.1` shares one
+ * counter with `192.0.2.1`.
  *
  * Window semantics: the first connection from an IP starts a fixed window; every
  * connection inside that window is counted; once `max` is exceeded the remainder
@@ -62,6 +60,7 @@ class ConnectionRateLimiter
             return 0;
         }
 
+        $ip  = self::normalizeIp($ip);
         $now = time();
 
         if (!isset($this->table[$ip])) {
@@ -114,6 +113,23 @@ class ConnectionRateLimiter
                 unset($this->table[$ip]);
             }
         }
+    }
+
+    /**
+     * Canonical form of a client address: IPv4-mapped IPv6 (`::ffff:a.b.c.d`)
+     * becomes plain IPv4, and other IPv6 addresses are written in their
+     * canonical compressed form. Anything that is not an IP is returned as is.
+     */
+    public static function normalizeIp(string $ip): string
+    {
+        $packed = @inet_pton($ip);
+        if ($packed === false) {
+            return $ip;
+        }
+        if (strlen($packed) === 16 && strncmp($packed, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) === 0) {
+            $packed = substr($packed, 12);
+        }
+        return (string)inet_ntop($packed);
     }
 
     /** Number of source IPs currently tracked (test/introspection aid). */

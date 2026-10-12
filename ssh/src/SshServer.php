@@ -117,9 +117,7 @@ class SshServer
         }
 
         if (function_exists('pcntl_signal')) {
-            pcntl_signal(SIGCHLD, function() {
-                $this->reapChildren();
-            });
+            $this->installChildReaper();
             $shutdown = function() use (&$server) {
                 $this->log("Received shutdown signal");
                 $this->cleanupDaemon();
@@ -158,8 +156,8 @@ class SshServer
             $changed = @stream_select($read, $write, $except, 60);
             if ($changed === false || $changed === 0) {
                 $this->reapChildren();
-                // Prune expired rate-limit entries (mirrors the Telnet daemon's
-                // cleanRateTable() on each select() timeout).
+                // Prune expired rate-limit entries, as the Telnet daemon does
+                // on each select() timeout.
                 $this->rateLimiter->clean();
                 continue;
             }
@@ -215,7 +213,7 @@ class SshServer
             }
 
             if (function_exists('pcntl_fork')) {
-                $pid = pcntl_fork();
+                $pid = $this->forkConnectionChild();
                 if ($pid === -1) {
                     // Fork failed — handle in main process (no child, no slot).
                     $this->handleConnection($conn, false);
@@ -224,8 +222,8 @@ class SshServer
                     fclose($server);
                     $this->handleConnection($conn, true);
                 } else {
-                    // Parent — track the child against the global ceiling.
-                    $this->childPids[$pid] = true;
+                    // Parent — the child is already registered against the
+                    // global ceiling by forkConnectionChild().
                     if ($this->capacityLogged) {
                         if ($this->capacitySuppressed > 0) {
                             $this->log("SSH capacity: {$this->capacitySuppressed} further connection(s) were rejected while full");
@@ -243,12 +241,83 @@ class SshServer
     }
 
     /**
+     * Reap exited children whenever SIGCHLD arrives.
+     */
+    private function installChildReaper(): void
+    {
+        pcntl_signal(SIGCHLD, function() {
+            $this->reapChildren();
+        });
+    }
+
+    /**
+     * Fork a connection handler and register the child against the ceiling.
+     *
+     * SIGCHLD is blocked from before the fork until the parent has recorded
+     * the child's PID. With async signals enabled, an unblocked handler could
+     * otherwise reap a child that exits immediately before its PID is
+     * registered; the late registration would then hold a capacity slot
+     * forever. While blocked, the signal stays pending and is delivered when
+     * the mask is restored, after registration. The child restores the mask
+     * too, since it inherits it.
+     *
+     * @return int Child PID in the parent, 0 in the child, -1 if the fork failed
+     */
+    private function forkConnectionChild(): int
+    {
+        $previousMask = [];
+        $masked = function_exists('pcntl_sigprocmask')
+            && pcntl_sigprocmask(SIG_BLOCK, [SIGCHLD], $previousMask);
+
+        $pid = pcntl_fork();
+        if ($pid > 0) {
+            $this->beforeChildRegistered($pid);
+            $this->childPids[$pid] = true;
+        }
+
+        if ($masked) {
+            pcntl_sigprocmask(SIG_SETMASK, $previousMask);
+        }
+
+        return $pid;
+    }
+
+    /**
+     * Test seam: runs in the parent between fork and PID registration, so a
+     * test can widen the window in which a fast-exiting child signals.
+     */
+    protected function beforeChildRegistered(int $pid): void
+    {
+    }
+
+    /**
      * Whether the global live-child ceiling has been reached. Admission control
      * only — keyed on nothing per-IP, so every source shares the one ceiling.
+     *
+     * Entries whose process has already exited or been reaped are dropped
+     * first, so a slot that leaked for any reason heals on the next check.
      */
     private function atCapacity(): bool
     {
+        foreach (array_keys($this->childPids) as $pid) {
+            if ($this->childIsGone($pid)) {
+                unset($this->childPids[$pid]);
+            }
+        }
         return count($this->childPids) >= $this->maxChildren;
+    }
+
+    /**
+     * True when $pid is no longer a live child of this process: it has just
+     * exited (and is reaped here) or was already reaped elsewhere.
+     */
+    protected function childIsGone(int $pid): bool
+    {
+        if (!function_exists('pcntl_waitpid')) {
+            return false;
+        }
+        $status = 0;
+        return pcntl_waitpid($pid, $status, WNOHANG) !== 0;
     }
 
     /**
@@ -281,7 +350,8 @@ class SshServer
 
     /**
      * Pull the bare IP out of a `stream_socket_get_name()` peer string
-     * (`1.2.3.4:5678` or `[2001:db8::1]:5678`). Returns null when it cannot be
+     * (`1.2.3.4:5678` or `[2001:db8::1]:5678`), normalized so an IPv4-mapped
+     * IPv6 peer is reported as plain IPv4. Returns null when it cannot be
      * resolved — the caller then skips rate limiting for that connection rather
      * than keying the whole table under a bogus value.
      */
@@ -298,7 +368,9 @@ class SshServer
             $ip = strrpos($peer, ':') !== false ? substr($peer, 0, strrpos($peer, ':')) : $peer;
         }
 
-        return filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : null;
+        return filter_var($ip, FILTER_VALIDATE_IP) !== false
+            ? ConnectionRateLimiter::normalizeIp($ip)
+            : null;
     }
 
     // =========================================================================

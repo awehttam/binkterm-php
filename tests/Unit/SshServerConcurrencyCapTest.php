@@ -19,8 +19,9 @@ use PHPUnit\Framework\TestCase;
  * limiter and before `pcntl_fork()` / the SSH handshake, so a capacity
  * rejection costs no child process and no KEX work.
  *
- * Real forking is not practical in a unit test, so child accounting is driven
- * through the `reapOne()` seam and the accept-path ordering is pinned by source.
+ * Reap bookkeeping is driven through the `reapOne()` / `childIsGone()` seams.
+ * The SIGCHLD ordering and slot self-healing are proven with real child
+ * processes; the accept-path ordering is pinned by source.
  */
 final class SshServerConcurrencyCapTest extends TestCase
 {
@@ -54,9 +55,15 @@ final class SshServerConcurrencyCapTest extends TestCase
         return new class('127.0.0.1', 2022, 'http://localhost') extends SshServer {
             /** @var int[] pids to hand back from reapOne(), then 0 forever */
             public array $reapQueue = [];
+            /** @var int[] pids childIsGone() reports as no longer running */
+            public array $gonePids = [];
             protected function reapOne(): int
             {
                 return (int) (array_shift($this->reapQueue) ?? 0);
+            }
+            protected function childIsGone(int $pid): bool
+            {
+                return in_array($pid, $this->gonePids, true);
             }
         };
     }
@@ -202,7 +209,7 @@ final class SshServerConcurrencyCapTest extends TestCase
 
         $ipLimiterPos = strpos($loop, '$this->rateLimiter->check(');
         $capacityPos  = strpos($loop, '$this->atCapacity()');
-        $forkPos      = strpos($loop, '$pid = pcntl_fork();');
+        $forkPos      = strpos($loop, '$this->forkConnectionChild()');
 
         self::assertNotFalse($ipLimiterPos);
         self::assertNotFalse($capacityPos);
@@ -227,22 +234,135 @@ final class SshServerConcurrencyCapTest extends TestCase
         self::assertStringNotContainsString('handleConnection', $branch);
     }
 
-    public function testOnlyTheSuccessfulForkBranchRegistersAChild(): void
+    public function testCapacityCheckDropsEntriesWhoseChildIsGone(): void
     {
-        $loop = self::acceptLoopSource();
+        $_ENV['SSH_MAX_CHILDREN'] = '2';
+        $srv = $this->server();
+        $this->setProp($srv, 'childPids', [50 => true, 51 => true]);
+        $srv->gonePids = [51];
 
-        // exactly one place adds to the live-child map
-        self::assertSame(1, substr_count($loop, '$this->childPids[$pid] = true;'));
+        self::assertFalse($this->call($srv, 'atCapacity'), 'a leaked entry must not hold a slot');
+        self::assertSame([50 => true], $this->prop($srv, 'childPids'));
+    }
 
-        // and it is in the parent branch, after the "$pid === 0" child branch,
-        // never in the "$pid === -1" fork-failure branch
-        $failPos   = strpos($loop, '$pid === -1');
-        $childPos  = strpos($loop, '$pid === 0');
-        $addPos    = strpos($loop, '$this->childPids[$pid] = true;');
-        self::assertGreaterThan($childPos, $addPos, 'child registration is in the parent branch');
+    // ---------------------------------------------------------------- real processes
 
-        $failBranch = substr($loop, $failPos, $childPos - $failPos);
-        self::assertStringNotContainsString('childPids', $failBranch, 'fork failure must not consume a slot');
+    private static function requireSignals(): void
+    {
+        foreach (['pcntl_fork', 'pcntl_signal', 'pcntl_async_signals', 'pcntl_sigprocmask', 'posix_kill'] as $fn) {
+            if (!function_exists($fn)) {
+                self::markTestSkipped("{$fn}() not available");
+            }
+        }
+    }
+
+    /**
+     * A child that exits immediately after fork must not leave its PID in the
+     * registry. The seam holds the parent between fork and registration long
+     * enough for the child to exit and SIGCHLD to be raised; the production
+     * SIGCHLD handler (async signals, as in start()) is installed. Without
+     * SIGCHLD blocked across fork and registration, the handler reaps the
+     * child first and the late registration leaks the slot.
+     */
+    public function testChildExitingBeforeRegistrationDoesNotLeakASlot(): void
+    {
+        self::requireSignals();
+        $srv = new class('127.0.0.1', 2022, 'http://localhost') extends SshServer {
+            protected function beforeChildRegistered(int $pid): void
+            {
+                usleep(200000);
+            }
+        };
+
+        $previousAsync = pcntl_async_signals(true);
+        $this->call($srv, 'installChildReaper');
+        try {
+            for ($i = 0; $i < 5; $i++) {
+                $pid = $this->call($srv, 'forkConnectionChild');
+                if ($pid === 0) {
+                    // Child: exit at once, without running PHPUnit shutdown code.
+                    posix_kill(posix_getpid(), SIGKILL);
+                }
+                self::assertGreaterThan(0, $pid, 'fork failed');
+            }
+
+            // Only the SIGCHLD handler reaps here; nothing else touches the registry.
+            $deadline = microtime(true) + 3.0;
+            while ($this->prop($srv, 'childPids') !== [] && microtime(true) < $deadline) {
+                usleep(20000);
+            }
+
+            self::assertSame([], $this->prop($srv, 'childPids'), 'every exited child must release its slot');
+        } finally {
+            pcntl_signal(SIGCHLD, SIG_DFL);
+            pcntl_async_signals($previousAsync);
+            while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {
+            }
+        }
+    }
+
+    public function testChildRestoresTheSignalMaskAfterFork(): void
+    {
+        self::requireSignals();
+        $srv = new SshServer('127.0.0.1', 2022, 'http://localhost');
+        $pipe = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+
+        $pid = $this->call($srv, 'forkConnectionChild');
+        if ($pid === 0) {
+            $blocked = [];
+            pcntl_sigprocmask(SIG_BLOCK, [], $blocked);
+            fwrite($pipe[1], in_array(SIGCHLD, $blocked, true) ? 'blocked' : 'unblocked');
+            posix_kill(posix_getpid(), SIGKILL);
+        }
+
+        $answer = fread($pipe[0], 16);
+        pcntl_waitpid($pid, $status);
+        fclose($pipe[0]);
+        fclose($pipe[1]);
+
+        self::assertSame('unblocked', $answer, 'the session child must not inherit a blocked SIGCHLD');
+        $blocked = [];
+        pcntl_sigprocmask(SIG_BLOCK, [], $blocked);
+        self::assertNotContains(SIGCHLD, $blocked, 'the parent must restore its mask');
+    }
+
+    public function testAtCapacityHealsASlotLeakedByAnAlreadyReapedChild(): void
+    {
+        self::requireSignals();
+        $_ENV['SSH_MAX_CHILDREN'] = '1';
+        $srv = new SshServer('127.0.0.1', 2022, 'http://localhost');
+
+        $pid = pcntl_fork();
+        if ($pid === 0) {
+            posix_kill(posix_getpid(), SIGKILL);
+        }
+        pcntl_waitpid($pid, $status);
+
+        // Simulate a leaked registration: the child has been reaped already.
+        $this->setProp($srv, 'childPids', [$pid => true]);
+
+        self::assertFalse($this->call($srv, 'atCapacity'), 'a reaped child must not hold the only slot');
+        self::assertSame([], $this->prop($srv, 'childPids'));
+    }
+
+    public function testAtCapacityKeepsALiveChild(): void
+    {
+        self::requireSignals();
+        $_ENV['SSH_MAX_CHILDREN'] = '1';
+        $srv = new SshServer('127.0.0.1', 2022, 'http://localhost');
+
+        $pid = pcntl_fork();
+        if ($pid === 0) {
+            sleep(5);
+            posix_kill(posix_getpid(), SIGKILL);
+        }
+        try {
+            $this->setProp($srv, 'childPids', [$pid => true]);
+            self::assertTrue($this->call($srv, 'atCapacity'), 'a running child holds its slot');
+        } finally {
+            posix_kill($pid, SIGKILL);
+            pcntl_waitpid($pid, $status);
+        }
     }
 
     public function testSelectTimeoutReapsChildren(): void
@@ -276,7 +396,7 @@ final class SshServerConcurrencyCapTest extends TestCase
     public function testCapacityLogResetsAndFlushesOnNextAdmit(): void
     {
         $loop = self::acceptLoopSource();
-        $parentStart = strpos($loop, '// Parent — track the child');
+        $parentStart = strpos($loop, '// Parent — the child is already registered');
         $parentEnd   = strpos($loop, '} else {', $parentStart);
         $parent      = substr($loop, $parentStart, $parentEnd - $parentStart);
 

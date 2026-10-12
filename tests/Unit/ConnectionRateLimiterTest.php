@@ -119,4 +119,22 @@ final class ConnectionRateLimiterTest extends TestCase
         self::assertSame(0, $rl->check('192.0.2.9'));
         self::assertSame(1, $rl->check('192.0.2.9')); // still enforced immediately
     }
+
+    public function testNormalizeIpMapsIpv4MappedIpv6ToIpv4AndCanonicalizesIpv6(): void
+    {
+        self::assertSame('192.0.2.1', ConnectionRateLimiter::normalizeIp('::ffff:192.0.2.1'));
+        self::assertSame('192.0.2.1', ConnectionRateLimiter::normalizeIp('::FFFF:C000:201'));
+        self::assertSame('192.0.2.1', ConnectionRateLimiter::normalizeIp('192.0.2.1'));
+        self::assertSame('2001:db8::1', ConnectionRateLimiter::normalizeIp('2001:DB8:0:0::1'));
+        self::assertSame('::1', ConnectionRateLimiter::normalizeIp('::1'));
+        self::assertSame('not-an-ip', ConnectionRateLimiter::normalizeIp('not-an-ip'));
+    }
+
+    public function testMappedAndPlainFormsOfOneClientShareACounter(): void
+    {
+        $rl = new ConnectionRateLimiter(1, 60);
+        self::assertSame(0, $rl->check('::ffff:192.0.2.20'));
+        self::assertSame(1, $rl->check('192.0.2.20'));
+        self::assertSame(1, $rl->trackedIpCount());
+    }
 }

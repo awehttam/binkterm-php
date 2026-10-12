@@ -82,6 +82,27 @@ once; further rejections are counted and flushed as a summary line when a slot
 next frees up. Exited sessions are reaped (releasing their slot) on every
 accept-loop pass and on `SIGCHLD`.
 
+The SSH and Telnet daemons share one rate-limiter implementation. Client
+addresses are normalized first, so an IPv4 client that reaches a dual-stack
+listener as `::ffff:192.0.2.1` is counted as `192.0.2.1`.
+
+#### Proxies and port forwarders
+
+The SSH daemon rate-limits on the TCP peer address. Unlike the Telnet daemon,
+it does not accept a PROXY protocol header, so it cannot learn the real client
+address from a trusted proxy. If SSH traffic reaches the daemon through a proxy,
+load balancer or port forwarder that opens its own connection (rather than
+forwarding packets with the client's source address, as a NAT port forward
+does), every client appears to come from the proxy's address:
+
+- all clients share one rate-limit counter, so a few clients can exhaust
+  `SSH_RATE_LIMIT_MAX` for everyone; and
+- logs and login records show the proxy's address.
+
+In that setup, raise `SSH_RATE_LIMIT_MAX` or set it to `0` and rate-limit at the
+proxy instead. `SSH_MAX_CHILDREN` still applies, since it does not depend on the
+client address.
+
 ## Running as a Service
 
 ### Systemd

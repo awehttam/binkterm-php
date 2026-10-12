@@ -274,7 +274,10 @@ is forked. Rejections are logged to `data/logs/telnetd.log`.
 
 The window is **fixed per IP**: the first connection from an IP starts the
 clock; the counter resets only after `TELNET_RATE_LIMIT_WINDOW` seconds have
-elapsed since that first connection, not since the most recent one.
+elapsed since that first connection, not since the most recent one. An IPv4
+client seen on a dual-stack listener as `::ffff:192.0.2.1` is counted as
+`192.0.2.1`. The SSH daemon uses the same limiter with its own `SSH_RATE_LIMIT_*`
+settings.
 
 | `.env` variable | Default | Description |
 |---|---|---|
