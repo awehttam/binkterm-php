@@ -203,6 +203,13 @@ class SshServer
                 continue;
             }
 
+            // Disable Nagle's algorithm on the accepted socket — SSH carries the
+            // same latency-sensitive interactive terminal traffic as Telnet.
+            // Best-effort; never fatal to the connection.
+            \BinktermPHP\TelnetServer\TerminalSocketOptions::enableNoDelay(
+                $conn,
+                $this->debug ? fn(string $m) => $this->log($m) : null
+            );
             if ($this->debug) {
                 $this->log("Connection #{$connectionCount} from {$peer}");
             }
@@ -300,8 +307,17 @@ class SshServer
 
     private function handleConnection($conn, bool $forked): void
     {
-        $peer   = @stream_socket_get_name($conn, true);
-        $peerIp = $peer ? explode(':', $peer)[0] : 'unknown';
+        $peer     = @stream_socket_get_name($conn, true);
+        $peerIp   = $peer ? explode(':', $peer)[0] : 'unknown';
+        // Validated bare IP (IPv4/IPv6-safe), or null — passed to SshSession so
+        // the initial password check can send the authenticated
+        // X-Binkterm-Client-IP header, matching Telnet/BbsSession.
+        $clientIp = null;
+        if (is_string($peer) && $peer !== '') {
+            // "1.2.3.4:56789" or "[2001:db8::1]:56789"
+            $host = preg_match('/^\[(.+)\]:\d+$/', $peer, $m) ? $m[1] : (string)preg_replace('/:\d+$/', '', $peer);
+            $clientIp = filter_var($host, FILTER_VALIDATE_IP) !== false ? $host : null;
+        }
 
         $sshSession = new SshSession(
             $conn,
@@ -309,7 +325,8 @@ class SshServer
             $this->debug,
             $this->insecure,
             $this->hostKeyFile,
-            $this->hostKeyFile . '.pub'
+            $this->hostKeyFile . '.pub',
+            $clientIp
         );
 
         $authResult = $sshSession->handshake();

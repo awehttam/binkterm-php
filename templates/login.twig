@@ -423,7 +423,8 @@ $('#loginForm').on('submit', function(e) {
 
     const formData = {
         username: $('#username').val(),
-        password: $('#password').val()
+        password: $('#password').val(),
+        remember: $('#remember').is(':checked')
     };
 
     $.ajax({

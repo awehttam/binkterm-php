@@ -235,6 +235,11 @@ class DoorHandler
                 if (!is_resource($wsSock) || feof($wsSock)) {
                     break;
                 }
+                // Leave the door if the caller's auth session was revoked
+                // (checked at most every 30 seconds).
+                if ($this->server->authSessionRevoked()) {
+                    break;
+                }
 
                 $read = [$conn, $wsSock];
                 $w = $e = null;

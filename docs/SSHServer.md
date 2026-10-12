@@ -150,6 +150,18 @@ ssh -p 2022 your-bbs-hostname
 | Wrong password (all attempts) | SSH channel still opened → BBS login screen shown |
 | Protocol error / client disconnect | Connection closed |
 
+Both the initial SSH password check and the fallback `BbsSession` login screen
+verify credentials against `POST /api/auth/login`. Each request carries the
+real end-user IP in the authenticated `X-Binkterm-Client-IP` header (signed
+with `TERMINAL_REGISTRATION_SECRET`, the same convention the Telnet daemon
+uses), so `Auth::resolveClientIp()` and the shared failed-login throttle
+(`AUTH_LOGIN_USER_MAX` / `AUTH_LOGIN_IP_MAX` / `AUTH_LOGIN_WINDOW`, see
+[CONFIGURATION.md](CONFIGURATION.md#failed-login-throttle)) key on the SSH
+caller rather than on the daemon's localhost API source. As with the Telnet
+daemon, a site-specific `TERMINAL_REGISTRATION_SECRET` must be set: while the
+shipped default is in place the server ignores the header and SSH password
+attempts resolve as the loopback API source.
+
 ## Host Key
 
 On first start the daemon generates a 3072-bit RSA private key using

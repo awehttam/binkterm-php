@@ -102,6 +102,7 @@ return [
 
     // --- Idle timeout ---
     'ui.terminalserver.server.idle.disconnect'         => 'Inaktivitäts-Timeout - Verbindung wird getrennt...',
+    'ui.terminalserver.server.session_revoked' => 'Ihre Sitzung wurde an anderer Stelle abgemeldet - Verbindung wird getrennt...',
     'ui.terminalserver.server.idle.warning_line'       => 'Sind Sie noch da? (Drücken Sie Enter um fortzufahren)',
     'ui.terminalserver.server.idle.warning_key'        => 'Sind Sie noch da? (Beliebige Taste drücken zum Fortfahren)',
 

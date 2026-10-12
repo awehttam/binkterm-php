@@ -96,14 +96,36 @@ if (!function_exists('requireBasicAuthUser')) {
             exit;
         }
 
-        $auth = new Auth();
-        $user = $auth->authenticateCredentials($credentials['username'], $credentials['password']);
-        if ($user === false) {
+        // QWK-over-HTTP Basic auth is a public, unauthenticated credential
+        // check that calls Auth::authenticateCredentials() directly, bypassing
+        // the interactive /api/auth/login throttle. Apply the same shared
+        // dual-counter throttle here (same auth_login_attempts table, same
+        // thresholds) so this endpoint is not a rate-unlimited guessing oracle.
+        // The failure response is byte-identical to a wrong password — no
+        // lockout signal.
+        $clientIp = Auth::resolveClientIp();
+        $throttle = new \BinktermPHP\Security\LoginThrottle();
+        if (!$throttle->isAllowed($credentials['username'], $clientIp)) {
             header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
             http_response_code(401);
             echo 'Invalid username or password.';
             exit;
         }
+
+        $auth = new Auth();
+        $user = $auth->authenticateCredentials($credentials['username'], $credentials['password']);
+        if ($user === false) {
+            $throttle->recordFailure($credentials['username'], $clientIp);
+            $throttle->cleanOld();
+            header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
+            http_response_code(401);
+            echo 'Invalid username or password.';
+            exit;
+        }
+
+        // Successful auth: retire this identifier's failure counter. The
+        // source-IP counter is deliberately left to age out on its own.
+        $throttle->recordSuccess($credentials['username']);
 
         return $user;
     }
