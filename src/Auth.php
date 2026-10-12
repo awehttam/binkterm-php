@@ -291,7 +291,14 @@ class Auth
         }
     }
 
-    private function updateLastLogin($userId)
+    /**
+     * The one place users.last_login is stamped on a successful login.
+     *
+     * Called by every credential path (authenticateCredentials, createAuthenticatedSession);
+     * a login boundary that authenticates by other means (PacketBBS TOTP) calls
+     * it directly rather than duplicating the UPDATE.
+     */
+    public function updateLastLogin($userId): void
     {
         $stmt = $this->db->prepare('UPDATE users SET last_login = NOW() WHERE id = ?');
         $stmt->execute([$userId]);

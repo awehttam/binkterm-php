@@ -7,6 +7,7 @@
 
 use BinktermPHP\ActivityTracker;
 use BinktermPHP\DoorSessionManager;
+use BinktermPHP\DoorCapacityException;
 use BinktermPHP\DoorManager;
 use BinktermPHP\NativeDoorManager;
 use BinktermPHP\RLoginDoorManager;
@@ -300,7 +301,13 @@ SimpleRouter::post('/api/door/launch', function() {
         }
 
         // Start new session
-        $session = $sessionManager->startSession($userId, $doorName, $userData, $doorType);
+        $session = $sessionManager->startSession(
+            $userId,
+            $doorName,
+            $userData,
+            $doorType,
+            isset($maxNodesLimit) && $maxNodesLimit !== null ? (int)$maxNodesLimit : null
+        );
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_DOSDOOR_PLAY, null, $doorName);
 
@@ -327,6 +334,13 @@ SimpleRouter::post('/api/door/launch', function() {
             ]
         ]);
 
+    } catch (DoorCapacityException $e) {
+        // Lost a concurrent race for the last slot (the pre-check above passed).
+        getDoorLogger()->warning("DOSDOOR: [API] Door '$doorName' at capacity: " . $e->getMessage());
+        doorApiError('errors.door.capacity_reached_detail', 'Door at capacity', 503, [
+            'active_sessions' => $e->activeSessions,
+            'max_nodes' => $e->maxNodes,
+        ]);
     } catch (Exception $e) {
         getDoorLogger()->error("DOSDOOR: [API] Launch failed for '$doorName': " . $e->getMessage());
         doorApiError('errors.door.launch_failed', 'Failed to start door session', 500);
@@ -442,7 +456,7 @@ SimpleRouter::post('/api/door/guest/launch', function() {
         ];
 
         $sessionManager = new DoorSessionManager(null, true);
-        $session = $sessionManager->startSession($guestUserId, $doorName, $userData, 'native');
+        $session = $sessionManager->startSession($guestUserId, $doorName, $userData, 'native', $maxNodes);
 
         $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');
         if (empty($wsUrl)) {
@@ -468,6 +482,13 @@ SimpleRouter::post('/api/door/guest/launch', function() {
             ],
         ]);
 
+    } catch (DoorCapacityException $e) {
+        http_response_code(503);
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Door at capacity',
+            'message' => "This door is currently full ({$e->maxNodes} player(s) maximum). Please try again later.",
+        ]);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode([
