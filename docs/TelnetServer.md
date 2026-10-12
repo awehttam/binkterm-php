@@ -282,7 +282,7 @@ settings.
 | `.env` variable | Default | Description |
 |---|---|---|
 | `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window. Set to `0` to disable rate limiting entirely. |
-| `TELNET_RATE_LIMIT_WINDOW` | `60` | Window duration in seconds. |
+| `TELNET_RATE_LIMIT_WINDOW` | `60` | Window duration in seconds. A value of `0` or less falls back to `60`; use `TELNET_RATE_LIMIT_MAX=0` to disable the limit. |
 
 The defaults allow 5 connections per minute per IP, which is sufficient for
 any legitimate user. Adjust `TELNET_RATE_LIMIT_MAX` downward if you are seeing

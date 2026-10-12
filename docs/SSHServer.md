@@ -65,7 +65,7 @@ The daemon listens on `0.0.0.0:2022` by default.
 | `SSH_BIND_HOST` | `0.0.0.0` | Bind address |
 | `SSH_PORT` | `2022` | Listening port |
 | `SSH_RATE_LIMIT_MAX` | `5` | Max new connections per source IP per window, checked before the daemon forks or starts the SSH handshake. `0` disables the limit. Mirrors the Telnet daemon's `TELNET_RATE_LIMIT_MAX`. |
-| `SSH_RATE_LIMIT_WINDOW` | `60` | Rate-limit window in seconds (fixed window; the counter resets when it expires). Mirrors `TELNET_RATE_LIMIT_WINDOW`. |
+| `SSH_RATE_LIMIT_WINDOW` | `60` | Rate-limit window in seconds (fixed window; the counter resets when it expires). A value of `0` or less falls back to `60`. Mirrors `TELNET_RATE_LIMIT_WINDOW`. |
 | `SSH_MAX_CHILDREN` | `32` | Global ceiling on simultaneously live SSH session processes. Checked after the per-IP limiter but before the daemon forks or starts the SSH handshake, so a distributed / many-source-IP flood cannot spawn an unbounded number of fork+KEX workers. A non-positive value is **not** treated as "disabled" (that would defeat the guard) — it falls back to the default and logs a warning. To effectively remove the cap, set a very large number explicitly. |
 
 Command-line arguments take precedence over `.env` values.

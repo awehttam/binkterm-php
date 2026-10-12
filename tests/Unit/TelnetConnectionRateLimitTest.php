@@ -78,6 +78,17 @@ final class TelnetConnectionRateLimitTest extends TestCase
         self::assertSame([0, 0, 0, 0, 0, 0, 0, 0], self::attempts($limiter, '192.0.2.12', 8));
     }
 
+    public function testNonPositiveTelnetWindowFallsBackToSixtySeconds(): void
+    {
+        // Before the shared limiter, a window of 0 started a new window on
+        // every connection and so never rejected. It now means the default.
+        $_ENV['TELNET_RATE_LIMIT_MAX'] = '2';
+        $_ENV['TELNET_RATE_LIMIT_WINDOW'] = '0';
+        $limiter = $this->limiterOf(new TelnetServer('127.0.0.1', 0, 'http://127.0.0.1:9'));
+
+        self::assertSame([0, 0, 1], self::attempts($limiter, '192.0.2.15', 3));
+    }
+
     public function testIpv4MappedClientSharesTheIpv4Counter(): void
     {
         $_ENV['TELNET_RATE_LIMIT_MAX'] = '2';
