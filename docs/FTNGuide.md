@@ -207,7 +207,11 @@ The domain is important because it keeps echo areas, file areas, and routing dis
 
 ### Uplinks That Share a Host
 
-Several networks are often served by the same hub machine. BinktermPHP never runs two outbound BinkP sessions to the same `host:port` at once: each outbound session takes a lock file in `data/run/binkp-host-locks/` (override with `BINKP_HOST_LOCK_DIR`). Scheduled polls run one at a time and wait for each session to finish before processing packets. If another session to that host is still active after a bounded wait (90 seconds), the poll is deferred and retried on the next schedule instead of dialing alongside it; `data/logs/binkp_poll.log` notes that the host was busy.
+Several networks are often served by the same hub machine. BinktermPHP never runs two outbound BinkP sessions to the same `host:port` at once: each outbound session takes a lock file in `data/run/binkp-host-locks/` (override with `BINKP_HOST_LOCK_DIR`). If another session to that host is still active after a bounded wait (90 seconds), the poll is deferred instead of dialing alongside it. The scheduler logs it as deferred, not failed, and the uplink is polled again on its next schedule. A deferred FREQ retry does not count against `FREQ_MAX_ATTEMPTS`.
+
+- **Polls run one at a time.** The scheduler waits for each poll to finish, then processes the packets it received, before starting the next one. A slow or stalled hub therefore delays the other uplinks and hub-node pushes in the same pass, up to the BinkP timeout set in the admin interface plus the 90-second lock wait.
+- **The lock is keyed by host name, not by address.** Two different names for the same machine (for example `hub.example.net` and its IP address) get separate locks and are not serialized. Use the same host name for every uplink served by one machine.
+- **Every polling account must share the lock directory.** The scheduler, admin daemon and any cron job that runs `scripts/binkp_poll.php` must all be able to write to the lock directory. It is created setgid and group-writable (`2775`), and lock files are created `0664`, so accounts that share the directory's group can use the same locks. If an account cannot open a lock file, the poll is not dialed and an error naming the lock path is logged; fix the directory's group or permissions rather than running polls without the lock.
 
 ---
 

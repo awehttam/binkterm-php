@@ -3,18 +3,20 @@
 /**
  * BinkpClient serializes sessions to the same remote host:port with a
  * flock()-based lock file, so two uplinks served by one physical host are
- * never dialed concurrently. A failure to acquire the lock (contention past
- * the bounded wait, or the lock file being unavailable) must return null,
- * which connect() turns into HostLockBusyException before any network code
- * runs - never "proceed without the lock".
+ * never dialed concurrently. Contention past the bounded wait throws
+ * HostLockBusyException; a lock that cannot be created, opened or locked
+ * throws HostLockUnavailableException. Neither case dials.
  *
- * Two file handles in one process stand in for two processes: flock() locks
- * belong to the open file description, so this reproduces real contention
- * without forking or network I/O. The lock directory is redirected to a
- * temporary directory via BINKP_HOST_LOCK_DIR.
+ * The cross-user tests start real helper processes under different uids
+ * (root only) to prove that accounts sharing the lock directory's group
+ * contend on the same lock under a default umask, and that an account
+ * outside the group is refused as "unavailable", not "busy". The lock
+ * directory is redirected to a temporary directory via BINKP_HOST_LOCK_DIR.
  */
 
 use BinktermPHP\Binkp\Protocol\BinkpClient;
+use BinktermPHP\Binkp\Protocol\HostLockBusyException;
+use BinktermPHP\Binkp\Protocol\HostLockUnavailableException;
 use PHPUnit\Framework\TestCase;
 
 final class BinkpHostLockStrictnessTest extends TestCase
@@ -51,15 +53,40 @@ final class BinkpHostLockStrictnessTest extends TestCase
         self::assertStringNotContainsString(sys_get_temp_dir(), BinkpClient::hostLockDir());
     }
 
-    public function testLockDirectoryIsCreatedWithoutWorldWriteAccess(): void
+    public function testLockDirectoryAndFileAreGroupWritableRegardlessOfUmask(): void
     {
-        $client = new BinkpClient();
-        $lock = $this->invokeAcquire($client, 'perm-check.invalid', 24554, 1);
-        self::assertNotNull($lock);
-        $this->invokeRelease($client, $lock, 'perm-check.invalid', 24554);
+        $previousUmask = umask(022);
+        try {
+            $client = $this->newClient();
+            $lock = $this->invokeAcquire($client, 'perm-check.invalid', 24554, 1);
+            $this->invokeRelease($client, $lock, 'perm-check.invalid', 24554);
+        } finally {
+            umask($previousUmask);
+        }
 
         self::assertDirectoryExists($this->lockDir);
-        self::assertSame(0, fileperms($this->lockDir) & 0002, 'lock directory must not be world-writable');
+        self::assertSame(02775, fileperms($this->lockDir) & 07777, 'lock directory must be setgid and group-writable');
+        self::assertSame(0664, fileperms($this->lockDir . '/perm-check.invalid_24554.lock') & 0777, 'lock file must be group-writable');
+    }
+
+    private function newClient(): BinkpClient
+    {
+        $config = new class {
+            public function getBinkpTimeout()
+            {
+                return 5;
+            }
+            public function getUplinkByAddress($address)
+            {
+                return null;
+            }
+        };
+        $logger = new class {
+            public function log($level, $message, $context = []): void
+            {
+            }
+        };
+        return new BinkpClient($config, $logger);
     }
 
     private function invokeAcquire(BinkpClient $client, string $hostname, int $port, int $timeoutSeconds)
@@ -76,63 +103,158 @@ final class BinkpHostLockStrictnessTest extends TestCase
         $method->invoke($client, $handle, $hostname, $port);
     }
 
-    public function testSecondContenderCannotAcquireWhileFirstHoldsItAndDoesNotBlockPastItsTimeout(): void
+    public function testSecondContenderIsRefusedAsBusyWithinItsWaitAndCanAcquireAfterRelease(): void
     {
-        // Unique per test run so parallel/previous runs never collide.
         $hostname = 'test-hostlock-' . bin2hex(random_bytes(4)) . '.invalid';
         $port = 24554;
 
-        $clientA = new BinkpClient();
-        $clientB = new BinkpClient();
-
+        $clientA = $this->newClient();
         $lockA = $this->invokeAcquire($clientA, $hostname, $port, 5);
-        self::assertNotNull($lockA, 'the first contender must acquire an uncontended lock');
 
         $start = microtime(true);
-        $lockB = $this->invokeAcquire($clientB, $hostname, $port, 1); // 1s bounded wait
-        $elapsed = microtime(true) - $start;
-
-        self::assertNull(
-            $lockB,
-            'a second contender must NOT acquire the lock while the first still holds it - null is the ' .
-            '"do not dial" signal that BinkpClient::connect() now treats as a hard refusal, never a green light'
-        );
-        // acquireHostLock()'s wait loop compares whole-second time()
-        // boundaries every 250ms, so a 1s requested timeout can legitimately
-        // resolve in anywhere from one 250ms tick (if the wall clock's
-        // integer-second boundary had already ticked over by the time of
-        // the first check) up to just over 1s. The invariant that matters is
-        // the upper bound - it must not hang past its requested timeout.
-        self::assertLessThan(3.0, $elapsed, 'the wait must be bounded to the requested timeout, not hang indefinitely');
+        try {
+            $this->invokeAcquire($this->newClient(), $hostname, $port, 1);
+            self::fail('a second contender must not acquire the lock while the first holds it');
+        } catch (HostLockBusyException $e) {
+            // expected: contention, not a permissions failure
+        }
+        self::assertLessThan(3.0, microtime(true) - $start, 'the wait must be bounded');
 
         $this->invokeRelease($clientA, $lockA, $hostname, $port);
 
-        // After release, a later attempt must be able to acquire it again -
-        // this proves lock release is correct and the earlier failure was
-        // genuine contention, not a broken/stuck lock file.
-        $clientC = new BinkpClient();
+        $clientC = $this->newClient();
         $lockC = $this->invokeAcquire($clientC, $hostname, $port, 5);
-        self::assertNotNull($lockC, 'once the first contender releases, a later attempt must be able to acquire the lock');
+        self::assertIsResource($lockC);
         $this->invokeRelease($clientC, $lockC, $hostname, $port);
     }
 
+    public function testConnectRefusesToDialWhenTheLockIsUnavailable(): void
+    {
+        // A regular file where the lock directory should be: the lock cannot
+        // be created. connect() must throw before any socket is created.
+        file_put_contents($this->lockDir, 'not a directory');
+        try {
+            $this->newClient()->connect('999:1/1', '127.0.0.1', 9);
+            self::fail('connect() must not proceed without the host lock');
+        } catch (HostLockUnavailableException $e) {
+            self::assertStringContainsString('Not dialing without serialization', $e->getMessage());
+        } finally {
+            @unlink($this->lockDir);
+        }
+    }
+
+    // ---- Cross-user participation (real processes, real uids) -------------
+
+    private const SHARED_GID = 64999;
+
     /**
-     * connect()'s wiring of the null-lock path to HostLockBusyException is
-     * verified by source inspection rather than a live end-to-end test here:
-     * connect()'s only call into acquireHostLock() uses the hardcoded 90s
-     * default timeout (not overridable per-call), so a real end-to-end test
-     * through connect() would have to wait out that full 90s to observe the
-     * timeout path - not appropriate for this suite ("keep timeout in
-     * milliseconds/seconds"). The acquireHostLock() contract itself (null
-     * means "do not dial", proven above) plus the connect() diff:
+     * Runs a helper process that drops to $uid/$gid with umask 022, then
+     * either holds the lock until its stdin closes ('hold') or tries once
+     * with a 1s wait ('try') and prints ACQUIRED, BUSY or UNAVAILABLE.
      *
-     *   $hostLock = $this->acquireHostLock($hostname, $port);
-     *   if ($hostLock === null) {
-     *       throw new HostLockBusyException(...);
-     *   }
-     *
-     * ...is a direct, unconditional check with no other code path between
-     * acquiring the lock and the throw - there is nothing left to race or
-     * fall through.
+     * @return array{0:resource,1:array<int,resource>}
      */
+    private function startAs(int $uid, int $gid, string $mode, string $hostname)
+    {
+        $code = <<<'PHP'
+[$autoload, $lockDir, $uid, $gid, $mode, $host] = array_slice($argv, 1);
+require $autoload;
+// Load everything before dropping privileges: the new uid may not be able to
+// read the source tree.
+foreach (['BinktermPHP\\Binkp\\Protocol\\BinkpClient', 'BinktermPHP\\Binkp\\Protocol\\HostLockBusyException',
+          'BinktermPHP\\Binkp\\Protocol\\HostLockUnavailableException', 'BinktermPHP\\Config'] as $class) {
+    class_exists($class);
+}
+BinktermPHP\Config::env('BINKP_HOST_LOCK_DIR');
+if (!posix_setgid((int)$gid) || !posix_setuid((int)$uid)) { echo "SETID_FAILED\n"; exit(2); }
+umask(022);
+$_ENV['BINKP_HOST_LOCK_DIR'] = $lockDir;
+$config = new class { public function getBinkpTimeout() { return 5; } };
+$logger = new class { public function log($level, $message, $context = []) {} };
+$client = new BinktermPHP\Binkp\Protocol\BinkpClient($config, $logger);
+$acquire = new ReflectionMethod($client, 'acquireHostLock');
+$acquire->setAccessible(true);
+try {
+    $handle = $acquire->invoke($client, $host, 24554, $mode === 'hold' ? 5 : 1);
+    echo "ACQUIRED\n";
+} catch (BinktermPHP\Binkp\Protocol\HostLockBusyException $e) {
+    echo "BUSY\n"; exit(0);
+} catch (BinktermPHP\Binkp\Protocol\HostLockUnavailableException $e) {
+    echo "UNAVAILABLE\n"; exit(0);
+}
+if ($mode === 'hold') { fgets(STDIN); }
+exit(0);
+PHP;
+        $autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
+        $proc = proc_open(
+            [PHP_BINARY, '-r', $code, '--', $autoload, $this->lockDir, (string)$uid, (string)$gid, $mode, $hostname],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes
+        );
+        self::assertIsResource($proc);
+        return [$proc, $pipes];
+    }
+
+    private static function readLine(array $pipes): string
+    {
+        $line = trim((string)fgets($pipes[1]));
+        if ($line === '') {
+            $line = 'NO OUTPUT: ' . stream_get_contents($pipes[2]);
+        }
+        return $line;
+    }
+
+    private static function finish($proc, array $pipes): void
+    {
+        fclose($pipes[0]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($proc);
+    }
+
+    private function requireRoot(): void
+    {
+        if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
+            self::markTestSkipped('cross-user lock test needs root to switch uids');
+        }
+    }
+
+    public function testDifferentUsersInTheSharedGroupContendOnTheSameLock(): void
+    {
+        $this->requireRoot();
+        $hostname = 'test-crossuser-' . bin2hex(random_bytes(4)) . '.invalid';
+
+        // User A creates the directory and lock file under umask 022 and holds the lock.
+        [$procA, $pipesA] = $this->startAs(64001, self::SHARED_GID, 'hold', $hostname);
+        self::assertSame('ACQUIRED', self::readLine($pipesA));
+
+        // User B shares only the group. It must see contention, not a
+        // permissions failure, and must not get the lock.
+        [$procB, $pipesB] = $this->startAs(64002, self::SHARED_GID, 'try', $hostname);
+        self::assertSame('BUSY', self::readLine($pipesB));
+        self::finish($procB, $pipesB);
+
+        self::finish($procA, $pipesA);
+
+        // Once A has released, B can take the same lock file.
+        [$procB2, $pipesB2] = $this->startAs(64002, self::SHARED_GID, 'try', $hostname);
+        self::assertSame('ACQUIRED', self::readLine($pipesB2));
+        self::finish($procB2, $pipesB2);
+    }
+
+    public function testUserOutsideTheGroupGetsUnavailableNotBusyAndDoesNotDial(): void
+    {
+        $this->requireRoot();
+        $hostname = 'test-crossuser-' . bin2hex(random_bytes(4)) . '.invalid';
+
+        [$procA, $pipesA] = $this->startAs(64001, self::SHARED_GID, 'hold', $hostname);
+        self::assertSame('ACQUIRED', self::readLine($pipesA));
+
+        // A permissions problem is reported as such, distinct from contention.
+        [$procC, $pipesC] = $this->startAs(64003, 64998, 'try', $hostname);
+        self::assertSame('UNAVAILABLE', self::readLine($pipesC));
+        self::finish($procC, $pipesC);
+
+        self::finish($procA, $pipesA);
+    }
 }

@@ -17,14 +17,21 @@
  */
 
 use BinktermPHP\Admin\AdminDaemonClient;
+use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Protocol\BinkpClient;
 use PHPUnit\Framework\TestCase;
 
 final class AdminDaemonClientRetryPolicyTest extends TestCase
 {
     private string $receiptFile;
+    private mixed $previousBinkpConfig = null;
 
     protected function setUp(): void
     {
+        // binkPollSync() reads the BinkP timeout from BinkpConfig; use a stub
+        // so no config/binkp.json is read or created.
+        $this->previousBinkpConfig = self::swapBinkpConfig(self::binkpConfigStub(600, 3));
+
         if (!function_exists('pcntl_fork')) {
             self::markTestSkipped('pcntl extension not available');
         }
@@ -34,6 +41,65 @@ final class AdminDaemonClientRetryPolicyTest extends TestCase
     protected function tearDown(): void
     {
         @unlink($this->receiptFile);
+        self::swapBinkpConfig($this->previousBinkpConfig);
+    }
+
+    private static function binkpConfigStub(int $timeout, int $enabledUplinks): object
+    {
+        return new class($timeout, $enabledUplinks) {
+            public function __construct(private int $timeout, private int $enabledUplinks)
+            {
+            }
+            public function getBinkpTimeout()
+            {
+                return $this->timeout;
+            }
+            public function getEnabledUplinks()
+            {
+                return array_fill(0, $this->enabledUplinks, ['address' => '999:1/1']);
+            }
+        };
+    }
+
+    /** Replaces the BinkpConfig singleton and returns the previous instance. */
+    private static function swapBinkpConfig(mixed $instance): mixed
+    {
+        $property = new \ReflectionProperty(BinkpConfig::class, 'instance');
+        $property->setAccessible(true);
+        $previous = $property->getValue();
+        $property->setValue(null, $instance);
+        return $previous;
+    }
+
+    public function testPollSyncReadTimeoutUsesTheConfiguredBinkpTimeoutPlusTheHostLockWait(): void
+    {
+        // binkp.json timeout 600 (stubbed in setUp), not BINKP_TIMEOUT.
+        $_ENV['BINKP_TIMEOUT'] = '5';
+        try {
+            self::assertSame(
+                BinkpClient::HOST_LOCK_WAIT_SECONDS + 600 + 60,
+                AdminDaemonClient::binkPollSyncReadTimeout('999:1/1')
+            );
+            // 'all' runs one session per enabled uplink, one after another.
+            self::assertSame(
+                3 * (BinkpClient::HOST_LOCK_WAIT_SECONDS + 600) + 60,
+                AdminDaemonClient::binkPollSyncReadTimeout('all')
+            );
+        } finally {
+            unset($_ENV['BINKP_TIMEOUT']);
+        }
+    }
+
+    public function testPollSyncReadTimeoutExceedsLockWaitPlusSessionTimeoutForAnyConfiguredTimeout(): void
+    {
+        foreach ([30, 300, 3600] as $timeout) {
+            self::swapBinkpConfig(self::binkpConfigStub($timeout, 1));
+            self::assertGreaterThan(
+                BinkpClient::HOST_LOCK_WAIT_SECONDS + $timeout,
+                AdminDaemonClient::binkPollSyncReadTimeout('999:1/1'),
+                "the client must outwait the lock wait plus a {$timeout}s session timeout"
+            );
+        }
     }
 
     /**

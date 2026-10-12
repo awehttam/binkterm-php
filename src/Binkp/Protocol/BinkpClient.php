@@ -72,13 +72,15 @@ class BinkpClient
         }
     }
     
+    /** Longest time connect() waits for another session to the same host:port. */
+    public const HOST_LOCK_WAIT_SECONDS = 90;
+
     /**
      * Directory holding the per-remote-host BinkP session lock files.
      *
-     * Defaults to data/run/binkp-host-locks (alongside the other runtime
-     * locks and PID files, owned by the application user, mode 0775). Can be
-     * overridden with BINKP_HOST_LOCK_DIR; every process that dials uplinks
-     * (scheduler, admin daemon, binkp_poll.php) must resolve the same path.
+     * Defaults to data/run/binkp-host-locks. Can be overridden with
+     * BINKP_HOST_LOCK_DIR; every process that dials uplinks (scheduler,
+     * admin daemon, binkp_poll.php, cron) must resolve the same path.
      */
     public static function hostLockDir(): string
     {
@@ -93,18 +95,27 @@ class BinkpClient
     /**
      * Acquire the flock()-based per-hostname:port serialization lock.
      *
-     * Returns the open file handle on success, or null if the lock could NOT
-     * be acquired for ANY reason (lock file unavailable, or the bounded wait
-     * expired while another session held it). Null NEVER means "safe to
-     * proceed without the lock" - callers (see connect()) must treat null as
-     * a hard "do not dial" signal; dialing anyway would let two sessions to
-     * the same physical remote host run concurrently.
+     * Processes that dial uplinks may run as different users (scheduler,
+     * admin daemon, cron). The directory is created setgid and group-writable
+     * (2775) and each lock file group-writable (0664), regardless of umask,
+     * so every account in the directory's group can open and lock the same
+     * file.
+     *
+     * @return resource Open lock file handle holding LOCK_EX
+     * @throws HostLockBusyException        Another session still holds the lock after the wait
+     * @throws HostLockUnavailableException The lock file cannot be created, opened or locked
+     *                                      (for example a permissions problem); never dial
+     *                                      without the lock
      */
-    private function acquireHostLock(string $hostname, int $port, int $timeoutSeconds = 90)
+    private function acquireHostLock(string $hostname, int $port, int $timeoutSeconds = self::HOST_LOCK_WAIT_SECONDS)
     {
         $lockDir = self::hostLockDir();
         if (!is_dir($lockDir)) {
-            @mkdir($lockDir, 0775, true);
+            if (@mkdir($lockDir, 02775, true)) {
+                @chmod($lockDir, 02775);
+            } elseif (!is_dir($lockDir)) {
+                throw $this->hostLockUnavailable("could not create lock directory {$lockDir}", $hostname, $port);
+            }
         }
 
         $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', strtolower($hostname)) . '_' . $port;
@@ -112,22 +123,40 @@ class BinkpClient
 
         $handle = @fopen($lockPath, 'c');
         if ($handle === false) {
-            $this->log("Could not open host lock file {$lockPath}; refusing to dial to {$hostname}:{$port} without serialization", 'ERROR');
-            return null;
+            throw $this->hostLockUnavailable("could not open lock file {$lockPath}", $hostname, $port);
+        }
+        if (function_exists('posix_geteuid') && @fileowner($lockPath) === posix_geteuid()) {
+            @chmod($lockPath, 0664);
         }
 
         $start = time();
-        while (!flock($handle, LOCK_EX | LOCK_NB)) {
-            if (time() - $start >= $timeoutSeconds) {
-                $this->log("Timed out after {$timeoutSeconds}s waiting for host lock on {$hostname}:{$port}; another session is still active, deferring this poll", 'WARNING');
+        while (!flock($handle, LOCK_EX | LOCK_NB, $wouldBlock)) {
+            if (!$wouldBlock) {
                 fclose($handle);
-                return null;
+                throw $this->hostLockUnavailable("could not lock {$lockPath}", $hostname, $port);
+            }
+            if (time() - $start >= $timeoutSeconds) {
+                fclose($handle);
+                $this->log("Timed out after {$timeoutSeconds}s waiting for host lock on {$hostname}:{$port}; another session is still active, deferring this poll", 'WARNING');
+                throw new HostLockBusyException(
+                    "Host {$hostname}:{$port} is busy with another BinkP session; poll deferred"
+                );
             }
             usleep(250000);
         }
 
         $this->log("Acquired host lock for {$hostname}:{$port}", 'DEBUG');
         return $handle;
+    }
+
+    private function hostLockUnavailable(string $reason, string $hostname, int $port): HostLockUnavailableException
+    {
+        $user = function_exists('posix_geteuid') ? ' (euid ' . posix_geteuid() . ')' : '';
+        $message = "BinkP host lock unavailable for {$hostname}:{$port}: {$reason}{$user}. "
+            . "Not dialing without serialization. Every account that polls uplinks must be able to "
+            . "write to " . self::hostLockDir() . " (group-writable, shared group).";
+        $this->log($message, 'ERROR');
+        return new HostLockUnavailableException($message);
     }
 
     private function releaseHostLock($handle, string $hostname, int $port): void
@@ -186,18 +215,10 @@ class BinkpClient
             ? ($callerPassword ?? '')
             : ($password !== null ? $password : ($uplink['password'] ?? ''));
 
+        // Throws instead of dialing when the lock cannot be held: either the
+        // host is busy (HostLockBusyException) or the lock itself is
+        // unusable (HostLockUnavailableException).
         $hostLock = $this->acquireHostLock($hostname, $port);
-        if ($hostLock === null) {
-            // Lock not acquired - another session to this physical host is
-            // still active (or the lock itself is unavailable). Never dial
-            // without it; fail cleanly so the caller's existing poll-failure
-            // handling (Scheduler, scripts/binkp_poll.php) defers/retries on
-            // its own normal schedule instead of racing the still-active
-            // session.
-            throw new HostLockBusyException(
-                "Host {$hostname}:{$port} is busy with another BinkP session (or its lock is unavailable); poll deferred for {$address}"
-            );
-        }
 
         try {
 

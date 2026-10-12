@@ -65,7 +65,43 @@ class AdminDaemonClient
         // real outbound BinkP session. An ambiguous failure after dispatch
         // (read timeout, connection drop) must NOT be blindly retried - see
         // sendCommand()'s $retryable parameter.
-        return $this->sendCommand('binkp_poll_sync', ['upstream' => $upstream], false);
+        return $this->sendCommand(
+            'binkp_poll_sync',
+            ['upstream' => $upstream],
+            false,
+            self::binkPollSyncReadTimeout($upstream)
+        );
+    }
+
+    /**
+     * Seconds to wait for a binkp_poll_sync reply.
+     *
+     * Each session first waits up to BinkpClient::HOST_LOCK_WAIT_SECONDS for
+     * the per-host lock, then runs under the BinkP timeout configured in
+     * binkp.json (BinkpConfig::getBinkpTimeout()). That timeout limits
+     * inactivity, not total session length, so a session that is still
+     * transferring can outlast this bound. When that happens the client
+     * reports a timeout and does not retry; the poll finishes server-side and
+     * the host lock keeps any later poll from overlapping it.
+     *
+     * @param string $upstream Uplink address, or 'all' for every enabled uplink
+     */
+    public static function binkPollSyncReadTimeout(string $upstream): int
+    {
+        $sessions = 1;
+        $binkpTimeout = 300;
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $binkpTimeout = max(1, (int)$binkpConfig->getBinkpTimeout());
+            if ($upstream === 'all') {
+                $sessions = max(1, count($binkpConfig->getEnabledUplinks()));
+            }
+        } catch (\Throwable $e) {
+            // Fall back to the BinkpConfig default timeout.
+        }
+
+        $perSession = \BinktermPHP\Binkp\Protocol\BinkpClient::HOST_LOCK_WAIT_SECONDS + $binkpTimeout;
+        return $sessions * $perSession + 60;
     }
 
     /**
@@ -811,19 +847,12 @@ class AdminDaemonClient
      *                        failure (including an ambiguous one) is thrown
      *                        immediately rather than re-dispatching the
      *                        command.
+     * @param int|null $readTimeoutSeconds Read timeout for this command's
+     *                        reply; null keeps the connection default.
      */
-    private function sendCommand(string $cmd, array $data = [], bool $retryable = true): array
+    private function sendCommand(string $cmd, array $data = [], bool $retryable = true, ?int $readTimeoutSeconds = null): array
     {
         $maxAttempts = $retryable ? 2 : 1;
-        // Only binkp_poll_sync gets an extended read timeout - narrowly
-        // scoped so a legitimate (bounded by BinkpConfig::getBinkpTimeout(),
-        // default 300s) long-running poll has a real chance to finish and
-        // report back before the client gives up, without stretching every
-        // other admin RPC's timeout. This does NOT reintroduce the removed
-        // retry - a timeout here still surfaces as a single clean failure.
-        $readTimeoutSeconds = $cmd === 'binkp_poll_sync'
-            ? (int)Config::env('BINKP_TIMEOUT', 300) + 60
-            : null;
 
         for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
             try {

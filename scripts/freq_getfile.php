@@ -459,6 +459,14 @@ try {
         }
     }
 
+} catch (\BinktermPHP\Binkp\Protocol\HostLockBusyException $e) {
+    // Nothing was dialed, so this does not count against FREQ_MAX_ATTEMPTS.
+    if (isset($tracker, $requestId)) {
+        $tracker->revertAttempt($requestId);
+    }
+    $logger->log('WARNING', "FREQ deferred: " . $e->getMessage());
+    fwrite(STDERR, "Deferred: " . $e->getMessage() . "\n");
+    $exitCode = \BinktermPHP\Binkp\Protocol\HostLockBusyException::EXIT_CODE;
 } catch (\Exception $e) {
     $logger->log('ERROR', "FREQ failed: " . $e->getMessage());
     fwrite(STDERR, "Error: " . $e->getMessage() . "\n");

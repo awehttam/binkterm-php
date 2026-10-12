@@ -55,6 +55,23 @@ class FreqRequestTracker
     }
 
     /**
+     * Undo recordAttempt() when the session was never dialed because the
+     * remote host was busy with another BinkP session. last_attempt_at is
+     * kept, so the next retry still waits FREQ_POLL_INTERVAL.
+     *
+     * @param int $id Record ID
+     */
+    public function revertAttempt(int $id): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE freq_requests_outbound
+            SET attempts = GREATEST(attempts - 1, 0)
+            WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+    }
+
+    /**
      * Find all pending requests for a given node address.
      *
      * Returns oldest first so that when two users requested the same filename

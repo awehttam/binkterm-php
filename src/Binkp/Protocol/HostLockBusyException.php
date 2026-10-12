@@ -16,21 +16,16 @@
 namespace BinktermPHP\Binkp\Protocol;
 
 /**
- * Thrown by BinkpClient::connect() when the per-hostname:port serialization
- * lock (see acquireHostLock()) could not be acquired - either because another
- * session to the same physical host is still active and the bounded wait
- * expired, or because the lock file itself could not be opened.
+ * Thrown by BinkpClient::connect() when another session to the same
+ * hostname:port still holds the per-host lock after the bounded wait
+ * (BinkpClient::HOST_LOCK_WAIT_SECONDS). The poll is deferred, not dialed.
  *
- * Deliberately extends \RuntimeException (not a bespoke root exception) so it
- * flows through every existing `catch (\Exception $e)` / `catch (Exception $e)`
- * poll-failure handler already in place (Scheduler::processScheduledPolls(),
- * Scheduler::pollIfOutbound(), scripts/binkp_poll.php's top-level catch, etc.)
- * without any change to those call sites - this is a controlled, expected
- * failure outcome for "the host is busy right now", not a new class of crash.
- *
- * A session must never dial without the lock; dialing anyway would let two
- * sessions to the same physical remote host run concurrently.
+ * It extends \RuntimeException, so existing poll-failure handlers catch it.
+ * scripts/binkp_poll.php and scripts/freq_getfile.php exit with EXIT_CODE for
+ * it, which the scheduler reports as a deferred poll rather than a failure.
  */
 class HostLockBusyException extends \RuntimeException
 {
+    /** Process exit status for a deferred poll (sysexits.h EX_TEMPFAIL). */
+    public const EXIT_CODE = 75;
 }

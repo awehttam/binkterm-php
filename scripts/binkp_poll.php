@@ -237,5 +237,8 @@ try {
     } else {
         echo "Error: " . $e->getMessage() . "\n";
     }
-    exit(1);
+    // A busy host is a deferral, not a failure; the scheduler reports it as such.
+    exit($e instanceof \BinktermPHP\Binkp\Protocol\HostLockBusyException
+        ? \BinktermPHP\Binkp\Protocol\HostLockBusyException::EXIT_CODE
+        : 1);
 }
