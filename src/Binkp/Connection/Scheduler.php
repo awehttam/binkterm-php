@@ -18,6 +18,7 @@ namespace BinktermPHP\Binkp\Connection;
 
 use BinktermPHP\Advertising;
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Protocol\HostLockBusyException;
 use BinktermPHP\Admin\AdminDaemonClient;
 use BinktermPHP\Config;
 use BinktermPHP\Crashmail\CrashmailService;
@@ -134,8 +135,9 @@ class Scheduler
             
             try {
                 $this->log("Scheduled poll starting for: {$address}");
-                $pollResult = $this->client->binkPoll($address);
+                $pollResult = $this->client->binkPollSync($address);
                 $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $pollDeferred = self::isHostBusyResult($pollResult);
                 $processResult = null;
 
                 if ($pollSuccess) {
@@ -152,10 +154,15 @@ class Scheduler
                 $this->iterationPolledAddresses[$address] = true;
                 $results[$address] = [
                     'success' => $pollSuccess,
+                    'deferred' => $pollDeferred,
                     'poll_result' => $pollResult,
                     'process_packets' => $processResult
                 ];
-                $this->log("Scheduled poll completed for: {$address}");
+                if ($pollDeferred) {
+                    $this->log("Scheduled poll deferred for {$address}: remote host busy with another BinkP session", 'WARNING');
+                } else {
+                    $this->log("Scheduled poll completed for: {$address}");
+                }
                 
             } catch (\Exception $e) {
                 $this->log("Scheduled poll failed for {$address}: " . $e->getMessage(), 'ERROR');
@@ -297,8 +304,9 @@ class Scheduler
             $this->log("Triggering outbound poll for uplink {$address}");
             
             try {
-                $pollResult = $this->client->binkPoll($address);
+                $pollResult = $this->client->binkPollSync($address);
                 $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $pollDeferred = self::isHostBusyResult($pollResult);
                 $processResult = null;
 
                 if ($pollSuccess) {
@@ -310,10 +318,15 @@ class Scheduler
                 $this->lastOutboundPollTimes[$address] = time();
                 $results[$address] = [
                     'success' => $pollSuccess,
+                    'deferred' => $pollDeferred,
                     'poll_result' => $pollResult,
                     'process_packets' => $processResult
                 ];
-                $this->log("Outbound poll completed for: {$address}");
+                if ($pollDeferred) {
+                    $this->log("Outbound poll deferred for {$address}: remote host busy with another BinkP session", 'WARNING');
+                } else {
+                    $this->log("Outbound poll completed for: {$address}");
+                }
                 
             } catch (\Exception $e) {
                 $this->log("Outbound poll failed for {$address}: " . $e->getMessage(), 'ERROR');
@@ -328,6 +341,16 @@ class Scheduler
         return $results;
     }
     
+    /**
+     * True when a binkp_poll_sync result means the poll was deferred because
+     * another BinkP session held the remote host's lock. Nothing was dialed;
+     * this is not a poll failure.
+     */
+    private static function isHostBusyResult(array $result): bool
+    {
+        return ($result['exit_code'] ?? null) === HostLockBusyException::EXIT_CODE;
+    }
+
     private function isScheduleDue($cronExpression, $address)
     {
         if (empty($cronExpression) || trim((string)$cronExpression) === '') {
@@ -634,10 +657,12 @@ class Scheduler
                 foreach ($rows as $row) {
                     $address = $row['node_address'];
                     $this->log("Hub node push starting for {$address}");
-                    $result = $this->client->binkPoll($address);
+                    $result = $this->client->binkPollSync($address);
                     $touchStmt->execute([$row['id']]);
                     if (($result['exit_code'] ?? 1) === 0) {
                         $this->log("Hub node push completed for {$address}");
+                    } elseif (self::isHostBusyResult($result)) {
+                        $this->log("Hub node push deferred for {$address}: remote host busy with another BinkP session", 'WARNING');
                     } else {
                         $this->log("Hub node push failed for {$address}", 'ERROR');
                     }
