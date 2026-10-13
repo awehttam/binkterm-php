@@ -13,6 +13,10 @@ troubleshooting.
 
 - **Telnet option negotiation** — IAC-based negotiation for NAWS (terminal size),
   echo control, and suppress-go-ahead
+- **RLogin handshake detection (RFC 1282)** — detects incoming RLogin connections
+  by inspecting the initial null byte and consuming the client handshake strings
+  (client username, server username, terminal type/speed), acknowledging with a
+  null byte and suppressing Telnet IAC escape sequences on raw RLogin streams
 - **Dual listener (plain + TLS)** — listens on a plain-text port (default 2323)
   and a TLS-encrypted port (default 8023) simultaneously; TLS cert is auto-generated
   on first run if not provided
