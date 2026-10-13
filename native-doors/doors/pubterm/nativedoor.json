@@ -18,7 +18,7 @@
     "launch_command": "/bin/bash pubterm.sh",
     "launch_command_windows": "${PUBTERM_PLINK_BIN:-plink} -telnet ${PUBTERM_HOST:-127.0.0.1} ${PUBTERM_PORT:-2323}",
     "dropfile_format": "DOOR.SYS",
-    "output_encoding": "utf8",
+    "output_encoding": "cp437",
     "max_nodes": 5,
     "ansi_required": true,
     "time_per_day": 60
