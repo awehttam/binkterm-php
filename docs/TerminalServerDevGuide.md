@@ -447,6 +447,29 @@ The admin save route derives its valid action list from `array_keys(AppearanceCo
 
 ---
 
+## Dialup Speed Throttling Architecture
+
+BinktermPHP can simulate authentic dialup connection speeds (e.g. 300 to 57,600 baud) over Telnet and SSH connections to preserve the retro BBS experience where ANSI screens draw line-by-line rather than appearing instantaneously.
+
+### Configuration & Initialization
+
+- **Sysop settings**: Configured via **Admin → BBS Settings → Terminal Server Settings** (`throttle_speed`, `throttle_baud`, `throttle_ssh`), stored in `data/bbs.json` under `terminal_server`.
+- **Session init**: In `BbsSession::run()`, the session checks `BbsConfig::getTerminalThrottleSpeed()` and baud rate. If enabled for the transport (always enabled for Telnet, gated by `throttle_ssh` for SSH), `TelnetUtils::setThrottleBaud($baud)` activates throttling for that child process.
+
+### Streaming & Pacing (`TelnetUtils::safeWrite`)
+
+All terminal socket writes in `BbsSession` and `TelnetUtils` are funneled through `TelnetUtils::safeWrite($conn, string $data)`:
+
+1. **Zero-latency bypass**: If `$throttleBaud <= 0` or `$data` is $\le 1$ byte (such as single-character typing echo), the buffer is written immediately via `fwrite` without delays or chunking.
+2. **Chunked pacing**: For multi-byte output (ANSI art, menus, message bodies), bytes are streamed in bursts targeting ~35 updates per second:
+   - Characters per second: $CPS = \frac{\text{baud}}{10}$ (standard 8-N-1 10-bit frame).
+   - Microseconds per byte: $\mu s = \frac{1,000,000}{CPS}$.
+   - Chunk size: $\max(1, \lfloor \frac{CPS}{35} \rfloor)$ bytes.
+   - Delay per chunk: $\text{chunkSize} \times \mu s$.
+3. **Interactive abort / skip on keypress**: During long screen draws, a non-blocking `stream_select` probes `$conn` for readable input before sleeping. If the user presses a key (e.g. spacebar, Enter, or hotkey), the throttle loop immediately flags `$skipThrottle = true` and flushes all remaining chunks without further delay, ensuring responsive navigation.
+
+---
+
 ## Data Access
 
 The terminal server is a trusted first-party component. Code under `telnet/src/` and `ssh/` may access the application's shared classes and database, but must respect clear boundaries.

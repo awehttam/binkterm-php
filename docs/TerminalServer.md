@@ -363,6 +363,16 @@ messages, and the compose box still fit on screen.
 
 After a configurable period of inactivity the session displays an "Are you still there?" prompt. If no key is pressed before a second configurable deadline the session is disconnected. Any keypress resets the timer. The thresholds are set in **Admin → BBS Settings → Terminal Idle Timeout** and default to 5 minutes for the warning and 7 minutes for the disconnect.
 
+### Dialup Speed Throttling (Baud Rate Simulation)
+
+In **Admin → BBS Settings → Terminal Server Settings**, sysops can enable **Throttle Telnet server speed (dialup simulation)** to recreate authentic retro modem connection speeds:
+
+- **Baud Rates**: Choose from classic modem connection speeds: 300, 1200, 2400, 9600, 14400 (14.4k), 19200, 28800 (28.8k - default), 33600 (33.6k), 38400, or 57600 (57.6k).
+- **Smooth Streaming**: Terminal output is streamed in small chunk bursts (~35 updates/sec) with microsecond pacing, accurately recreating the line-by-line drawing effect of ANSI art without stuttering.
+- **Typing Responsiveness**: Single-character typing echoes bypass the delay so local interactive input has zero latency.
+- **Skip on Keypress**: If a user presses a key while a large screen is actively drawing, the delay is instantly bypassed for the remainder of that screen.
+- **SSH Support**: A companion setting allows applying the same baud rate simulation to SSH connections if desired.
+
 ### Login Menu
 
 Before authenticating, users are shown a pre-login menu:

@@ -82,6 +82,23 @@ class TelnetUtils
     private static bool $ansiColorEnabled = true;
 
     /**
+     * Emulated dialup baud rate for terminal output throttling (0 = unthrottled).
+     * When > 0, output in safeWrite() is chunked and paced to simulate authentic
+     * dialup baud rates (e.g. 28800 baud).
+     */
+    private static int $throttleBaud = 0;
+
+    public static function setThrottleBaud(int $baud): void
+    {
+        self::$throttleBaud = max(0, $baud);
+    }
+
+    public static function getThrottleBaud(): int
+    {
+        return self::$throttleBaud;
+    }
+
+    /**
      * Per-process client context for API calls. The daemon forks one process per
      * connection, so these statics are effectively per-session. Set once at
      * session start so every {@see apiRequest()} tells the web side the real
@@ -517,13 +534,55 @@ class TelnetUtils
         error_reporting($prev & ~E_NOTICE);
         $total  = strlen($data);
         $offset = 0;
+
+        $baud = self::$throttleBaud;
+        if ($baud <= 0 || $total === 0) {
+            while ($offset < $total) {
+                $written = @fwrite($conn, substr($data, $offset));
+                if ($written === false || $written === 0) {
+                    break;  // connection closed or unrecoverable error
+                }
+                $offset += $written;
+            }
+            @fflush($conn);
+            error_reporting($prev);
+            return;
+        }
+
+        // Paced / throttled dialup simulation
+        // 1 byte = 1 start bit + 8 data bits + 1 stop bit = 10 bits
+        $cps = $baud / 10.0;
+        $usPerByte = 1000000.0 / $cps;
+
+        // Target ~30-40 chunks per second for smooth visual streaming
+        $chunkSize = max(16, min(128, (int)round($cps / 35.0)));
+
+        $skipThrottle = false;
         while ($offset < $total) {
-            $written = @fwrite($conn, substr($data, $offset));
+            // If the client sent input (e.g. pressed a key to skip), flush remainder immediately
+            if (!$skipThrottle && $total > 128) {
+                $r = [$conn]; $w = $ex = null;
+                if (@stream_select($r, $w, $ex, 0, 0) > 0) {
+                    $skipThrottle = true;
+                }
+            }
+
+            $len = min($chunkSize, $total - $offset);
+            $written = @fwrite($conn, substr($data, $offset, $len));
             if ($written === false || $written === 0) {
-                break;  // connection closed or unrecoverable error
+                break;
             }
             $offset += $written;
+            @fflush($conn);
+
+            if (!$skipThrottle && $offset < $total) {
+                $delayUs = (int)round($written * $usPerByte);
+                if ($delayUs > 0) {
+                    usleep($delayUs);
+                }
+            }
         }
+
         @fflush($conn);
         error_reporting($prev);
     }
