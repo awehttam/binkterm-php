@@ -27,9 +27,9 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 - [Contributors Wanted](#contributors-wanted)
 - [Contributing](#contributing)
 - [Registration](#registration)
-- [License](#license)
 - [Support](#support)
 - [About the BinktermPHP Logo](#about-the-binktermphp-logo)
+- [License](#license)
 - [Acknowledgments](#acknowledgments)
 
 ---
