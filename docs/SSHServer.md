@@ -64,8 +64,44 @@ The daemon listens on `0.0.0.0:2022` by default.
 |----------|---------|-------------|
 | `SSH_BIND_HOST` | `0.0.0.0` | Bind address |
 | `SSH_PORT` | `2022` | Listening port |
+| `SSH_RATE_LIMIT_MAX` | `5` | Max new connections per source IP per window, checked before the daemon forks or starts the SSH handshake. `0` disables the limit. Mirrors the Telnet daemon's `TELNET_RATE_LIMIT_MAX`. |
+| `SSH_RATE_LIMIT_WINDOW` | `60` | Rate-limit window in seconds (fixed window; the counter resets when it expires). A value of `0` or less falls back to `60`. Mirrors `TELNET_RATE_LIMIT_WINDOW`. |
+| `SSH_MAX_CHILDREN` | `32` | Global ceiling on simultaneously live SSH session processes. Checked after the per-IP limiter but before the daemon forks or starts the SSH handshake, so a distributed / many-source-IP flood cannot spawn an unbounded number of fork+KEX workers. A non-positive value is **not** treated as "disabled" (that would defeat the guard) — it falls back to the default and logs a warning. To effectively remove the cap, set a very large number explicitly. |
 
 Command-line arguments take precedence over `.env` values.
+
+When a source IP exceeds the limit the connection is closed immediately with a
+short notice and `SSH rate limit exceeded for <ip> - connection rejected` is
+logged once per window (further rejections that window are counted and flushed
+as a summary line when the window ends).
+
+When the daemon is already running `SSH_MAX_CHILDREN` sessions, a new
+connection is closed with `Server is at capacity` and
+`SSH at capacity (<n> concurrent sessions) - connection rejected` is logged
+once; further rejections are counted and flushed as a summary line when a slot
+next frees up. Exited sessions are reaped (releasing their slot) on every
+accept-loop pass and on `SIGCHLD`.
+
+The SSH and Telnet daemons share one rate-limiter implementation. Client
+addresses are normalized first, so an IPv4 client that reaches a dual-stack
+listener as `::ffff:192.0.2.1` is counted as `192.0.2.1`.
+
+#### Proxies and port forwarders
+
+The SSH daemon rate-limits on the TCP peer address. Unlike the Telnet daemon,
+it does not accept a PROXY protocol header, so it cannot learn the real client
+address from a trusted proxy. If SSH traffic reaches the daemon through a proxy,
+load balancer or port forwarder that opens its own connection (rather than
+forwarding packets with the client's source address, as a NAT port forward
+does), every client appears to come from the proxy's address:
+
+- all clients share one rate-limit counter, so a few clients can exhaust
+  `SSH_RATE_LIMIT_MAX` for everyone; and
+- logs and login records show the proxy's address.
+
+In that setup, raise `SSH_RATE_LIMIT_MAX` or set it to `0` and rate-limit at the
+proxy instead. `SSH_MAX_CHILDREN` still applies, since it does not depend on the
+client address.
 
 ## Running as a Service
 

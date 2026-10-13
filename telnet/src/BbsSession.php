@@ -2485,7 +2485,7 @@ class BbsSession
                     continue;
                 }
             }
-            if ($byte === self::IAC) {
+            if (!$this->isSsh && empty($state['is_rlogin']) && $byte === self::IAC) {
                 $cmd = fread($conn, 1);
                 if ($cmd !== false) {
                     $cmdByte = ord($cmd);

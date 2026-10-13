@@ -205,6 +205,17 @@ Use a separate uplink and domain for each network:
 
 The domain is important because it keeps echo areas, file areas, and routing distinct. For example, `GENERAL@fidonet` and `GENERAL@anothernet` are separate areas even though the tag is the same.
 
+### Uplinks That Share a Host
+
+Several networks are often served by the same hub machine. BinktermPHP never runs two outbound poll sessions to the same `host:port` at once. Scheduled polls, outbound-triggered polls, hub-node pushes, FREQ requests and manual polls with `scripts/binkp_poll.php` each take a lock file in `data/run/binkp-host-locks/` (override with `BINKP_HOST_LOCK_DIR`). Connection tests (`scripts/binkp_poll.php --test`) and the authentication test in the admin interface do not take the lock.
+
+If another session to that host is still active after a bounded wait (90 seconds), the poll is deferred instead of dialing alongside it. The scheduler logs it as deferred, not failed, and the uplink is polled again on its next schedule. A deferred FREQ request does not count against `FREQ_MAX_ATTEMPTS`. `scripts/binkp_poll.php` exits with status 75 when a poll was deferred and nothing failed.
+
+- **Polls run one at a time.** The scheduler waits for each poll to finish, then processes the packets it received, before starting the next one. A slow hub therefore delays the other uplinks and hub-node pushes in the same pass. The BinkP timeout set in the admin interface limits inactivity, not total session length, so a session that keeps transferring can run longer than it.
+- **The scheduler waits a bounded time for each poll's result:** the BinkP timeout, plus the 90-second lock wait, plus 60 seconds. If a session is still running after that, the scheduler logs that the result timed out and moves on without retrying; the session finishes in the background, and its host lock keeps any later poll to that host from overlapping it. Packets it received are processed on the next pass.
+- **The lock is keyed by host name, not by address.** Two different names for the same machine (for example `hub.example.net` and its IP address) get separate locks and are not serialized. Use the same host name for every uplink served by one machine.
+- **Every polling account must share the lock directory.** The scheduler, admin daemon and any cron job that runs `scripts/binkp_poll.php` must all be able to write to the lock directory. It is created setgid and group-writable (`2775`), and lock files are created `0664`, so accounts that share the directory's group can use the same locks. A directory created earlier with a narrower mode is repaired by the account that owns it. If an account cannot open a lock file, the poll is not dialed and an error naming the lock path is logged. Fix the permissions rather than running polls without the lock, for example: `chgrp <shared-group> data/run/binkp-host-locks && chmod 2775 data/run/binkp-host-locks`, then `chgrp <shared-group>` and `chmod 664` any existing `*.lock` files in it.
+
 ---
 
 ## Troubleshooting

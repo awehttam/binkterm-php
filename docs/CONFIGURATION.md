@@ -193,6 +193,13 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 ```bash
 # SSH_PORT=2022
 # SSH_BIND_HOST=0.0.0.0
+
+# Per-IP connection rate limiting (0 in MAX disables it)
+# SSH_RATE_LIMIT_MAX=5
+# SSH_RATE_LIMIT_WINDOW=60
+
+# Maximum simultaneous SSH sessions (0 or less falls back to 32)
+# SSH_MAX_CHILDREN=32
 ```
 
 See [docs/SSHServer.md](SSHServer.md) for full SSH daemon setup including key generation.
