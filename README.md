@@ -293,12 +293,6 @@ See **[REGISTER.md](REGISTER.md)** for how to register.
 
 ---
 
-# License
-
-This project is licensed under a BSD License. See [LICENSE.md](LICENSE.md) for more information.
-
----
-
 # Support
 
 - **Documentation**: [docs/index.md](docs/index.md)
@@ -311,6 +305,12 @@ This project is licensed under a BSD License. See [LICENSE.md](LICENSE.md) for m
 # About the BinktermPHP Logo
 
 Kludge, the BinktermPHP mascot, is a corvid inspired by the messenger and trickster archetypes found throughout Pacific Northwest storytelling and early network culture. Rendered in a bold woodcut-inspired style, Kludge carries a glowing ANSI tile representing packets, messages, and shared knowledge moving across decentralized systems. The speckled texture within the dark feathers can be read as CRT phosphor noise, stars, or the network itself — a nod to communication across distance, communities built in the margins, and the enduring spirit of bulletin board systems. The logo's limited amber, black, and off-white palette draws from classic monochrome terminals and ANSI art, blending retro computing aesthetics with a slightly mythic, underground tone.
+
+---
+
+# License
+
+This project is licensed under a BSD License. See [LICENSE.md](LICENSE.md) for more information.
 
 ---
 
