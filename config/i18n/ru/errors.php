@@ -836,4 +836,11 @@ return [
     'errors.admin.bbs_settings.invalid_screening_config' => 'Неверная конфигурация проверки регистраций',
     'errors.admin.nntp_settings.load_failed' => 'Не удалось загрузить настройки NNTP',
     'errors.admin.nntp_settings.save_failed' => 'Не удалось сохранить настройки NNTP',
+
+    // ANSI avatars
+    'errors.avatar.invalid' => 'Данные ANSI-аватара недопустимы',
+    'errors.avatar.too_large' => 'Запрос ANSI-аватара слишком большой',
+    'errors.avatar.malformed' => 'ANSI-аватар должен быть каноническим Base64 BIN-файла на 120 байт',
+    'errors.avatar.blank' => 'ANSI-аватар не может быть пустым на чёрном фоне',
+    'errors.avatar.dimensions' => 'ANSI-аватар должен быть ровно 120 байт',
 ];

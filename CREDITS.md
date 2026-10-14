@@ -14,7 +14,7 @@
 | Neo67 | German translation |
 | pztrn | Russian translation |
 | Derek Bird (TheWebExpert) | Docker WebSocket proxy config, CLI entrypoint fixes, numerous fixes and features across messaging, terminal, theming, and Docker |
-| Skrawl | PostgreSQL and session security hardening fixes |
+| Skrawl | PostgreSQL and session security hardening fixes; Synchronet-compatible ANSI avatar storage and presentation |
 
 ## Third-Party Libraries
 

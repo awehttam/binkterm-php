@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v1007';
+const CACHE_NAME = 'binkcache-v1008';
 
 // Static assets to precache
 const staticAssets = [
@@ -27,6 +27,8 @@ const staticAssets = [
     '/js/ansi-editor.js',
     '/js/pcboard.js',
     '/css/ansisys.css',
+    '/css/avatar-ansi.css',
+    '/js/avatar-ansi.js',
     '/css/chat-page.css',
     // Theme stylesheets
     '/css/style.css',

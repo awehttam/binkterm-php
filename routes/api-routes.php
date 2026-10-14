@@ -8198,6 +8198,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        $ansiAvatar = null;
+        try {
+            $stored = (new \BinktermPHP\Avatar\AnsiAvatarStore($db))->find((int)$targetUser['id']);
+            if ($stored !== null) {
+                $ansiAvatar = $stored->toBase64();
+            }
+        } catch (\Throwable $e) {
+            $ansiAvatar = null;
+        }
+
         echo json_encode([
             'success' => true,
             'profile' => [
@@ -8206,6 +8216,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'real_name' => (string)($targetUser['real_name'] ?? ''),
                 'location' => (string)($targetUser['location'] ?? ''),
                 'about_me' => (string)($targetUser['about_me'] ?? ''),
+                'ansi_avatar' => $ansiAvatar,
             ],
         ]);
     })->where(['id' => '[0-9]+']);
@@ -14282,5 +14293,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $publicKey = $node['public_key'] ?? $node['node_id'];
         echo $service->getQrCodeSvg((string)$handle, (string)$publicKey);
     })->where(['id' => '[0-9]+']);
+
+    // Owner-scoped ANSI avatar routes. Loaded here so they inherit /api
+    // and the router group that is active while this closure runs.
+    require __DIR__ . '/avatar-routes.php';
 
 });

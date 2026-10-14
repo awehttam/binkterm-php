@@ -788,4 +788,11 @@ return [
     'errors.admin.bbs_settings.invalid_screening_config' => 'Configuration du filtrage des inscriptions invalide',
     'errors.admin.nntp_settings.load_failed' => 'Échec du chargement des paramètres NNTP',
     'errors.admin.nntp_settings.save_failed' => 'Échec de l\'enregistrement des paramètres NNTP',
+
+    // ANSI avatars
+    'errors.avatar.invalid' => 'Les données de l\'avatar ANSI ne sont pas valides',
+    'errors.avatar.too_large' => 'La requête d\'avatar ANSI est trop volumineuse',
+    'errors.avatar.malformed' => 'L\'avatar ANSI doit être le Base64 canonique d\'un BIN de 120 octets',
+    'errors.avatar.blank' => 'L\'avatar ANSI ne peut pas être vide sur fond noir',
+    'errors.avatar.dimensions' => 'Les avatars ANSI doivent faire exactement 120 octets',
 ];

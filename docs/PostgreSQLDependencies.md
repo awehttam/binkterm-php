@@ -399,6 +399,22 @@ Representative schema examples:
 - Difficulty:
   - medium to high
 
+### ANSI avatar BIN storage
+
+- Why PostgreSQL-specific:
+  - `user_ansi_avatars.avatar_bin` is `BYTEA`
+  - the size rule is `octet_length(avatar_bin) = 120`
+  - PHP reads and writes the value with `encode` / `decode(..., 'base64')` so the driver does not interpret bytea text format
+- Current locations:
+  - `database/migrations/v20261014051503_user_ansi_avatars.sql`
+  - `src/Avatar/AnsiAvatarStore.php`
+- Likely future strategy:
+  - store the same 120 bytes in a binary or `VARBINARY(120)` column and bind them as bytes
+- Difficulty:
+  - low
+- Intentional:
+  - yes. The BIN is fixed-width binary, and the database rejects every other length.
+
 ## Migration Hotspots
 
 ### PostgreSQL-specific migration language and behavior
