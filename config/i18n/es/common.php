@@ -4017,6 +4017,7 @@ return [
     'ui.dashboard.networks' => 'Redes',
     'ui.dashboard.registered_users' => 'Usuarios registrados',
     'ui.dashboard.system_uptime' => 'Tiempo de actividad del sistema',
+    'ui.dashboard.telnet' => 'Telnet',
     'ui.dashboard.uptime_value' => '{days}d {hours}h {minutes}min',
     'ui.dashboard.file_area_files' => 'Archivos disponibles',
     'ui.dashboard.total_logins' => 'Inicios de sesión totales',

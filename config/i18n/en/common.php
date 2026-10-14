@@ -4035,6 +4035,7 @@ return [
     'ui.dashboard.networks' => 'Networks',
     'ui.dashboard.registered_users' => 'Registered Users',
     'ui.dashboard.system_uptime' => 'System Uptime',
+    'ui.dashboard.telnet' => 'Telnet',
     'ui.dashboard.uptime_value' => '{days}d {hours}h {minutes}m',
     'ui.dashboard.file_area_files' => 'Files Available',
     'ui.dashboard.total_logins' => 'Total Logins',

@@ -312,6 +312,12 @@ SimpleRouter::get('/', function() {
         $totalEchomailCount = $adminController->getTotalEchomailCount();
     }
 
+    $telnetHost = (string)parse_url(\BinktermPHP\Config::getSiteUrl(), PHP_URL_HOST);
+    $telnetPort = (int)\BinktermPHP\Config::env('TELNET_PORT', '2323');
+    $telnetAddress = $telnetHost !== ''
+        ? $telnetHost . ($telnetPort !== 23 ? ':' . $telnetPort : '')
+        : null;
+
     // Build dashboard card registry and layout
     $creditsConfig = $bbsConfig['credits'] ?? [];
     $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
@@ -345,6 +351,7 @@ SimpleRouter::get('/', function() {
         'show_dashboard_system_info_stats' => $showDashboardSystemInfoStats,
         'registered_user_count' => $registeredUserCount,
         'total_login_count' => $totalLoginCount,
+        'telnet_address' => $telnetAddress,
         'system_uptime_seconds' => $systemUptimeSeconds,
         'system_uptime_days' => $systemUptimeDays,
         'system_uptime_hours' => $systemUptimeHours,

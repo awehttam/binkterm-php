@@ -3382,6 +3382,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.dashboard.networks' => 'Réseaux',
     'ui.dashboard.registered_users' => 'Utilisateurs enregistrés',
     'ui.dashboard.system_uptime' => 'Disponibilité du système',
+    'ui.dashboard.telnet' => 'Telnet',
     'ui.dashboard.uptime_value' => '{days}j {hours}h {minutes}min',
     'ui.dashboard.file_area_files' => 'Fichiers disponibles',
     'ui.dashboard.total_logins' => 'Connexions totales',

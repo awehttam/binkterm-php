@@ -4040,6 +4040,7 @@ return [
     'ui.dashboard.networks' => 'Сети',
     'ui.dashboard.registered_users' => 'Зарегистрированные пользователи',
     'ui.dashboard.system_uptime' => 'Время работы системы',
+    'ui.dashboard.telnet' => 'Telnet',
     'ui.dashboard.uptime_value' => '{days} д {hours} ч {minutes} мин',
     'ui.dashboard.file_area_files' => 'Доступно файлов',
     'ui.dashboard.total_logins' => 'Всего входов',
