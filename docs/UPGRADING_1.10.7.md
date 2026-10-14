@@ -37,6 +37,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
   - [Login Page Honors "Remember Me"](#login-page-honors-remember-me)
   - [Recovery From a Stale CSRF Token](#recovery-from-a-stale-csrf-token)
+  - [Telnet Address on the Dashboard](#telnet-address-on-the-dashboard)
+  - [ANSI Avatars](#ansi-avatars)
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
@@ -122,6 +124,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Fresh assets after an upgrade:** the service worker now asks the server whether a file has changed before saving it to its cache after an upgrade, so browsers no longer keep an old copy of a CSS or JavaScript file from before the upgrade.
 - **Login page honors "Remember me":** the checkbox on the login page was never sent to the server, so every web login got a 30-day session cookie. Leaving it unchecked now gives a cookie that the browser discards when it closes.
 - **Recovery from a stale CSRF token:** logging in as the same user somewhere else, in another browser or over Telnet or SSH, used to make every already-open page and terminal session fail with "Invalid CSRF token" until it was reloaded or reconnected. Web pages and terminal sessions now fetch the current token and recover on their own. A new `GET /api/auth/csrf-token` endpoint supplies the token.
+- **Telnet address on the dashboard:** the System Information card now shows the address Telnet users connect to, and shrinks the text to fit on one line.
+- **ANSI avatars:** each user can paint or import one 10 by 6 Synchronet-compatible CP437 avatar on their profile. It appears on public profiles and in the terminal profile viewer. A new `user_ansi_avatars` table is created by the migration.
 
 ### Web Doors
 
@@ -477,6 +481,22 @@ A rejected request was never carried out, so repeating it cannot do the same thi
 The token comes from the new `GET /api/auth/csrf-token`, which requires a signed-in session and returns the session's current token without changing it. It exposes nothing that signed-in pages do not already contain, and a page on another site cannot read it. See [API.md](API.md).
 
 Restart the telnet and SSH daemons so they load the new code; `scripts/restart_daemons.sh` does this.
+
+### Telnet Address on the Dashboard
+
+The System Information card on the main dashboard now shows a **Telnet** line with the address users connect to, for example `bbs.example.com:2323`. The host comes from `SITE_URL` and the port from `TELNET_PORT` in `.env` (default `2323`); the port is left off when it is `23`. The line is hidden when `SITE_URL` has no host. The text shrinks to fit on a single line, so long host names no longer wrap.
+
+### ANSI Avatars
+
+Each account can now have one optional avatar: a 10 column by 6 row block of colored CP437 characters, stored in the Synchronet-compatible 120-byte BIN format. The avatar is plain glyph and color data and is never sent to a terminal as raw escape codes.
+
+- **Editing:** signed-in users paint an avatar on the **Profile** page, or import a 120-byte `.bin` file. Any other file size is refused, as is an image that is entirely blank on a black background. Users can also remove their avatar.
+- **Viewing:** other signed-in users see the avatar on `/profile/{username}`. Users without one see the first two letters of their username instead.
+- **Terminal:** the public profile viewer, opened from Who's Online or from the **View ANSI avatar** settings action, draws the avatar on color-capable full-screen sessions. Sessions with ANSI color turned off, and the line shell, show the username initials. Raw CP437 bytes are only written to sessions whose saved terminal character set is CP437; UTF-8 and ASCII sessions receive equivalent characters.
+- **API:** `GET /api/user/ansi-avatar`, `GET /api/user/ansi-avatar/{id}`, `POST /api/user/ansi-avatar` and `DELETE /api/user/ansi-avatar` read, replace and remove avatars, and `GET /api/user/public-profile/{id}` now includes `profile.ansi_avatar`. See `docs/API.md`.
+- **Database:** a new table, `user_ansi_avatars`, holds the avatars and is removed with the account.
+
+Details of the format and rendering rules are in `docs/AnsiAvatars.md`.
 
 ## Web Doors
 
