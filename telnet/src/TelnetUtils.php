@@ -3011,11 +3011,36 @@ class TelnetUtils
 
             $bodyWidth = max(20, $width - 4);
             $bioLabelColor = (string)($profileStyles['bio_label'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+            $avatarLabel = $server->t('ui.terminalserver.profile.ansi_avatar', 'ANSI avatar', [], $locale);
+            $artLines = null;
+            $encodedAvatar = $profile['ansi_avatar'] ?? null;
+            if (self::$ansiColorEnabled && is_string($encodedAvatar) && $encodedAvatar !== '') {
+                try {
+                    $avatar = \BinktermPHP\Avatar\AnsiAvatar::fromBase64($encodedAvatar);
+                    $artLines = \BinktermPHP\Avatar\AnsiAvatarTerminal::lines($avatar, true, $charset);
+                } catch (\Throwable $e) {
+                    $artLines = null;
+                }
+            }
+            $avatarPlain = [$avatarLabel];
+            if ($artLines === null) {
+                $avatarPlain[] = \BinktermPHP\Avatar\AnsiAvatarTerminal::initials(
+                    (string)($profile['username'] ?? ''),
+                    $charset
+                );
+            }
+            $avatarPlain[] = '';
             $bodyLines = array_merge(
+                $avatarPlain,
                 [self::colorize($bioLabel, $bioLabelColor), ''],
                 TerminalMarkupRenderer::render('markdown', $bioText, $bodyWidth)
             );
             $bodyLines = array_map(fn(string $line): string => $server->encodeForTerminal($line), $bodyLines);
+            if (is_array($artLines)) {
+                // Art lines are already in the session charset. Encoding them
+                // again would widen glyphs and can turn a CP437 stand-in into ESC.
+                array_splice($bodyLines, 1, 0, $artLines);
+            }
 
             $statusKey = (string)($profileStyles['status_key'] ?? self::ANSI_RED);
             $statusLabel = (string)($profileStyles['status_label'] ?? self::ANSI_BLUE);

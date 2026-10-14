@@ -1,0 +1,47 @@
+{# Session owner is the signed-in user. The save request cannot choose another id. #}
+<section class="card mb-3 bt-ansi-editor" data-ansi-editor data-owner-name="{{ user_username|e('html_attr') }}">
+    <div class="card-header"><h5 class="mb-0">{{ t('ui.avatar.title', {}, 'common') }}</h5></div>
+    <div class="card-body">
+        <p class="small text-muted">{{ t('ui.avatar.intro', {}, 'common') }}</p>
+        <div data-ansi-plate>
+            {% if ansi_avatar_html %}
+                {{ ansi_avatar_html|raw }}
+            {% else %}
+                <span class="bt-ansi-fallback" role="img" aria-label="{{ t('ui.avatar.aria.fallback', {'name': user_username}, 'common') }}">{{ user_username|slice(0, 2)|upper }}</span>
+            {% endif %}
+        </div>
+        <div class="bt-ansi-editor-controls">
+            <label for="avatar-glyph">{{ t('ui.avatar.glyph_label', {}, 'common') }}
+                <input id="avatar-glyph" class="form-control form-control-sm" data-ansi-glyph type="number" min="0" max="255" value="219">
+            </label>
+            <label for="avatar-fg">{{ t('ui.avatar.foreground', {}, 'common') }}
+                <select id="avatar-fg" class="form-select form-select-sm" data-ansi-fg>
+                    {% for i in 0..15 %}
+                        <option value="{{ i }}"{% if i == 15 %} selected{% endif %}>{{ i }}: {{ t('ui.avatar.color.' ~ i, {}, 'common') }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label for="avatar-bg">{{ t('ui.avatar.background', {}, 'common') }}
+                <select id="avatar-bg" class="form-select form-select-sm" data-ansi-bg>
+                    {% for i in 0..7 %}
+                        <option value="{{ i }}">{{ i }}: {{ t('ui.avatar.color.' ~ i, {}, 'common') }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+        <div class="d-flex flex-wrap gap-2 my-2" role="group" aria-label="{{ t('ui.avatar.quick_group', {}, 'common') }}">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-ansi-quick="219">{{ t('ui.avatar.quick.full', {}, 'common') }}</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-ansi-quick="176">{{ t('ui.avatar.quick.light', {}, 'common') }}</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-ansi-quick="177">{{ t('ui.avatar.quick.medium', {}, 'common') }}</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-ansi-quick="178">{{ t('ui.avatar.quick.dark', {}, 'common') }}</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-ansi-quick="32">{{ t('ui.avatar.quick.space', {}, 'common') }}</button>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <input class="visually-hidden" aria-label="{{ t('ui.avatar.import_file', {}, 'common') }}" data-ansi-file type="file" accept=".bin,application/octet-stream">
+            <button class="btn btn-outline-secondary btn-sm" data-ansi-import type="button">{{ t('ui.avatar.import', {}, 'common') }}</button>
+            <button class="btn btn-primary btn-sm" data-ansi-save type="button">{{ t('ui.avatar.save', {}, 'common') }}</button>
+            <button class="btn btn-outline-danger btn-sm" data-ansi-remove type="button">{{ t('ui.avatar.remove', {}, 'common') }}</button>
+        </div>
+        <p class="bt-ansi-editor-status small mt-2 mb-0" data-ansi-status role="status"></p>
+    </div>
+</section>

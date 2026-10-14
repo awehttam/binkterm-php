@@ -1,0 +1,10 @@
+<section class="card mb-3">
+    <div class="card-header"><h5 class="mb-0">{{ t('ui.avatar.public_title', {}, 'common') }}</h5></div>
+    <div class="card-body">
+        {% if ansi_avatar_html %}
+            {{ ansi_avatar_html|raw }}
+        {% else %}
+            <span class="bt-ansi-fallback" role="img" aria-label="{{ t('ui.avatar.aria.fallback', {'name': profile_username}, 'common') }}">{{ profile_username|slice(0, 2)|upper }}</span>
+        {% endif %}
+    </div>
+</section>

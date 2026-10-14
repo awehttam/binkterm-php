@@ -704,5 +704,9 @@ return [
     'ui.terminalserver.chat.help.line4' => 'Панель пользователей онлайн: Enter открывает ЛС',
     'ui.terminalserver.chat.help.line5' => 'Панель написания: Enter отправляет сообщение, Ctrl+E открывает многострочный редактор',
     'ui.terminalserver.chat.help.line6' => 'Ctrl+C — выход из локального чата, R — обновить списки',
-    'ui.terminalserver.chat.help.line7' => 'Администраторы: в чате сфокусируйтесь на панели «Пользователи онлайн» и нажмите K или B для модерации.'
+    'ui.terminalserver.chat.help.line7' => 'Администраторы: в чате сфокусируйтесь на панели «Пользователи онлайн» и нажмите K или B для модерации.',
+
+    // ANSI avatars
+    'ui.terminalserver.settings.profile.ansi_avatar' => 'Показать ANSI-аватар',
+    'ui.terminalserver.profile.ansi_avatar' => 'ANSI-аватар',
 ];

@@ -835,4 +835,11 @@ return [
     'errors.admin.bbs_settings.invalid_screening_config' => 'Ungültige Konfiguration der Registrierungsprüfung',
     'errors.admin.nntp_settings.load_failed' => 'NNTP-Einstellungen konnten nicht geladen werden',
     'errors.admin.nntp_settings.save_failed' => 'NNTP-Einstellungen konnten nicht gespeichert werden',
+
+    // ANSI avatars
+    'errors.avatar.invalid' => 'Die ANSI-Avatar-Daten sind ungültig',
+    'errors.avatar.too_large' => 'Die ANSI-Avatar-Anfrage ist zu groß',
+    'errors.avatar.malformed' => 'Ein ANSI-Avatar muss kanonisches Base64 eines 120-Byte-BIN sein',
+    'errors.avatar.blank' => 'Ein ANSI-Avatar darf nicht leer auf Schwarz sein',
+    'errors.avatar.dimensions' => 'ANSI-Avatare müssen genau 120 Byte groß sein',
 ];

@@ -286,7 +286,7 @@ $statusLine = TelnetUtils::buildStatusBar($segments, $width);
 | Selectable item dialog | `TelnetUtils::showSelectableDialog()` / `$shell->showSelectableDialog()` |
 | ANSI-wrapped text lines | `TelnetUtils::wrapTextLines()` |
 | Address book / nodelist picker | `TelnetUtils::runAddressPicker()` / `$shell->showAddressPicker()` |
-| Public profile viewer | `TelnetUtils::showPublicProfileViewer()` / `$shell->showPublicProfileViewer()` |
+| Public profile viewer | `TelnetUtils::showPublicProfileViewer()` / `$shell->showPublicProfileViewer()`. Avatar art lines are already in the session charset and are inserted after `encodeForTerminal()` so they are not converted a second time. |
 
 If a widget genuinely lacks a capability needed by multiple features, extend it in `TelnetUtils` — do not work around it in a handler. When adding or extending a widget, update the table in `telnet/CLAUDE.md`.
 
