@@ -399,7 +399,7 @@
 
                     {% if telnet_address %}
                     <dt class="col-sm-5">{{ t('ui.dashboard.telnet', {}, locale, ['common']) }}:</dt>
-                    <dd class="col-sm-7 font-monospace">{{ telnet_address }}</dd>
+                    <dd class="col-sm-7 font-monospace text-nowrap" id="dashboardTelnetAddress">{{ telnet_address }}</dd>
                     {% endif %}
 
                     {% if system_uptime_seconds is not null %}
@@ -622,7 +622,26 @@
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
 <script>
-const DASHBOARD_LAYOUT = {{ dashboard_layout|json_encode|raw }};
+/**
+ * Shrink the Telnet address font until it fits on a single line.
+ */
+function fitTelnetAddress() {
+    const el = document.getElementById('dashboardTelnetAddress');
+    if (!el || !el.parentElement) {
+        return;
+    }
+    el.style.fontSize = '';
+    const available = el.clientWidth;
+    if (available > 0 && el.scrollWidth > available) {
+        const base = parseFloat(getComputedStyle(el).fontSize);
+        el.style.fontSize = Math.max(8, Math.floor(base * available / el.scrollWidth * 10) / 10) + 'px';
+    }
+}
+document.addEventListener('DOMContentLoaded', fitTelnetAddress);
+window.addEventListener('load', fitTelnetAddress);
+window.addEventListener('resize', fitTelnetAddress);
+
+const DASHBOARD_LAYOUT ={{ dashboard_layout|json_encode|raw }};
 const DASHBOARD_CARDS = {{ dashboard_available_cards|json_encode|raw }};
 
 let votingPolls = [];
