@@ -414,6 +414,9 @@ Both transport daemons run the same `BbsSession` flow: transport handshake → p
   - Passes PTY dimensions from `pty-req` to the BBS session
   - Sixel capability probing for SSH runs inside the SSH transport layer before `BbsSession` starts, so the DA reply can be consumed there without leaking into pre-login prompts
 
+- Telnet, TLS-Telnet and SSH:
+  - Nagle's algorithm is disabled (`TCP_NODELAY`) on each accepted connection so keystroke echoes and screen redraws are sent immediately. The Telnet option is applied before any TLS handshake. Set `TERMINAL_TCP_NODELAY=false` in `.env` to leave Nagle enabled. Requires the PHP `sockets` extension; if it is missing, or the call fails, the connection continues unchanged. Implemented in `telnet/src/TerminalSocketOptions.php`.
+
 ## Custom Terminal Screens
 
 Terminal login, main-menu, and goodbye screens are loaded from `telnet/screens/`.
