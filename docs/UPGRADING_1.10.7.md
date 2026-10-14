@@ -59,6 +59,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [UTF-8 Safe Line Editing and Paste Containment](#utf-8-safe-line-editing-and-paste-containment)
   - [Nagle's Algorithm Disabled on Telnet and SSH Connections](#nagles-algorithm-disabled-on-telnet-and-ssh-connections)
   - [SSH Connection Rate Limit and Session Cap](#ssh-connection-rate-limit-and-session-cap)
+  - [RLogin Clients Recognized on the Telnet Ports](#rlogin-clients-recognized-on-the-telnet-ports)
+  - [Dialup Speed Simulation for Telnet and SSH](#dialup-speed-simulation-for-telnet-and-ssh)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
   - [Default Terminal Registration Secret No Longer Trusted](#default-terminal-registration-secret-no-longer-trusted)
@@ -151,6 +153,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - **UTF-8 safe line editing and paste containment:** text typed at terminal prompts and input dialogs is now handled one character at a time, so accented and other non-ASCII characters are no longer split or lost, the left and right arrows edit in the middle of a line, and the rest of a multi-line paste is discarded after the first line instead of being run against the next menu or password prompt. CR-LF counts as one Enter.
 - **Nagle's algorithm disabled on Telnet and SSH connections:** the Telnet, TLS-Telnet and SSH daemons now turn off Nagle's algorithm on accepted connections, so single keystroke echoes and screen redraws are sent immediately instead of being held back, which was noticeable over higher-latency links. Set `TERMINAL_TCP_NODELAY=false` in `.env` to keep Nagle enabled. It needs the PHP `sockets` extension, and without it the setting is skipped.
 - **SSH connection rate limit and session cap:** the SSH daemon now limits new connections per source address (`SSH_RATE_LIMIT_MAX`, default 5 per `SSH_RATE_LIMIT_WINDOW`, default 60 seconds) and caps the number of simultaneous sessions (`SSH_MAX_CHILDREN`, default 32). Rejected connections are closed before the daemon forks or starts the SSH handshake. The Telnet daemon now shares the same rate limiter, so a `TELNET_RATE_LIMIT_WINDOW` of `0` or less now means 60 seconds instead of no limit.
+- **RLogin clients recognized on the Telnet ports:** a client that connects with an RLogin handshake (RFC 1282) is now recognized, answered correctly, and no longer sent Telnet negotiation that appears on its screen as stray characters. Native door games also fall back to the user's alias or real name when no handle or username is available.
+- **Dialup speed simulation for Telnet and SSH:** sysops can now pace terminal output at a classic modem speed, so ANSI screens draw line by line instead of appearing at once. It is off by default and is set under **Admin → BBS Settings → Terminal Server Settings**.
 
 ### Security
 
@@ -615,6 +619,38 @@ Both settings go in `.env`. Restart the SSH daemon after changing them.
 The SSH daemon does not read PROXY protocol headers. If SSH reaches the daemon through a proxy or port forwarder that opens its own connection to the daemon, every client appears to come from the proxy's address and they all share one rate-limit counter. In that case raise `SSH_RATE_LIMIT_MAX` or set it to `0`, and limit connections at the proxy instead. The session cap is unaffected, because it does not depend on the client address.
 
 The Telnet and SSH daemons now use the same rate limiter. Addresses are normalized before they are counted, so an IPv4 client that arrives on a dual-stack listener as `::ffff:192.0.2.1` is counted as `192.0.2.1`. The Telnet settings, defaults and log messages are unchanged, except that a `TELNET_RATE_LIMIT_WINDOW` of `0` or less now falls back to 60 seconds. Previously it made every connection start a new window, which in effect disabled the limit. To disable the Telnet limit, set `TELNET_RATE_LIMIT_MAX=0`.
+
+### RLogin Clients Recognized on the Telnet Ports
+
+An RLogin client (RFC 1282) opens the connection by sending a null byte, then its own user name, the server user name, and the terminal type and speed, each ending in a null byte. The Telnet daemon treated that as ordinary Telnet input and sent its own option negotiation, so an RLogin client showed the negotiation bytes as junk on screen and the terminal type was never picked up.
+
+The Telnet and TLS-Telnet daemons now look at the first byte of each new connection. If it is a null byte, the daemon reads the handshake and answers with the single null-byte acknowledgment RLogin expects. It also turns on ANSI color, records the terminal type the client sent, and stops sending Telnet negotiation and echo commands on that connection. Telnet clients, and anything else that does not begin with a null byte, behave as before. The SSH daemon is not affected.
+
+The user name the RLogin client sends is read and kept for the session, but it is not used to sign anyone in. Users still log in at the BBS login prompt.
+
+The daemon waits up to 0.2 seconds for the first byte of a new connection, so a Telnet client that sends nothing first starts that much later than before.
+
+Native door games now fill in their user name from the handle, then the username, then the alias, then the real name. The real name, in turn, falls back to the alias. Previously a user with no handle or username was shown as `Guest`.
+
+Restart the Telnet daemon after upgrading so it loads the new code.
+
+### Dialup Speed Simulation for Telnet and SSH
+
+BBS screens and ANSI art were designed to draw at modem speeds. Over a modern connection they appear instantly, which some sysops and callers do not want. The terminal server can now slow its output to a chosen baud rate.
+
+To turn it on, go to **Admin → BBS Settings → Terminal Server Settings**, tick **Throttle Telnet server speed (dialup simulation)** and pick an **Emulated baud rate**. The choices run from 300 to 57,600 baud, and 28,800 is the default and the recommended setting. Tick **Also apply to SSH connections** to apply the same speed to SSH sessions. Without that box ticked, SSH is never throttled. Save the settings with **Save Terminal Server Settings**.
+
+The speed is read when a caller connects, so it applies to new connections only. Sessions already open keep the speed they started with.
+
+While throttling is on:
+
+- output is sent in small bursts about 35 times a second, at the speed of the chosen baud rate, counting 10 bits for each character;
+- a single typed character is echoed at once, so typing does not lag;
+- pressing a key while a long screen is drawing skips the delay for the rest of that screen.
+
+The setting is saved in `data/bbs.json` under `terminal_server` as `throttle_speed`, `throttle_baud` and `throttle_ssh`. A baud rate below 300 is replaced with 28,800 when the settings are saved.
+
+Restart the Telnet and SSH daemons after upgrading so they load the new code.
 
 ## Security
 
