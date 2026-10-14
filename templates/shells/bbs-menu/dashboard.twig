@@ -20,3 +20,10 @@
     {% endif %}
 </div>
 {% endblock %}
+
+{% block scripts %}
+    {{ parent() }}
+    {% if appearance.shell.bbs_menu.variant == 'ansi' %}
+    <script src="/js/ansisys.js"></script>
+    {% endif %}
+{% endblock %}
