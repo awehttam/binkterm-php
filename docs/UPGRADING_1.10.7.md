@@ -50,6 +50,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [DOS Door ANSI.SYS Screen Clear Homes the Cursor](#dos-door-ansisys-screen-clear-homes-the-cursor)
   - [Door Screens Flushed Before the Connection Closes](#door-screens-flushed-before-the-connection-closes)
   - [Fixed: Door Player Limits Could Be Exceeded by Simultaneous Launches](#fixed-door-player-limits-could-be-exceeded-by-simultaneous-launches)
+  - [Fixed: PubTerm Native Door Block Graphics](#fixed-pubterm-native-door-block-graphics)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
@@ -140,6 +141,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **DOS door ANSI.SYS screen clear homes the cursor:** for DOS, RLogin and CP437 native doors, a clear-screen sequence now also moves the cursor to the top left, as ANSI.SYS does, so doors that rely on that line up correctly.
 - **Door screens flushed before the connection closes:** when a door exits, the bridge waits 800 ms before closing the browser connection, so the last screen the door wrote, such as a game-over screen, is shown.
 - **Fixed: door player limits could be exceeded by simultaneous launches:** several players launching the same door at the same moment could all pass the door's maximum-players check, or be given the same node number. The check and node assignment are now done as one step. A launch that loses the race for the last slot gets an HTTP `503` "Door at capacity" response.
+- **Fixed: PubTerm native door block graphics:** the PubTerm native door now uses CP437 output and an 8-bit Telnet connection, so ANSI block graphics display correctly instead of as replacement characters.
 
 ### MeshCore
 
@@ -582,6 +584,12 @@ Door admission now runs under a PostgreSQL transaction-level advisory lock. The 
 ### Radio Settings Link on the Dashboard
 
 The PacketBBS Nodes card on the main dashboard, shown when MeshCore is enabled, now has a "My MeshCore radios" link beside "View all nodes". It opens **Settings** directly on the **MeshCore** tab, where you can add, edit, and remove your own radios. The settings page also accepts `/settings#meshcore` as a direct link to that tab.
+
+### Fixed: PubTerm Native Door Block Graphics
+
+The PubTerm native door connects to a Telnet host and relays its output to the caller. Its manifest declared UTF-8 output, so the CP437 block and line-drawing characters sent by ANSI art were corrupted into Unicode replacement characters. The manifest now declares `cp437` output, and the launch script starts the Telnet client with `-8` so all 8 bits of each byte are passed through. The script is also now marked executable.
+
+If you copied or customized the PubTerm manifest (`native-doors/doors/pubterm/nativedoor.json`), set `output_encoding` to `cp437` in your copy.
 
 ## Networks
 
