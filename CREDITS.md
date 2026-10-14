@@ -63,6 +63,11 @@
 - **Authors:** OpenMPT Project Developers and Contributors
 - Tracker module decoding library bundled through chiptune3 for browser playback.
 
+### RIPtermJS
+- **License:** MPL 2.0
+- **Author:** Carl Gorringe
+- Browser RIPscrip renderer, bundled in `public_html/vendor/riptermjs/`, used to display RIP graphics in echomail messages and file previews.
+
 ## AI Tooling
 
 BinktermPHP was developed with the assistance of AI language models. We gratefully acknowledge:

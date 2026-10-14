@@ -39,6 +39,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Recovery From a Stale CSRF Token](#recovery-from-a-stale-csrf-token)
   - [Telnet Address on the Dashboard](#telnet-address-on-the-dashboard)
   - [ANSI Avatars](#ansi-avatars)
+  - [Fixed: BBS Menu Shell Scripts](#fixed-bbs-menu-shell-scripts)
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
@@ -126,6 +127,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Recovery from a stale CSRF token:** logging in as the same user somewhere else, in another browser or over Telnet or SSH, used to make every already-open page and terminal session fail with "Invalid CSRF token" until it was reloaded or reconnected. Web pages and terminal sessions now fetch the current token and recover on their own. A new `GET /api/auth/csrf-token` endpoint supplies the token.
 - **Telnet address on the dashboard:** the System Information card now shows the address Telnet users connect to, and shrinks the text to fit on one line.
 - **ANSI avatars:** each user can paint or import one 10 by 6 Synchronet-compatible CP437 avatar on their profile. It appears on public profiles and in the terminal profile viewer. A new `user_ansi_avatars` table is created by the migration.
+- **Fixed: BBS menu shell scripts:** pages in the BBS menu shell now load the per-user storage helper and receive the user's settings, and the ANSI.SYS script is no longer loaded twice.
 
 ### Web Doors
 
@@ -497,6 +499,12 @@ Each account can now have one optional avatar: a 10 column by 6 row block of col
 - **Database:** a new table, `user_ansi_avatars`, holds the avatars and is removed with the account.
 
 Details of the format and rendering rules are in `docs/AnsiAvatars.md`.
+
+### Fixed: BBS Menu Shell Scripts
+
+Pages rendered with the BBS menu shell did not load `user-storage.js`, so scripts that keep per-user browser state could not run correctly there, and `window.userSettings` was not defined. The shell now loads `user-storage.js` and sets `window.userSettings` from the signed-in user's settings, falling back to the `America/Los_Angeles` timezone when the user has none saved.
+
+The shell also loaded `ansisys.js` unconditionally in its base template, while individual pages loaded it again. It is now loaded once, and only when the shell's appearance variant is `ansi`.
 
 ## Web Doors
 
