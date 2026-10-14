@@ -25,6 +25,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Fixed: process_packets.php Lock File Errors Reported as Already Running](#fixed-process_packetsphp-lock-file-errors-reported-as-already-running)
   - [Fixed: Inbound Connections Closed Reliably](#fixed-inbound-connections-closed-reliably)
   - [Scheduled Polls Run One at a Time, and Never Overlap on the Same Host](#scheduled-polls-run-one-at-a-time-and-never-overlap-on-the-same-host)
+  - [Fixed: Mail Posted During a Scheduled Poll Waited Up to 30 Minutes](#fixed-mail-posted-during-a-scheduled-poll-waited-up-to-30-minutes)
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
   - [Log Rotation by Size](#log-rotation-by-size)
@@ -105,6 +106,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Fixed: `process_packets.php` lock file errors reported as "already running":** when `data/run/process_packets.lock` could not be opened, for example because of its owner or permissions, the script logged that another instance was running and exited successfully. It now logs the real error and exits with status 1.
 - **Fixed: inbound connections closed reliably:** the BinkP server did not reliably release an accepted connection when a session failed, and an error while sending the "maximum connections" busy reply could escape into the accept loop. Every accepted connection is now closed exactly once, and a failure while handling one can no longer affect the server process.
 - **Scheduled polls run one at a time, and never overlap on the same host:** the scheduler now waits for each poll to finish and processes the packets it received before starting the next one. Outbound sessions to the same host and port are also serialized, so uplinks on different networks that share a hub no longer collide. A poll that finds the host busy is deferred, not failed.
+- **Fixed: mail posted during a scheduled poll waited up to 30 minutes:** a message queued while a scheduled poll was running, or just after it, was skipped as already delivered and then held back by the outbound queue timer. The scheduler now polls again straight away when new outbound files appeared after the scheduled poll started.
 
 ### Administration
 
@@ -370,6 +372,14 @@ chmod 664 data/run/binkp-host-locks/*.lock
 ```
 
 The admin daemon runs each client in its own process only when the PHP `pcntl` extension is available. Without it, a synchronous poll holds up every other admin daemon command until it finishes, so scheduled polling is meant for installations that have `pcntl`, which includes the Docker image.
+
+### Fixed: Mail Posted During a Scheduled Poll Waited Up to 30 Minutes
+
+When outbound mail is queued for an uplink, the scheduler polls it within about a minute. While the same files stay queued, it does not poll that uplink again until the outbound queue timer has passed since the last poll, 30 minutes by default. Every scheduled poll also counts as a poll for this timer, and an uplink that had a scheduled poll in the current scheduler pass is not polled again for outbound mail, on the assumption that the session carried the queued files.
+
+That assumption fails for mail queued after the scheduled session had started. Because scheduled polls now wait for the session to finish, that window lasts as long as the session. A message posted in it was skipped as already delivered, the queue timer then held it back, and the scheduler logged `Outbound files found for <address> but queue timer has <n>s remaining` until the timer ran out.
+
+The scheduler now records which outbound files existed when each scheduled poll started. If files for that uplink appeared after that point, the uplink is polled again in the same pass, without waiting for the queue timer, and the scheduler logs `New outbound files for <address> arrived after its scheduled poll started, polling now` at the DEBUG level. Files that were already queued when the scheduled poll started are handled as before.
 
 ## Administration
 

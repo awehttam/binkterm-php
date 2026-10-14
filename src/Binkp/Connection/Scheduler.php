@@ -60,6 +60,15 @@ class Scheduler
      * @var array<string,bool>
      */
     private $iterationPolledAddresses = [];
+    /**
+     * Outbound files that existed when each uplink's scheduled poll in the
+     * current iteration started, keyed by uplink address then file path.
+     * Anything else queued for that uplink arrived during or after the
+     * session and was not carried by it.
+     *
+     * @var array<string,array<string,bool>>
+     */
+    private $scheduledPollOutboundSnapshots = [];
     /** Minimum seconds between scheduled crashmail polls */
     const CRASHMAIL_POLL_INTERVAL = 300;
 
@@ -135,6 +144,7 @@ class Scheduler
             
             try {
                 $this->log("Scheduled poll starting for: {$address}");
+                $this->scheduledPollOutboundSnapshots[$address] = array_fill_keys($this->listOutboundFiles(), true);
                 $pollResult = $this->client->binkPollSync($address);
                 $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
                 $pollDeferred = self::isHostBusyResult($pollResult);
@@ -239,13 +249,7 @@ class Scheduler
     
     public function pollIfOutbound()
     {
-        $outboundPath = $this->config->getOutboundPath();
-        $files = array_merge(
-            glob($outboundPath . '/*.pkt') ?: [],
-            glob($outboundPath . '/*.PKT') ?: [],
-            glob($outboundPath . '/*.tic') ?: [],
-            glob($outboundPath . '/*.TIC') ?: []
-        );
+        $files = $this->listOutboundFiles();
         
         if (empty($files)) {
             $this->outboundQueueActiveStates = [];
@@ -271,6 +275,20 @@ class Scheduler
 
             $hadOutboundFiles = $this->outboundQueueActiveStates[$address] ?? false;
             $this->outboundQueueActiveStates[$address] = true;
+
+            // Files queued after this iteration's scheduled poll started were not
+            // carried by that session, so neither the same-iteration skip nor the
+            // queue timer (stamped by the scheduled poll) should hold them back.
+            $queuedAfterScheduledPoll = false;
+            if (isset($this->scheduledPollOutboundSnapshots[$address])) {
+                $newFiles = array_diff($files, array_keys($this->scheduledPollOutboundSnapshots[$address]));
+                $queuedAfterScheduledPoll = $this->hasOutboundFilesForUplink($uplink, $newFiles);
+            }
+            if ($queuedAfterScheduledPoll) {
+                $this->log("New outbound files for {$address} arrived after its scheduled poll started, polling now", 'DEBUG');
+                $uplinksToPoll[] = $uplink;
+                continue;
+            }
 
             // A scheduled poll already ran for this uplink in the current iteration.
             // Binkp sessions are bidirectional, so the outbound files should have
@@ -429,6 +447,22 @@ class Scheduler
         return (int) $cronField === $currentValue;
     }
 
+    /**
+     * List the outbound packet and TIC files currently queued.
+     *
+     * @return string[]
+     */
+    private function listOutboundFiles(): array
+    {
+        $outboundPath = $this->config->getOutboundPath();
+        return array_merge(
+            glob($outboundPath . '/*.pkt') ?: [],
+            glob($outboundPath . '/*.PKT') ?: [],
+            glob($outboundPath . '/*.tic') ?: [],
+            glob($outboundPath . '/*.TIC') ?: []
+        );
+    }
+
     private function hasOutboundFilesForUplink(array $uplink, array $files): bool
     {
         foreach ($files as $file) {
@@ -545,6 +579,7 @@ class Scheduler
         while (true) {
             try {
                 $this->iterationPolledAddresses = [];
+                $this->scheduledPollOutboundSnapshots = [];
                 $this->refreshConfig();
                 $this->keepDbAlive();
 
