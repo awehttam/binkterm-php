@@ -242,6 +242,23 @@ class BbsSession
             $this->log("Connection initialized: screen size {$state['cols']}x{$state['rows']}");
         }
 
+        $shouldThrottle = false;
+        if (!$this->isSsh) {
+            $shouldThrottle = BbsConfig::getTerminalThrottleSpeed();
+        } else {
+            $shouldThrottle = BbsConfig::getTerminalThrottleSsh();
+        }
+
+        if ($shouldThrottle) {
+            $baud = BbsConfig::getTerminalThrottleBaud();
+            TelnetUtils::setThrottleBaud($baud);
+            if ($this->debug) {
+                $this->log("Dialup baud throttling active at {$baud} baud");
+            }
+        } else {
+            TelnetUtils::setThrottleBaud(0);
+        }
+
         if (!$this->isSsh) {
             if ($this->detectRloginHandshake($conn, $state)) {
                 if ($this->debug) { $this->log('RLogin startup: ANSI enabled via RLogin handshake'); }
@@ -1103,23 +1120,11 @@ class BbsSession
 
     /**
      * Write to the connection, suppressing notices on broken pipes.
+     * Respects emulated dialup baud throttling when enabled.
      */
     public function safeWrite($conn, string $data): void
     {
-        if (!is_resource($conn)) { return; }
-        $prev = error_reporting();
-        error_reporting($prev & ~E_NOTICE);
-        $total  = strlen($data);
-        $offset = 0;
-        while ($offset < $total) {
-            $written = @fwrite($conn, substr($data, $offset));
-            if ($written === false || $written === 0) {
-                break;  // connection closed or unrecoverable error
-            }
-            $offset += $written;
-        }
-        @fflush($conn);
-        error_reporting($prev);
+        TelnetUtils::safeWrite($conn, $data);
     }
 
     /**

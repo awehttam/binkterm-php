@@ -2225,9 +2225,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!in_array($defaultShell, \BinktermPHP\BbsConfig::getAllowedTerminalShells(), true)) {
                         throw new Exception('Invalid terminal default shell');
                     }
+                    $throttleBaud = (int)($ts['throttle_baud'] ?? 28800);
+                    if ($throttleBaud < 300) {
+                        $throttleBaud = 28800;
+                    }
                     $config['terminal_server'] = [
-                        'default_shell' => $defaultShell,
-                        'force_shell'   => !empty($ts['force_shell']),
+                        'default_shell'  => $defaultShell,
+                        'force_shell'    => !empty($ts['force_shell']),
+                        'throttle_speed' => !empty($ts['throttle_speed']),
+                        'throttle_baud'  => $throttleBaud,
+                        'throttle_ssh'   => !empty($ts['throttle_ssh']),
                     ];
                 }
 
