@@ -320,6 +320,67 @@
     font-size: 12px !important;
 }
 
+/* Submode Dynamic Pill (Combat / Movement Game State Indicator) */
+.binkterm-submode-pill {
+    background: #1b1b36;
+    border: 1px solid #3c3c6a;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    color: #ffd700;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: 0.3px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: all 0.15s ease;
+}
+
+.binkterm-submode-pill:active {
+    background: #2b2b50;
+    color: #fff;
+}
+
+.binkterm-submode-pill .badge-mode {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.binkterm-submode-pill.mode-combat {
+    background: #2a1111;
+    border-color: #8b2525;
+    color: #ff6666;
+}
+
+.binkterm-submode-pill.mode-combat .badge-mode {
+    background: rgba(255, 68, 68, 0.3);
+    color: #ff9999;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-submode-pill {
+    border: 1px solid #3c3c6a !important;
+    border-radius: 6px !important;
+    background: #1b1b36 !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.7) !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-submode-pill.mode-combat {
+    border-color: #8b2525 !important;
+    background: #2a1111 !important;
+}
+
 /* Toolbar Rows */
 .binkterm-toolbar-row {
     display: flex;
@@ -407,10 +468,13 @@
 .binkterm-row-gameplay .binkterm-key-btn {
     flex: 1 1 0 !important;
     min-width: 0 !important;
-    height: 50px !important;
+    height: 48px !important;
     padding: 0 2px !important;
-    font-size: 15px !important;
+    font-size: clamp(11px, 3.2vw, 14px) !important;
     font-weight: 700 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }
 .binkterm-row-gameplay .btn-nav {
     flex: 1.15 1 0 !important;
@@ -420,13 +484,51 @@
 .binkterm-row-gameplay .btn-space-combat {
     flex: 2.3 1 0 !important;
     min-width: 0 !important;
-    height: 50px !important;
+    height: 48px !important;
     font-size: 13px !important;
     font-weight: 800 !important;
     letter-spacing: 0.5px !important;
 }
+.binkterm-row-gameplay .btn-space-combat-giant {
+    flex: 2.8 1 0 !important;
+    min-width: 0 !important;
+    height: 50px !important;
+    font-size: clamp(11px, 3.2vw, 14px) !important;
+}
+.binkterm-row-gameplay .btn-combat-range,
+.binkterm-row-gameplay .btn-combat-melee {
+    flex: 1.25 1 0 !important;
+    min-width: 0 !important;
+    font-size: clamp(10px, 3vw, 13px) !important;
+    font-weight: 800 !important;
+    padding: 0 2px !important;
+}
+.binkterm-row-system .btn-confirm-yes,
+.binkterm-row-system .btn-confirm-no {
+    flex: 0.85 1 0 !important;
+    font-size: 14px !important;
+    font-weight: 900 !important;
+}
 
-/* Row 3 (Numbers only): Full width proportional distribution across 10 keys */
+/* Row 3: Secondary Actions & Activities (Dynamic Menu Row) */
+.binkterm-row-secondary {
+    justify-content: space-between !important;
+    gap: 3px !important;
+    overflow-x: hidden !important;
+}
+.binkterm-row-secondary .binkterm-key-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 44px !important;
+    padding: 0 1px !important;
+    font-size: clamp(10px, 2.8vw, 13px) !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Row 4 (or Row 3 in 3-row mode): Numbers only or Numbers + Confirmations */
 .binkterm-row-numbers {
     justify-content: space-between !important;
     gap: 2px !important;
@@ -435,9 +537,9 @@
 .binkterm-row-numbers .binkterm-key-btn {
     flex: 1 1 0 !important;
     min-width: 0 !important;
-    height: 42px !important;
+    height: 40px !important;
     padding: 0 !important;
-    font-size: 15px !important;
+    font-size: clamp(11px, 3vw, 14px) !important;
     font-weight: 700 !important;
 }
 
@@ -538,6 +640,146 @@
 .binkterm-key-btn.btn-space-combat:active,
 .binkterm-key-btn.btn-space-combat.is-active {
     background: #b83838 !important;
+    color: #ffffff !important;
+}
+
+/* Full-width Giant Action Combat Space Bar */
+.binkterm-row-giant-action {
+    justify-content: stretch !important;
+    padding: 1px 0 !important;
+    gap: 0 !important;
+    overflow-x: hidden !important;
+}
+.binkterm-row-giant-action .btn-space-combat-giant {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    height: 52px !important;
+}
+
+.binkterm-key-btn.btn-space-combat-giant {
+    background: linear-gradient(180deg, #991b1b 0%, #6e1010 100%) !important;
+    border: 2px solid #ef4444 !important;
+    color: #ffffff !important;
+    font-size: clamp(11px, 3.5vw, 15px) !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.8px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8) !important;
+    animation: combatPulse 2s infinite ease-in-out;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.binkterm-key-btn.btn-space-combat-giant:active,
+.binkterm-key-btn.btn-space-combat-giant.is-active {
+    background: #dc2626 !important;
+    border-color: #ffffff !important;
+    transform: scale(0.98) translateY(2px) !important;
+    box-shadow: 0 0 18px rgba(255, 68, 68, 0.85) !important;
+}
+
+@keyframes combatPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+        border-color: #ef4444;
+    }
+    50% {
+        box-shadow: 0 0 18px rgba(239, 68, 68, 0.8);
+        border-color: #f87171;
+    }
+}
+
+/* Combat Attack / Flee / Switcher Buttons */
+.binkterm-key-btn.btn-combat-atk {
+    background: #8b1818 !important;
+    border-color: #c92a2a !important;
+    color: #ffcccc !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-combat-atk:active {
+    background: #c92a2a !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-combat-flee {
+    background: #36294d !important;
+    border-color: #5c4485 !important;
+    color: #d8c2ff !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-combat-flee:active {
+    background: #5c4485 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-combat-death {
+    background: #4a1532 !important;
+    border-color: #8c275e !important;
+    color: #ffb3d9 !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-combat-death:active {
+    background: #8c275e !important;
+    color: #ffffff !important;
+}
+
+/* Combat Range (L) and Melee (H) Buttons */
+.binkterm-key-btn.btn-combat-range {
+    background: #132f4c !important;
+    border-color: #26598c !important;
+    color: #70b8ff !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-combat-range:active {
+    background: #26598c !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-combat-melee {
+    background: #472615 !important;
+    border-color: #7d4425 !important;
+    color: #ffa366 !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-combat-melee:active {
+    background: #7d4425 !important;
+    color: #ffffff !important;
+}
+
+/* Yes / No Confirmation Keys (e.g. Fight to the death Y/N) */
+.binkterm-key-btn.btn-confirm-yes {
+    background: #143d23 !important;
+    border-color: #246339 !important;
+    color: #79e09d !important;
+    font-weight: 900 !important;
+}
+.binkterm-key-btn.btn-confirm-yes:active {
+    background: #246339 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-confirm-no {
+    background: #42181c !important;
+    border-color: #69262d !important;
+    color: #ff8591 !important;
+    font-weight: 900 !important;
+}
+.binkterm-key-btn.btn-confirm-no:active {
+    background: #69262d !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-submode-toggle {
+    background: #1e1e38 !important;
+    border-color: #444470 !important;
+    color: #ffd700 !important;
+    font-weight: 800 !important;
+    font-size: 11px !important;
+}
+.binkterm-key-btn.btn-submode-toggle:active {
+    background: #323258 !important;
     color: #ffffff !important;
 }
 
@@ -713,4 +955,115 @@
     font-size: 11px;
     color: #9999bb;
     margin-top: 3px;
+}
+
+/* LORD Specialized Theme Buttons */
+.binkterm-key-btn.btn-lord-forest {
+    background: #143d22 !important;
+    border-color: #266b3c !important;
+    color: #8ae3af !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-forest:active {
+    background: #266b3c !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-slaught {
+    background: #4a1717 !important;
+    border-color: #7d2a2a !important;
+    color: #ff9999 !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-slaught:active {
+    background: #7d2a2a !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-weapons {
+    background: #3b2c12 !important;
+    border-color: #6e5223 !important;
+    color: #ffd685 !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-weapons:active {
+    background: #6e5223 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-armour {
+    background: #3d2414 !important;
+    border-color: #704224 !important;
+    color: #ffb88c !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-armour:active {
+    background: #704224 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-healer {
+    background: #143d28 !important;
+    border-color: #246e45 !important;
+    color: #7de8aa !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-healer:active {
+    background: #246e45 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-inn {
+    background: #382c16 !important;
+    border-color: #634e24 !important;
+    color: #ffe094 !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-inn:active {
+    background: #634e24 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-bank {
+    background: #3b3012 !important;
+    border-color: #6e571c !important;
+    color: #ffdf7a !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-bank:active {
+    background: #6e571c !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-train {
+    background: #3b1735 !important;
+    border-color: #6e2762 !important;
+    color: #ff9ee8 !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-train:active {
+    background: #6e2762 !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-stats {
+    background: #182844 !important;
+    border-color: #2c497a !important;
+    color: #91beff !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-stats:active {
+    background: #2c497a !important;
+    color: #ffffff !important;
+}
+
+.binkterm-key-btn.btn-lord-news {
+    background: #1a2c3d !important;
+    border-color: #2d4e6d !important;
+    color: #94cbff !important;
+    font-weight: 800 !important;
+}
+.binkterm-key-btn.btn-lord-news:active {
+    background: #2d4e6d !important;
+    color: #ffffff !important;
 }
