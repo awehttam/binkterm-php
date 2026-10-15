@@ -1,5 +1,7 @@
 # Upgrading to 1.10.7
 
+BinktermPHP 1.10.7 is a hardening and reliability release. It improves mail routing, AreaFix/FileFix handling and BinkP session reliability, and adds new features for terminal users and door games, including ANSI avatars and mobile touch controls. It also includes a broad set of security improvements. Some changes alter existing behavior, so review the notes below before upgrading.
+
 Make sure you have a current backup of your database and files before upgrading.
 
 ## Table of Contents
@@ -69,6 +71,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
   - [Default Terminal Registration Secret No Longer Trusted](#default-terminal-registration-secret-no-longer-trusted)
+  - [Failed-Login Throttle](#failed-login-throttle)
   - [Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked](#telnet-and-ssh-sessions-disconnected-when-their-web-session-is-revoked)
   - [PacketBBS Sessions End When Their Web Session Is Revoked](#packetbbs-sessions-end-when-their-web-session-is-revoked)
   - [Docker: Config JSON Files No Longer World-Readable](#docker-config-json-files-no-longer-world-readable)
@@ -724,6 +727,29 @@ Until it is set:
 - telnet/SSH registrations are treated like browser registrations and are rejected by the browser timing check ("Session expired");
 - `scripts/setup.php` prints a warning with a generated value you can paste into `.env`, and the server log records a warning when a terminal registration arrives.
 
+### Failed-Login Throttle
+
+Nothing used to limit how many times a password could be guessed. Repeated failed logins are now limited by two independent counters, each over a rolling window:
+
+- **Per account:** 5 failures. This stops guessing against one account. Logging in by username and by real name for the same account share one counter.
+- **Per source IP:** 20 failures. This is more generous, so a shared address such as a NAT gateway is not locked out by a few mistakes, while still stopping one source from trying many usernames.
+
+The default window is 15 minutes. A login is refused while either counter is at its limit. The refusal is the same `401` "invalid credentials" answer a wrong password gets, so it does not reveal that a limit was reached or that an account exists, and nothing is locked permanently: attempts work again once the failures age out of the window. A successful login clears that account's counter but not the source IP's counter, so holding one valid account does not reset an IP that has been guessing at others.
+
+The throttle covers every place a username and password is checked: the web login, Telnet, TLS-Telnet and SSH (which sign in through the web login), FTP, NNTP and QWK HTTP downloads and uploads. A throttled FTP login gets `530 Login incorrect` and a throttled NNTP login gets `481 Authentication failed`. Anonymous FTP has no credentials and is not throttled. Loopback and the server's own address are not counted against the IP limit, so a Telnet or SSH installation whose sessions all appear to come from the server cannot lock out every terminal user. The per-account limit still applies.
+
+To change the limits, set these in `.env`:
+
+```ini
+AUTH_LOGIN_USER_MAX=5
+AUTH_LOGIN_IP_MAX=20
+AUTH_LOGIN_WINDOW=900
+```
+
+`AUTH_LOGIN_WINDOW` is in seconds. A value that is not a positive number uses the default, so the throttle cannot be switched off by a bad value. The counters are kept in a new `auth_login_attempts` table, created by the upgrade migration, so they are shared by all web workers and the terminal daemons. If the table cannot be reached, for example because the migration has not run, logins proceed unthrottled and the error is written to the server log.
+
+Restart the telnet and SSH daemons so they load the new code; `scripts/restart_daemons.sh` does this. See [CONFIGURATION.md](CONFIGURATION.md#failed-login-throttle).
+
 ### Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked
 
 A Telnet or SSH login creates a web auth session, which was checked only once, at login. If that session was later removed, the terminal session stayed connected with full access, and so did any door the user was playing. A session can be removed by:
@@ -844,7 +870,6 @@ TELNET_PREAUTH_IDLE_TIMEOUT=90
 The value is in seconds. A value below `15` is ignored and the default of 90 is used, because it could disconnect someone who is still typing their username.
 
 This frees idle sockets; it does not prevent abuse. A client that sends a keystroke every so often can still hold a pre-login connection open. SSH users sign in at the SSH layer before reaching the BBS, so this limit does not apply to them. See [TelnetServer.md](TelnetServer.md).
-
 
 ## Upgrade Instructions
 
