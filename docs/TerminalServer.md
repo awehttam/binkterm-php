@@ -128,7 +128,7 @@ Pipe-code rendering for plain bulletins and other ANSI/pipe text shared with the
 - When entering **netmail** or **echomail** compose from the terminal, the server now checks for saved drafts of that message type. If any exist, the user is prompted to **Resume Draft**, **New Message**, or **Cancel**. Choosing resume opens a selector-style drafts picker with the same keyboard navigation as other terminal lists; pressing `X` deletes the highlighted draft after confirmation.
 - When composing a **new** echomail message (not a reply), the compose flow asks "Cross-post to other areas? [y/N]:" immediately after showing the destination area. Answering `y` opens a checkbox picker listing all other subscribed areas. Use Up/Down arrows to navigate, Space to toggle each area, Enter to confirm, or Q to skip cross-posting. The number of additional areas is capped by the **Max cross-post areas** setting in the BBS admin (default 5). Scroll indicators (▲/▼) appear when the list is taller than the visible dialog area. If the terminal is resized while this picker is open, the compose-flow background is cleared and the picker is redrawn at the new size so old dialog content does not remain on screen.
 - Terminal confirmation and selection dialogs now redraw on live resize. If the user resizes the window while a centered terminal dialog is open, both the background screen and the dialog reflow to the new dimensions instead of waiting for the dialog to close.
-- The **Who's Online** main-menu action now opens a centered selectable popup instead of a plain text page. Highlight a user and press Enter to open a reusable terminal **public profile viewer** that shows username, full name, location, and biography. The profile view is read-only and uses the same resize-aware framed viewer style as other terminal reading screens.
+- The **Who's Online** main-menu action now opens a centered selectable popup instead of a plain text page. Highlight a user and press Enter to open a reusable terminal **public profile viewer** that shows username, full name, location, and biography. The profile view is read-only and uses the same resize-aware framed viewer style as other terminal reading screens. When the profile includes an ANSI avatar and the session has color enabled, the full-screen viewer draws that 10 by 6 picture above the biography. Color-off sessions and the line shell show the username initials instead. Settings → Profile → **View ANSI avatar** opens the same viewer for the signed-in user.
 
 ### Full-Screen Message Editor
 
@@ -363,6 +363,16 @@ messages, and the compose box still fit on screen.
 
 After a configurable period of inactivity the session displays an "Are you still there?" prompt. If no key is pressed before a second configurable deadline the session is disconnected. Any keypress resets the timer. The thresholds are set in **Admin → BBS Settings → Terminal Idle Timeout** and default to 5 minutes for the warning and 7 minutes for the disconnect.
 
+### Dialup Speed Throttling (Baud Rate Simulation)
+
+In **Admin → BBS Settings → Terminal Server Settings**, sysops can enable **Throttle Telnet server speed (dialup simulation)** to recreate authentic retro modem connection speeds:
+
+- **Baud Rates**: Choose from classic modem connection speeds: 300, 1200, 2400, 9600, 14400 (14.4k), 19200, 28800 (28.8k - default), 33600 (33.6k), 38400, or 57600 (57.6k).
+- **Smooth Streaming**: Terminal output is streamed in small chunk bursts (~35 updates/sec) with microsecond pacing, accurately recreating the line-by-line drawing effect of ANSI art without stuttering.
+- **Typing Responsiveness**: Single-character typing echoes bypass the delay so local interactive input has zero latency.
+- **Skip on Keypress**: If a user presses a key while a large screen is actively drawing, the delay is instantly bypassed for the remainder of that screen.
+- **SSH Support**: A companion setting allows applying the same baud rate simulation to SSH connections if desired.
+
 ### Login Menu
 
 Before authenticating, users are shown a pre-login menu:
@@ -403,6 +413,9 @@ Both transport daemons run the same `BbsSession` flow: transport handshake → p
   - Supports direct login when SSH credentials validate successfully
   - Passes PTY dimensions from `pty-req` to the BBS session
   - Sixel capability probing for SSH runs inside the SSH transport layer before `BbsSession` starts, so the DA reply can be consumed there without leaking into pre-login prompts
+
+- Telnet, TLS-Telnet and SSH:
+  - Nagle's algorithm is disabled (`TCP_NODELAY`) on each accepted connection so keystroke echoes and screen redraws are sent immediately. The Telnet option is applied before any TLS handshake. Set `TERMINAL_TCP_NODELAY=false` in `.env` to leave Nagle enabled. Requires the PHP `sockets` extension; if it is missing, or the call fails, the connection continues unchanged. Implemented in `telnet/src/TerminalSocketOptions.php`.
 
 ## Custom Terminal Screens
 

@@ -831,4 +831,11 @@ return [
     'errors.admin.bbs_settings.invalid_screening_config' => 'Invalid registration screening configuration',
     'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
     'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
+
+    // ANSI avatars
+    'errors.avatar.invalid' => 'ANSI avatar data is not valid',
+    'errors.avatar.too_large' => 'ANSI avatar request is too large',
+    'errors.avatar.malformed' => 'ANSI avatar must be canonical Base64 of a 120-byte BIN',
+    'errors.avatar.blank' => 'ANSI avatar cannot be blank on black',
+    'errors.avatar.dimensions' => 'ANSI avatars require exactly 120 bytes',
 ];

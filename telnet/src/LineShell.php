@@ -1223,8 +1223,11 @@ class LineShell implements TerminalShellInterface
         if ($bioText === '') {
             $bioText = $this->server->t('ui.terminalserver.profile.empty_biography', 'No biography provided.', [], $locale);
         }
+        $charset = method_exists($this->server, 'getTerminalCharset') ? $this->server->getTerminalCharset() : 'ascii';
+        $initials = \BinktermPHP\Avatar\AnsiAvatarTerminal::initials((string)($profile['username'] ?? ''), $charset);
 
         $lines = [
+            $this->server->t('ui.terminalserver.profile.ansi_avatar', 'ANSI avatar', [], $locale) . ': ' . $initials,
             $this->server->t('ui.terminalserver.profile.username', 'Username', [], $locale) . ': ' . ((string)($profile['username'] ?? '') !== '' ? (string)$profile['username'] : $notSpecified),
             $this->server->t('ui.terminalserver.profile.real_name', 'Full Name', [], $locale) . ': ' . (trim((string)($profile['real_name'] ?? '')) !== '' ? (string)$profile['real_name'] : $notSpecified),
             $this->server->t('ui.terminalserver.profile.location', 'Location', [], $locale) . ': ' . (trim((string)($profile['location'] ?? '')) !== '' ? (string)$profile['location'] : $notSpecified),

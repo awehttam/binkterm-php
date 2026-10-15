@@ -2,6 +2,10 @@
 
 {% block title %}{{ t('ui.user_profile.title_with_username', {'username': profile_username}, 'common') }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/css/avatar-ansi.css">
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
@@ -23,7 +27,8 @@
                 <h5 class="mb-0">{{ t('ui.user_profile.user_information', {}, 'common') }}</h5>
             </div>
             <div class="card-body">
-                <dl class="row">
+                <div class="d-flex flex-column-reverse flex-md-row align-items-md-start gap-3">
+                <dl class="row flex-grow-1 mb-0">
                     <dt class="col-sm-3">{{ t('ui.user_profile.username', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">{{ profile_username }}</dd>
 
@@ -64,6 +69,10 @@
                         {% endif %}
                     </dd>
                 </dl>
+                <div class="flex-shrink-0">
+                    {% include 'partials/avatar_ansi_public.twig' %}
+                </div>
+                </div>
             </div>
         </div>
 

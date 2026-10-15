@@ -63,7 +63,7 @@ Tracker module and legacy audio formats are handled by the retro audio player (`
 | Commodore SID | `.sid` |
 | MIDI | `.mid`, `.midi` |
 
-The proxy endpoint (`GET /api/media/raw`) enforces a maximum file size of **8 MB** and only allows the extensions listed above. It also validates that the target URL resolves to a public IP address.
+The proxy endpoint (`GET /api/media/raw`) enforces a maximum file size of **8 MB** and only allows the extensions listed above. It only fetches `http` (port 80) and `https` (port 443) URLs whose host resolves (A and AAAA) exclusively to public addresses, pins the connection to those checked addresses on every redirect hop, and never uses a proxy. The response is always served as an opaque `application/octet-stream` attachment with `X-Content-Type-Options: nosniff`; the remote server's `Content-Type` is ignored.
 
 ### Platform Embeds
 

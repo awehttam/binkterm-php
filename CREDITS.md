@@ -14,7 +14,7 @@
 | Neo67 | German translation |
 | pztrn | Russian translation |
 | Derek Bird (TheWebExpert) | Docker WebSocket proxy config, CLI entrypoint fixes, numerous fixes and features across messaging, terminal, theming, and Docker |
-| Skrawl | PostgreSQL and session security hardening fixes |
+| Skrawl | PostgreSQL and session security hardening fixes; Synchronet-compatible ANSI avatar storage and presentation |
 
 ## Third-Party Libraries
 
@@ -62,6 +62,11 @@
 - **License:** BSD 3-Clause
 - **Authors:** OpenMPT Project Developers and Contributors
 - Tracker module decoding library bundled through chiptune3 for browser playback.
+
+### RIPtermJS
+- **License:** MPL 2.0
+- **Author:** Carl Gorringe
+- Browser RIPscrip renderer, bundled in `public_html/vendor/riptermjs/`, used to display RIP graphics in echomail messages and file previews.
 
 ## AI Tooling
 

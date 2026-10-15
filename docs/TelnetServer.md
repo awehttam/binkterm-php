@@ -13,6 +13,10 @@ troubleshooting.
 
 - **Telnet option negotiation** — IAC-based negotiation for NAWS (terminal size),
   echo control, and suppress-go-ahead
+- **RLogin handshake detection (RFC 1282)** — detects incoming RLogin connections
+  by inspecting the initial null byte and consuming the client handshake strings
+  (client username, server username, terminal type/speed), acknowledging with a
+  null byte and suppressing Telnet IAC escape sequences on raw RLogin streams
 - **Dual listener (plain + TLS)** — listens on a plain-text port (default 2323)
   and a TLS-encrypted port (default 8023) simultaneously; TLS cert is auto-generated
   on first run if not provided
@@ -274,12 +278,15 @@ is forked. Rejections are logged to `data/logs/telnetd.log`.
 
 The window is **fixed per IP**: the first connection from an IP starts the
 clock; the counter resets only after `TELNET_RATE_LIMIT_WINDOW` seconds have
-elapsed since that first connection, not since the most recent one.
+elapsed since that first connection, not since the most recent one. An IPv4
+client seen on a dual-stack listener as `::ffff:192.0.2.1` is counted as
+`192.0.2.1`. The SSH daemon uses the same limiter with its own `SSH_RATE_LIMIT_*`
+settings.
 
 | `.env` variable | Default | Description |
 |---|---|---|
 | `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window. Set to `0` to disable rate limiting entirely. |
-| `TELNET_RATE_LIMIT_WINDOW` | `60` | Window duration in seconds. |
+| `TELNET_RATE_LIMIT_WINDOW` | `60` | Window duration in seconds. A value of `0` or less falls back to `60`; use `TELNET_RATE_LIMIT_MAX=0` to disable the limit. |
 
 The defaults allow 5 connections per minute per IP, which is sufficient for
 any legitimate user. Adjust `TELNET_RATE_LIMIT_MAX` downward if you are seeing

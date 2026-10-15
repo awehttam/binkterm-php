@@ -95,6 +95,16 @@ Key-value store for arbitrary user metadata.
 
 Used for: MCP bearer keys, per-user AI and display settings, daily login tracking, and other extensible preferences. Unique index on `(user_id, keyname)`.
 
+### `user_ansi_avatars`
+
+One optional Synchronet-compatible avatar per account. The BIN is glyph and attribute data, not an escape script. See [AnsiAvatars.md](AnsiAvatars.md).
+
+| Column | Notes |
+|--------|-------|
+| `user_id` | Primary key, FK → `users.id` `ON DELETE CASCADE` |
+| `avatar_bin` | `BYTEA`, exactly 120 bytes |
+| `updated_at` | `TIMESTAMPTZ`, refreshed on every save |
+
 ### `user_transactions`
 
 Append-only credit ledger. Every credit change goes through here via `UserCredit::transact()`. The `users.credit_balance` column is the running total; `user_transactions` is the audit trail.
@@ -246,6 +256,8 @@ ever increases, so when an `echomail` row is pruned its mapping row is removed
 users ──────────────────────────────────────────────────────────────┐
   │                                                                  │
   ├── users_meta (key-value preferences and secrets)                 │
+  │                                                                  │
+  ├── user_ansi_avatars (one 120-byte BIN per account)               │
   │                                                                  │
   ├── user_transactions (credit ledger)                              │
   │                                                                  │

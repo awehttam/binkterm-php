@@ -2,6 +2,8 @@
 
 BinktermPHP includes full support for ANSI escape sequences (also called ANSI codes or escape codes) used for text formatting, colors, and cursor control in messages.
 
+Account avatars are a different feature. A profile avatar is a 120-byte CP437 BIN, not an escape stream. See [ANSI Avatars](AnsiAvatars.md).
+
 ## What are ANSI Escape Sequences?
 
 ANSI escape sequences are special character sequences that control text formatting and cursor positioning in terminals. They begin with the ESC character (ASCII 27, `\x1b`) followed by control codes.

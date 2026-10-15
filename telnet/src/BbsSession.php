@@ -242,34 +242,56 @@ class BbsSession
             $this->log("Connection initialized: screen size {$state['cols']}x{$state['rows']}");
         }
 
+        $shouldThrottle = false;
         if (!$this->isSsh) {
-            $this->negotiateTelnet($conn);
-            // TLS telnet clients commonly delay TELNET option replies until after
-            // they see visible output. Blocking on TTYPE before the banner causes
-            // a blank-screen stall on port 8023. Skip the TTYPE probe for TLS and
-            // proceed immediately: charset stays at the conservative ASCII default
-            // until saved settings are applied post-login (or the detection wizard
-            // runs for new users). ANSI color is assumed because virtually all TLS
-            // telnet clients are modern and color-capable.
-            if ($this->isTls) {
-                $this->ansiColorEnabled = true;
-                TelnetUtils::setAnsiColorEnabled(true);
-                if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
+            $shouldThrottle = BbsConfig::getTerminalThrottleSpeed();
+        } else {
+            $shouldThrottle = BbsConfig::getTerminalThrottleSsh();
+        }
+
+        if ($shouldThrottle) {
+            $baud = BbsConfig::getTerminalThrottleBaud();
+            TelnetUtils::setThrottleBaud($baud);
+            if ($this->debug) {
+                $this->log("Dialup baud throttling active at {$baud} baud");
+            }
+        } else {
+            TelnetUtils::setThrottleBaud(0);
+        }
+
+        if (!$this->isSsh) {
+            if ($this->detectRloginHandshake($conn, $state)) {
+                if ($this->debug) { $this->log('RLogin startup: ANSI enabled via RLogin handshake'); }
                 $this->probeSixelSupport($conn, $state);
             } else {
-                // Probe ANSI support before showing the banner by doing the TTYPE
-                // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
-                // then use the IS response to determine color capability.
-                // Default to no color until confirmed; SSH clients are assumed ANSI.
-                $this->ansiColorEnabled = false;
-                TelnetUtils::setAnsiColorEnabled(false);
-                if ($this->probeAnsiSupport($conn, $state)) {
+                $this->negotiateTelnet($conn);
+                // TLS telnet clients commonly delay TELNET option replies until after
+                // they see visible output. Blocking on TTYPE before the banner causes
+                // a blank-screen stall on port 8023. Skip the TTYPE probe for TLS and
+                // proceed immediately: charset stays at the conservative ASCII default
+                // until saved settings are applied post-login (or the detection wizard
+                // runs for new users). ANSI color is assumed because virtually all TLS
+                // telnet clients are modern and color-capable.
+                if ($this->isTls) {
                     $this->ansiColorEnabled = true;
                     TelnetUtils::setAnsiColorEnabled(true);
-                    if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                    if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
                     $this->probeSixelSupport($conn, $state);
                 } else {
-                    if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
+                    // Probe ANSI support before showing the banner by doing the TTYPE
+                    // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
+                    // then use the IS response to determine color capability.
+                    // Default to no color until confirmed; SSH clients are assumed ANSI.
+                    $this->ansiColorEnabled = false;
+                    TelnetUtils::setAnsiColorEnabled(false);
+                    if ($this->probeAnsiSupport($conn, $state)) {
+                        $this->ansiColorEnabled = true;
+                        TelnetUtils::setAnsiColorEnabled(true);
+                        if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                        $this->probeSixelSupport($conn, $state);
+                    } else {
+                        if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
+                    }
                 }
             }
         } else {
@@ -1098,23 +1120,11 @@ class BbsSession
 
     /**
      * Write to the connection, suppressing notices on broken pipes.
+     * Respects emulated dialup baud throttling when enabled.
      */
     public function safeWrite($conn, string $data): void
     {
-        if (!is_resource($conn)) { return; }
-        $prev = error_reporting();
-        error_reporting($prev & ~E_NOTICE);
-        $total  = strlen($data);
-        $offset = 0;
-        while ($offset < $total) {
-            $written = @fwrite($conn, substr($data, $offset));
-            if ($written === false || $written === 0) {
-                break;  // connection closed or unrecoverable error
-            }
-            $offset += $written;
-        }
-        @fflush($conn);
-        error_reporting($prev);
+        TelnetUtils::safeWrite($conn, $data);
     }
 
     /**
@@ -1792,7 +1802,7 @@ class BbsSession
     private function setEcho($conn, array &$state, bool $enable): void
     {
         $state['input_echo'] = $enable;
-        if (!$this->isSsh) {
+        if (!$this->isSsh && empty($state['is_rlogin'])) {
             $this->sendTelnetCommand($conn, self::WILL, self::OPT_ECHO);
             $this->sendTelnetCommand($conn, self::DONT, self::OPT_ECHO);
         }
@@ -1953,7 +1963,82 @@ class BbsSession
         return ['', false, false];
     }
 
-    // ===== TELNET PROTOCOL =====
+    // ===== PROTOCOL NEGOTIATION (TELNET / RLOGIN) =====
+
+    /**
+     * Detect and consume RFC 1282 RLogin client handshake if present.
+     * An RLogin client initiates the session by sending:
+     *   \0 client_username \0 server_username \0 terminal_type/speed \0
+     * Unlike Telnet (which begins with nothing or IAC 0xFF), RLogin always starts with 0x00.
+     */
+    private function detectRloginHandshake($conn, array &$state): bool
+    {
+        $read = [$conn];
+        $write = $except = null;
+        if (@stream_select($read, $write, $except, 0, 200000) < 1) {
+            return false;
+        }
+
+        $peek = @stream_socket_recvfrom($conn, 1, STREAM_PEEK);
+        if ($peek !== "\x00") {
+            return false;
+        }
+
+        // Consume leading null byte
+        @fread($conn, 1);
+
+        $fields = [];
+        $current = '';
+        $deadline = microtime(true) + 1.0;
+        while (count($fields) < 3 && microtime(true) < $deadline) {
+            $char = @fread($conn, 1);
+            if ($char === false || $char === '') {
+                $r = [$conn];
+                if (@stream_select($r, $write, $except, 0, 50000) < 1) {
+                    break;
+                }
+                continue;
+            }
+            if ($char === "\x00") {
+                $fields[] = $current;
+                $current = '';
+            } else {
+                $current .= $char;
+            }
+        }
+        if ($current !== '' && count($fields) < 3) {
+            $fields[] = $current;
+        }
+
+        $clientUser = $fields[0] ?? '';
+        $serverUser = $fields[1] ?? '';
+        $termSpeed  = $fields[2] ?? '';
+
+        $termParts = explode('/', $termSpeed);
+        $termType = strtoupper(trim($termParts[0] ?? 'ANSI'));
+        if ($termType === '') {
+            $termType = 'ANSI';
+        }
+
+        $state['terminal_type'] = $termType;
+        $state['is_rlogin'] = true;
+        if ($clientUser !== '') {
+            $state['rlogin_client_user'] = $clientUser;
+        }
+        $this->recordTerminalType($conn, $state, $termType);
+
+        // Send the RFC 1282 single null-byte ACK
+        $this->safeWrite($conn, "\x00");
+
+        $this->ansiColorEnabled = true;
+        TelnetUtils::setAnsiColorEnabled(true);
+
+        if ($this->debug) {
+            $this->log("RLogin handshake accepted: client='{$clientUser}' server='{$serverUser}' term='{$termType}'");
+        }
+
+        return true;
+    }
 
     /**
      * Send initial TELNET option negotiations to the client.
@@ -2400,7 +2485,7 @@ class BbsSession
                     continue;
                 }
             }
-            if ($byte === self::IAC) {
+            if (!$this->isSsh && empty($state['is_rlogin']) && $byte === self::IAC) {
                 $cmd = fread($conn, 1);
                 if ($cmd !== false) {
                     $cmdByte = ord($cmd);
@@ -3922,7 +4007,7 @@ class BbsSession
         }
 
         // Handle TELNET IAC sequences
-        if ($byte === self::IAC) {
+        if (!$this->isSsh && empty($state['is_rlogin']) && $byte === self::IAC) {
             $cmd = $this->nextByte($conn, $state);
             if ($cmd === null) { return null; }
             $cmdByte = ord($cmd);

@@ -82,6 +82,23 @@ class TelnetUtils
     private static bool $ansiColorEnabled = true;
 
     /**
+     * Emulated dialup baud rate for terminal output throttling (0 = unthrottled).
+     * When > 0, output in safeWrite() is chunked and paced to simulate authentic
+     * dialup baud rates (e.g. 28800 baud).
+     */
+    private static int $throttleBaud = 0;
+
+    public static function setThrottleBaud(int $baud): void
+    {
+        self::$throttleBaud = max(0, $baud);
+    }
+
+    public static function getThrottleBaud(): int
+    {
+        return self::$throttleBaud;
+    }
+
+    /**
      * Per-process client context for API calls. The daemon forks one process per
      * connection, so these statics are effectively per-session. Set once at
      * session start so every {@see apiRequest()} tells the web side the real
@@ -517,13 +534,55 @@ class TelnetUtils
         error_reporting($prev & ~E_NOTICE);
         $total  = strlen($data);
         $offset = 0;
+
+        $baud = self::$throttleBaud;
+        if ($baud <= 0 || $total === 0) {
+            while ($offset < $total) {
+                $written = @fwrite($conn, substr($data, $offset));
+                if ($written === false || $written === 0) {
+                    break;  // connection closed or unrecoverable error
+                }
+                $offset += $written;
+            }
+            @fflush($conn);
+            error_reporting($prev);
+            return;
+        }
+
+        // Paced / throttled dialup simulation
+        // 1 byte = 1 start bit + 8 data bits + 1 stop bit = 10 bits
+        $cps = $baud / 10.0;
+        $usPerByte = 1000000.0 / $cps;
+
+        // Target ~30-40 chunks per second for smooth visual streaming
+        $chunkSize = max(16, min(128, (int)round($cps / 35.0)));
+
+        $skipThrottle = false;
         while ($offset < $total) {
-            $written = @fwrite($conn, substr($data, $offset));
+            // If the client sent input (e.g. pressed a key to skip), flush remainder immediately
+            if (!$skipThrottle && $total > 128) {
+                $r = [$conn]; $w = $ex = null;
+                if (@stream_select($r, $w, $ex, 0, 0) > 0) {
+                    $skipThrottle = true;
+                }
+            }
+
+            $len = min($chunkSize, $total - $offset);
+            $written = @fwrite($conn, substr($data, $offset, $len));
             if ($written === false || $written === 0) {
-                break;  // connection closed or unrecoverable error
+                break;
             }
             $offset += $written;
+            @fflush($conn);
+
+            if (!$skipThrottle && $offset < $total) {
+                $delayUs = (int)round($written * $usPerByte);
+                if ($delayUs > 0) {
+                    usleep($delayUs);
+                }
+            }
         }
+
         @fflush($conn);
         error_reporting($prev);
     }
@@ -2952,11 +3011,36 @@ class TelnetUtils
 
             $bodyWidth = max(20, $width - 4);
             $bioLabelColor = (string)($profileStyles['bio_label'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+            $avatarLabel = $server->t('ui.terminalserver.profile.ansi_avatar', 'ANSI avatar', [], $locale);
+            $artLines = null;
+            $encodedAvatar = $profile['ansi_avatar'] ?? null;
+            if (self::$ansiColorEnabled && is_string($encodedAvatar) && $encodedAvatar !== '') {
+                try {
+                    $avatar = \BinktermPHP\Avatar\AnsiAvatar::fromBase64($encodedAvatar);
+                    $artLines = \BinktermPHP\Avatar\AnsiAvatarTerminal::lines($avatar, true, $charset);
+                } catch (\Throwable $e) {
+                    $artLines = null;
+                }
+            }
+            $avatarPlain = [$avatarLabel];
+            if ($artLines === null) {
+                $avatarPlain[] = \BinktermPHP\Avatar\AnsiAvatarTerminal::initials(
+                    (string)($profile['username'] ?? ''),
+                    $charset
+                );
+            }
+            $avatarPlain[] = '';
             $bodyLines = array_merge(
+                $avatarPlain,
                 [self::colorize($bioLabel, $bioLabelColor), ''],
                 TerminalMarkupRenderer::render('markdown', $bioText, $bodyWidth)
             );
             $bodyLines = array_map(fn(string $line): string => $server->encodeForTerminal($line), $bodyLines);
+            if (is_array($artLines)) {
+                // Art lines are already in the session charset. Encoding them
+                // again would widen glyphs and can turn a CP437 stand-in into ESC.
+                array_splice($bodyLines, 1, 0, $artLines);
+            }
 
             $statusKey = (string)($profileStyles['status_key'] ?? self::ANSI_RED);
             $statusLabel = (string)($profileStyles['status_label'] ?? self::ANSI_BLUE);

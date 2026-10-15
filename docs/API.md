@@ -4739,7 +4739,7 @@ JSON object with upload success, public URL, and original filename.
 
 Public
 
-Fetches and streams audio/music files (XM, IT, S3M, MOD, SID, MIDI, etc.) from external public URLs via CURL. Validates URL scheme (HTTP/HTTPS), file extension, and host to prevent SSRF attacks. Enforces 8MB size limit. Returns 404 if URL is invalid or media unavailable.
+Fetches a tracker/MIDI file (XM, IT, S3M, MOD, STM, AMF, 669, MPTM, SID, MIDI) from an external public URL for the in-browser retro audio player (policy: `src/Security/MediaProxyPolicy.php`). Only `http` on port 80 and `https` on port 443, no user info, an allowed extension, and a host whose every A and AAAA address is public; the fetch is pinned to exactly those checked addresses (every redirect hop is checked and pinned again), never uses a proxy, and TLS verifies the host name. At most 3 redirects and 8 MB. The upstream `Content-Type` is never used: the body is always an opaque download.
 
 **Query Parameters**
 
@@ -4753,16 +4753,19 @@ Raw proxied media file bytes
 
 | Header | Value |
 |--------|-------|
-| `Content-Type` | MIME type reported by the upstream server (e.g. `audio/x-mod`, `application/octet-stream`) |
+| `Content-Type` | Always `application/octet-stream` |
 | `Content-Length` | File size in bytes |
-| `Content-Disposition` | `inline; filename="<basename>"` |
+| `Content-Disposition` | `attachment; filename="<sanitized basename>"` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Content-Security-Policy` | `sandbox; default-src 'none'` |
+| `Cross-Origin-Resource-Policy` | `same-origin` |
 | `Cache-Control` | `public, max-age=86400` |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Invalid URL, disallowed extension, private host, or media not found |
+| 404 | Invalid URL, port, scheme or extension; a host with any non-public address; a connection to an unchecked address; or media not found |
 
 ---
 
@@ -8413,6 +8416,7 @@ Public profile fields
 | `profile.real_name` | string | Full/real name (may be empty) |
 | `profile.location` | string | Location (may be empty) |
 | `profile.about_me` | string | Biography/about-me text (may be empty) |
+| `profile.ansi_avatar` | string or null | Canonical Base64 of the user's 120-byte ANSI avatar BIN, or `null` when none is saved |
 
 **Error Responses**
 
@@ -8420,6 +8424,106 @@ Public profile fields
 |--------|-------------|
 | 401 | Authentication required |
 | 404 | User not found |
+
+---
+
+#### `GET /api/user/ansi-avatar`
+
+**Requires authentication**
+
+Returns the signed-in user's ANSI avatar. The avatar is a Synchronet-compatible 10 by 6 CP437 BIN. `avatar` is `null` when the user has not saved one.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` on success |
+| `avatar` | object or null | Saved avatar, or `null` |
+| `avatar.ansi` | string | Canonical Base64 of the 120-byte BIN (160 characters, no padding) |
+| `avatar.cells` | array of arrays | Six rows of ten cells |
+| `avatar.cells[][].char` | integer | CP437 byte, 0 through 255 |
+| `avatar.cells[][].fg` | integer | Foreground color, 0 through 15 |
+| `avatar.cells[][].bg` | integer | Background color, 0 through 7 |
+| `avatar.cells[][].blink` | boolean | Stored blink bit; display does not animate it |
+| `avatar.cells[][].glyph` | string | Inert Unicode stand-in for the CP437 byte |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+
+---
+
+#### `GET /api/user/ansi-avatar/{id}`
+
+**Requires authentication**
+
+Returns the ANSI avatar of an active user. The response shape matches `GET /api/user/ansi-avatar`. An inactive or unknown user is a 404. Callers cannot use this route to write.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Active user ID |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | User not found |
+
+---
+
+#### `POST /api/user/ansi-avatar`
+
+**Requires authentication**
+
+Replaces the signed-in user's avatar. The session CSRF token must be sent as `X-CSRF-Token`. The body is JSON. A `user_id` or `id` property, if present, is ignored; the write always uses the authenticated user.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ansi` | string | Yes | Canonical Base64 of a 120-byte BIN |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Avatar saved |
+| `avatar` | object | Same object shape as `GET /api/user/ansi-avatar` |
+| `avatar.ansi` | string | Canonical Base64 that was stored |
+| `avatar.cells` | array of arrays | Six rows of ten cells |
+| `avatar.cells[][].char` | integer | CP437 byte, 0 through 255 |
+| `avatar.cells[][].fg` | integer | Foreground color, 0 through 15 |
+| `avatar.cells[][].bg` | integer | Background color, 0 through 7 |
+| `avatar.cells[][].blink` | boolean | Stored blink bit |
+| `avatar.cells[][].glyph` | string | Inert Unicode stand-in |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Body is not a canonical 120-byte avatar (`errors.avatar.invalid`, `errors.avatar.malformed`, `errors.avatar.blank`, `errors.avatar.dimensions`, or `errors.avatar.too_large`) |
+| 401 | Authentication required |
+| 403 | CSRF token missing or not the session token |
+
+---
+
+#### `DELETE /api/user/ansi-avatar`
+
+**Requires authentication**
+
+Removes the signed-in user's avatar. Requires `X-CSRF-Token`. There is no request body. The response is `{ "success": true, "avatar": null }`.
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 403 | CSRF token missing or not the session token |
 
 ---
 

@@ -93,6 +93,8 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [Message Sharing](MessageSharing.md) — Public share links for echomail and netmail: token and friendly URLs, Open Graph preview images, AI summaries, referrer tracking
 - [Markdown and Markup Formatting](Markdown.md) — Markdown and StyleCodes compose editor, MARKUP kludge, LSC-001 reference, and rendering details
 - [ANSI Support](ANSI_Support.md) — ANSI art rendering in messages and files
+- [ANSI Avatars](AnsiAvatars.md) — Account-owned 10×6 Synchronet BIN avatars on the web profile and terminal profile viewer
+- [ANSI avatar contribution handoff](ANSI_AVATAR_CONTRIBUTION_HANDOFF.md) — Known limitations of the Synchronet BIN avatar contribution
 - [ANSI Ads Generator](ANSI_Ads_Generator.md) — Generating ANSI-art advertisements
 - [RIPScrip Support](RIPScrip_Support.md) — RIPscrip vector graphics rendering in echomail and file areas
 - [Sixel Support](Sixel_Support.md) — DEC Sixel bitmap graphics in messages and file previews

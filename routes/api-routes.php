@@ -8198,6 +8198,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        $ansiAvatar = null;
+        try {
+            $stored = (new \BinktermPHP\Avatar\AnsiAvatarStore($db))->find((int)$targetUser['id']);
+            if ($stored !== null) {
+                $ansiAvatar = $stored->toBase64();
+            }
+        } catch (\Throwable $e) {
+            $ansiAvatar = null;
+        }
+
         echo json_encode([
             'success' => true,
             'profile' => [
@@ -8206,6 +8216,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'real_name' => (string)($targetUser['real_name'] ?? ''),
                 'location' => (string)($targetUser['location'] ?? ''),
                 'about_me' => (string)($targetUser['about_me'] ?? ''),
+                'ansi_avatar' => $ansiAvatar,
             ],
         ]);
     })->where(['id' => '[0-9]+']);
@@ -13553,67 +13564,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // Tracker/MIDI media proxy for the retro audio player. The policy decides
+    // the URL (http/https on 80/443, allowed extensions), the exact public addresses the
+    // fetch may use (A and AAAA, all checked, curl pinned to them on every hop) and the
+    // response headers (always an opaque download; the remote Content-Type is never used).
     SimpleRouter::get('/media/raw', function() {
+        $policy = new \BinktermPHP\Security\MediaProxyPolicy();
         $url = trim($_GET['url'] ?? '');
-        $allowedExts = ['xm', 'it', 's3m', 'mod', 'stm', 'amf', '669', 'mptm', 'sid', 'mid', 'midi'];
-        $maxBytes = 8 * 1024 * 1024;
 
         $sendNotFound = function(): void {
             http_response_code(404);
             header('Content-Type: text/plain; charset=UTF-8');
+            header('X-Content-Type-Options: nosniff');
             echo 'Media not found';
         };
 
-        $isPublicHost = function(string $host): bool {
-            $host = trim($host, '[]');
-            if ($host === '' || in_array(strtolower($host), ['localhost', 'localhost.localdomain'], true)) {
-                return false;
-            }
-
-            $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
-            if (!$ips) {
-                return false;
-            }
-
-            foreach ($ips as $ip) {
-                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                    return false;
-                }
-            }
-
-            return true;
-        };
-
-        $isAllowedUrl = function(string $candidate) use ($allowedExts, $isPublicHost): bool {
-            if (!filter_var($candidate, FILTER_VALIDATE_URL)) {
-                return false;
-            }
-
-            $scheme = strtolower(parse_url($candidate, PHP_URL_SCHEME) ?? '');
-            $host = parse_url($candidate, PHP_URL_HOST) ?? '';
-            $path = strtolower(parse_url($candidate, PHP_URL_PATH) ?? '');
-            $ext = ltrim(strrchr($path, '.') ?: '', '.');
-
-            return in_array($scheme, ['http', 'https'], true)
-                && in_array($ext, $allowedExts, true)
-                && $isPublicHost($host);
-        };
-
-        if (!$isAllowedUrl($url) || !function_exists('curl_init')) {
+        $pin = $policy->pinFor($url);
+        if ($pin === null || !function_exists('curl_init')) {
             $sendNotFound();
             return;
         }
 
         $currentUrl = $url;
+        $maxBytes = \BinktermPHP\Security\MediaProxyPolicy::MAX_BYTES;
         $body = false;
-        $contentType = 'application/octet-stream';
         $status = 0;
 
         for ($redirects = 0; $redirects <= 3; $redirects++) {
             $ch = curl_init($currentUrl);
             $options = [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HEADER         => true,
                 CURLOPT_FOLLOWLOCATION => false,
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_TIMEOUT        => 15,
@@ -13621,56 +13600,64 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 CURLOPT_HTTPHEADER     => ['Accept: audio/*,application/octet-stream,*/*'],
                 CURLOPT_ENCODING       => 'gzip, deflate',
                 CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_MAXFILESIZE    => $maxBytes,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_MAXFILESIZE    => \BinktermPHP\Security\MediaProxyPolicy::MAX_BYTES,
+                // Connect only to the addresses the policy checked for this hop.
+                CURLOPT_RESOLVE        => \BinktermPHP\Security\MediaProxyPolicy::curlResolve($pin),
+                CURLOPT_PORT           => $pin['port'],
+                // Never through a proxy (an inherited http_proxy/HTTPS_PROXY/ALL_PROXY would resolve the name itself).
+                CURLOPT_PROXY          => '',
+                CURLOPT_NOPROXY        => '*',
+                // Collect headers and body ourselves so the byte cap holds even without a Content-Length.
+                CURLOPT_HEADERFUNCTION => function ($ch, string $line) use (&$headers): int {
+                    $headers .= $line;
+                    return strlen($line);
+                },
+                CURLOPT_WRITEFUNCTION  => function ($ch, string $chunk) use (&$body, $maxBytes): int {
+                    $body .= $chunk;
+                    return strlen($body) > $maxBytes ? -1 : strlen($chunk);
+                },
             ];
             if (defined('CURLOPT_PROTOCOLS')) {
                 $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
             }
             curl_setopt_array($ch, $options);
 
+            $headers = '';
+            $body = '';
             $raw = curl_exec($ch);
             $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $headerSize = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-            $curlContentType = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            $primaryIp = (string)curl_getinfo($ch, CURLINFO_PRIMARY_IP);
             curl_close($ch);
 
-            if ($raw === false) {
+            // Belt and braces: the connection must have gone to a checked address.
+            if ($raw === false || !\BinktermPHP\Security\MediaProxyPolicy::isPinnedAddress($pin, $primaryIp)) {
                 $sendNotFound();
                 return;
             }
 
-            $headers = substr($raw, 0, $headerSize);
-            $body = substr($raw, $headerSize);
-
             if (in_array($status, [301, 302, 303, 307, 308], true) && preg_match('/^Location:\s*(.+)$/mi', $headers, $m)) {
-                $location = trim($m[1]);
-                $nextUrl = filter_var($location, FILTER_VALIDATE_URL)
-                    ? $location
-                    : rtrim(dirname($currentUrl), '/') . '/' . ltrim($location, '/');
-                if (!$isAllowedUrl($nextUrl)) {
+                $nextUrl = \BinktermPHP\Security\MediaProxyPolicy::resolveReference($currentUrl, trim($m[1]));
+                $pin = $nextUrl === '' ? null : $policy->pinFor($nextUrl);
+                if ($pin === null) {
                     $sendNotFound();
                     return;
                 }
                 $currentUrl = $nextUrl;
                 continue;
             }
-
-            if ($curlContentType !== '') {
-                $contentType = preg_replace('/[\r\n].*/', '', $curlContentType) ?: $contentType;
-            }
             break;
         }
 
-        if ($status < 200 || $status >= 300 || $body === false || strlen($body) > $maxBytes) {
+        if ($status < 200 || $status >= 300 || $body === false || strlen($body) > \BinktermPHP\Security\MediaProxyPolicy::MAX_BYTES) {
             $sendNotFound();
             return;
         }
 
         $filename = sanitizeFilenameForWindows(basename(parse_url($currentUrl, PHP_URL_PATH) ?: 'audio'), 'audio');
-        header('Content-Type: ' . $contentType);
-        header('Content-Length: ' . strlen($body));
-        header('Content-Disposition: inline; filename="' . addcslashes($filename, '"\\') . '"');
-        header('Cache-Control: public, max-age=86400');
+        foreach (\BinktermPHP\Security\MediaProxyPolicy::responseHeaders($filename, strlen($body)) as $h) {
+            header($h);
+        }
         echo $body;
     });
 
@@ -14282,5 +14269,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $publicKey = $node['public_key'] ?? $node['node_id'];
         echo $service->getQrCodeSvg((string)$handle, (string)$publicKey);
     })->where(['id' => '[0-9]+']);
+
+    // Owner-scoped ANSI avatar routes. Loaded here so they inherit /api
+    // and the router group that is active while this closure runs.
+    require __DIR__ . '/avatar-routes.php';
 
 });
