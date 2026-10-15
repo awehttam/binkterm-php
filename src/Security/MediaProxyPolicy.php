@@ -93,11 +93,15 @@ final class MediaProxyPolicy
             // 100.64.0.0/10 (shared/CGNAT) is neither private nor reserved to PHP.
             return !((ord($bin[0]) === 100) && ((ord($bin[1]) & 0xC0) === 64));
         }
-        // IPv6: refuse anything embedding IPv4 (::ffff:0:0/96, 64:ff9b::/96 NAT64, ::/96) and 2001:db8::/32.
+        // IPv6: refuse anything embedding IPv4 (::ffff:0:0/96, 64:ff9b::/96 NAT64, ::/96, 2002::/16 6to4, 2001::/32 Teredo), multicast and 2001:db8::/32.
         if (substr($bin, 0, 12) === str_repeat("\0", 10) . "\xff\xff" || substr($bin, 0, 12) === str_repeat("\0", 12)) {
             return false;
         }
         if (substr($bin, 0, 4) === "\x00\x64\xff\x9b" || substr($bin, 0, 4) === "\x20\x01\x0d\xb8") {
+            return false;
+        }
+        // Multicast (ff00::/8), 6to4 (2002::/16) and Teredo (2001::/32) carry or relay to embedded IPv4 or group addresses.
+        if ($bin[0] === "\xff" || substr($bin, 0, 2) === "\x20\x02" || substr($bin, 0, 4) === "\x20\x01\x00\x00") {
             return false;
         }
         return true;

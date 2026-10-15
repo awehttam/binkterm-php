@@ -72,6 +72,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
   - [Default Terminal Registration Secret No Longer Trusted](#default-terminal-registration-secret-no-longer-trusted)
   - [Failed-Login Throttle](#failed-login-throttle)
+  - [Retro Audio Proxy Hardened](#retro-audio-proxy-hardened)
   - [Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked](#telnet-and-ssh-sessions-disconnected-when-their-web-session-is-revoked)
   - [PacketBBS Sessions End When Their Web Session Is Revoked](#packetbbs-sessions-end-when-their-web-session-is-revoked)
   - [Docker: Config JSON Files No Longer World-Readable](#docker-config-json-files-no-longer-world-readable)
@@ -749,6 +750,15 @@ AUTH_LOGIN_WINDOW=900
 `AUTH_LOGIN_WINDOW` is in seconds. A value that is not a positive number uses the default, so the throttle cannot be switched off by a bad value. The counters are kept in a new `auth_login_attempts` table, created by the upgrade migration, so they are shared by all web workers and the terminal daemons. If the table cannot be reached, for example because the migration has not run, logins proceed unthrottled and the error is written to the server log.
 
 Restart the telnet and SSH daemons so they load the new code; `scripts/restart_daemons.sh` does this. See [CONFIGURATION.md](CONFIGURATION.md#failed-login-throttle).
+
+### Retro Audio Proxy Hardened
+
+The retro audio player loads tracker, SID and MIDI files linked from messages through `GET /api/media/raw`, which fetches the remote file on behalf of the browser. The endpoint had two weaknesses that are now fixed:
+
+- **Active content served from the BBS origin.** The remote server's `Content-Type` was passed through and the file was served inline, so a link ending in `.mid` could return HTML or JavaScript that ran as the BBS for anyone who opened the proxy URL. The response is now always an opaque `application/octet-stream` download with `nosniff` and a sandboxing `Content-Security-Policy`. The player reads the file with `fetch()`, so playback is unaffected.
+- **Fetches to internal addresses.** The host was checked with an IPv4-only lookup, and the fetch then resolved the name again, so a host with an internal IPv6 address, or one that changed its DNS answer between the check and the fetch, could make the server connect to an internal service. Every IPv4 and IPv6 address of the host must now be public, and the connection is pinned to exactly those addresses on every redirect hop. Only `http` on port 80 and `https` on port 443 are fetched, proxy settings in the server environment are ignored, and the 8 MB limit is enforced while downloading, so it also applies to responses that do not announce a length.
+
+The endpoint remains available to visitors who are not logged in, so retro audio keeps playing on public shared messages.
 
 ### Telnet and SSH Sessions Disconnected When Their Web Session Is Revoked
 

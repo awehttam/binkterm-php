@@ -43,7 +43,8 @@ final class MediaProxyPolicyTest extends TestCase
     {
         return array_map(static fn ($ip) => [$ip], ['127.0.0.1', '10.1.2.3', '172.31.119.10', '192.168.1.1', '169.254.169.254',
             '100.64.0.1', '100.127.255.254', '0.0.0.0', '::1', '::', 'fe80::1', 'fd00::1', '::ffff:127.0.0.1', '::ffff:93.184.216.34',
-            '64:ff9b::7f00:1', '2001:db8::1', '::7f00:1']);
+            '64:ff9b::7f00:1', '2001:db8::1', '::7f00:1', 'ff02::1', '2002:7f00:1::1', '2002:a00:1::',
+            '2001:0:4136:e378:8000:63bf:3fff:fdd2']);
     }
 
     public function testPublicAddressesPass(): void
