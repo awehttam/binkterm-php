@@ -199,37 +199,37 @@
                 <!-- Read/Unread Filter Tabs -->
                 <ul class="nav nav-tabs card-header-tabs mt-2">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#" onclick="setFilter('all')" id="allTab">
+                        <a class="nav-link active" href="#" onclick="setFilter('all', event); return false;" id="allTab">
                             <i class="fas fa-list"></i> {{ t('ui.common.all_messages', {}, locale, ['common']) }}
                             <span class="badge bg-secondary ms-1" id="allCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="setFilter('unread')" id="unreadTab">
+                        <a class="nav-link" href="#" onclick="setFilter('unread', event); return false;" id="unreadTab">
                             <i class="fas fa-envelope"></i> {{ t('ui.common.unread', {}, locale, ['common']) }}
                             <span class="badge bg-primary ms-1" id="unreadCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="setFilter('read')" id="readTab">
+                        <a class="nav-link" href="#" onclick="setFilter('read', event); return false;" id="readTab">
                             <i class="far fa-envelope-open"></i> {{ t('ui.common.read', {}, locale, ['common']) }}
                             <span class="badge bg-success ms-1" id="readCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="setFilter('tome')" id="toMeTab">
+                        <a class="nav-link" href="#" onclick="setFilter('tome', event); return false;" id="toMeTab">
                             <i class="fas fa-user"></i> {{ t('ui.echomail.to_me', {}, locale, ['common']) }}
                             <span class="badge bg-info ms-1" id="toMeCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="setFilter('saved')" id="savedTab">
+                        <a class="nav-link" href="#" onclick="setFilter('saved', event); return false;" id="savedTab">
                             <i class="fas fa-bookmark"></i> {{ t('ui.echomail.saved_items', {}, locale, ['common']) }}
                             <span class="badge bg-warning ms-1" id="savedCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="setFilter('drafts')" id="draftsTab">
+                        <a class="nav-link" href="#" onclick="setFilter('drafts', event); return false;" id="draftsTab">
                             <i class="fas fa-edit"></i> {{ t('ui.common.drafts', {}, locale, ['common']) }}
                             <span class="badge bg-secondary ms-1" id="draftsCount">0</span>
                         </a>
