@@ -54,6 +54,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Door Screens Flushed Before the Connection Closes](#door-screens-flushed-before-the-connection-closes)
   - [Fixed: Door Player Limits Could Be Exceeded by Simultaneous Launches](#fixed-door-player-limits-could-be-exceeded-by-simultaneous-launches)
   - [Fixed: PubTerm Native Door Block Graphics](#fixed-pubterm-native-door-block-graphics)
+  - [Door Category Tabs and Door Display Settings](#door-category-tabs-and-door-display-settings)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
@@ -148,6 +149,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Door screens flushed before the connection closes:** when a door exits, the bridge waits 800 ms before closing the browser connection, so the last screen the door wrote, such as a game-over screen, is shown.
 - **Fixed: door player limits could be exceeded by simultaneous launches:** several players launching the same door at the same moment could all pass the door's maximum-players check, or be given the same node number. The check and node assignment are now done as one step. A launch that loses the race for the last slot gets an HTTP `503` "Door at capacity" response.
 - **Fixed: PubTerm native door block graphics:** the PubTerm native door now uses CP437 output and an 8-bit Telnet connection, so ANSI block graphics display correctly instead of as replacement characters.
+- **Door category tabs and door display settings:** the door games page can now group doors by category (genre) instead of by runtime type, with filter tabs and live counts, and the door editors have a category dropdown. A new **Doors** tab under **Admin -> Appearance & Content** controls the grouping, whether DoorParty, BBSLink and A-Net keep their own tabs, and whether the Top Scores leaderboard is shown.
 
 ### MeshCore
 
@@ -605,6 +607,25 @@ The PacketBBS Nodes card on the main dashboard, shown when MeshCore is enabled, 
 The PubTerm native door connects to a Telnet host and relays its output to the caller. Its manifest declared UTF-8 output, so the CP437 block and line-drawing characters sent by ANSI art were corrupted into Unicode replacement characters. The manifest now declares `cp437` output, and the launch script starts the Telnet client with `-8` so all 8 bits of each byte are passed through. The script is also now marked executable.
 
 If you copied or customized the PubTerm manifest (`native-doors/doors/pubterm/nativedoor.json`), set `output_encoding` to `cp437` in your copy.
+
+### Door Category Tabs and Door Display Settings
+
+The door games page (`/games`) used to organize doors only by runtime type: DOS, Native, RLogin, JS-DOS and Web. It can now organize them by category instead, and this is the new default.
+
+- **Category mode:** the page shows a tab for each category, with a count of the doors in it and an **All** tab. Each door card shows its category as a badge instead of its runtime type. A category with no doors shows "No games found in this category." Genre names are normalized, so aliases and differences in letter case no longer create separate tabs.
+- **Door Servers category:** gateways and hubs that connect to external door servers are listed under their own **Door Servers** category rather than among the games.
+- **Door networks:** by default, games from DoorParty, BBSLink and A-Net get their own tabs instead of being spread across the genre categories.
+- **Category dropdown in the door editors:** the RLogin door manager and the Door Manifest Editor now choose a category from a dropdown of the standard genres plus the genres of installed doors. **+ Add Category...** adds a new one.
+
+The grouping is set in **Admin -> Appearance & Content -> Doors**:
+
+- **Group doors by:** **Category (Genre)**, the default, or **Door Type (DOS, Native, RLogin, JS-DOS, Web)**, which keeps the previous layout.
+- **Keep DoorParty, BBSLink, and A-Net on their own tabs:** on by default. Turn it off to list those games under their genre categories.
+- **Hide Top Scores:** off by default. Turn it on to hide the monthly Top Scores (All Games) leaderboard on the door games page.
+
+`scripts/list_door_categories.php` uses the same category rules as the page, and its new `--separate-networks` option shows the DoorParty, BBSLink, A-Net and Door Servers groups separately.
+
+If you prefer the previous grouping after upgrading, set **Group doors by** to **Door Type**.
 
 ## Networks
 
