@@ -115,9 +115,9 @@ Command-line options take precedence over `.env` values.
 
 The Telnet daemon runs two listeners simultaneously by default: a plain-text listener on port 2323 and a TLS-encrypted listener on port 8023. Both listeners expose the same BBS session.
 
-On first start the daemon checks for a certificate and key at `data/telnetd.crt` and `data/telnetd.key`. If they do not exist, a self-signed certificate is generated automatically (using `ext-openssl` or the `openssl` CLI as a fallback) and stored there.
+On first start the daemon checks for a certificate and key at `data/telnet/telnetd.crt` and `data/telnet/telnetd.key`. If they do not exist, a self-signed certificate is generated automatically (using `ext-openssl` or the `openssl` CLI as a fallback) and stored there.
 
-The generated certificate uses an ECDSA P-256 key. An RSA certificate makes OpenSSL sign the handshake with RSA-PSS, which some clients cannot verify (SyncTERM fails with `TLS: Could not find any algorithm named 'PSS(SHA-256,MGF1,32)'`). If a legacy client cannot handle ECDSA, set `TELNET_TLS_KEY_TYPE=rsa`. Changing it has no effect on an existing certificate: delete `data/telnetd.crt` and `data/telnetd.key` and restart the daemon to regenerate. An RSA certificate you supply yourself will show the SyncTERM error; use an ECDSA one for such clients.
+The generated certificate uses an ECDSA P-256 key. An RSA certificate makes OpenSSL sign the handshake with RSA-PSS, which some clients cannot verify (SyncTERM fails with `TLS: Could not find any algorithm named 'PSS(SHA-256,MGF1,32)'`). If a legacy client cannot handle ECDSA, set `TELNET_TLS_KEY_TYPE=rsa`. Changing it has no effect on an existing certificate: delete `data/telnet/telnetd.crt` and `data/telnet/telnetd.key` and restart the daemon to regenerate. An RSA certificate you supply yourself will show the SyncTERM error; use an ECDSA one for such clients.
 
 To disable TLS:
 

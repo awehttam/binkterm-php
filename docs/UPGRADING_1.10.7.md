@@ -180,7 +180,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Docker: config JSON files no longer world-readable:** the container now restricts the top-level `config/*.json` files, which hold uplink passwords and API keys, to the owner and group at startup. Previously they were readable by any user in the container.
 - **BinkP debug logging no longer records password material:** with debug logging on, BinkP authentication logged the first characters of the received and expected passwords and the CRAM-MD5 challenge with its digest. Only outcomes, lengths and a hint about why a password did not match are logged now, unless you set `BINKP_LOG_SENSITIVE_AUTH=true`.
 - **Auto Feed verifies TLS and allows only http(s) feeds:** RSS and Atom feeds are now fetched with HTTPS certificate and host name verification, and only `http://` and `https://` URLs are accepted. A feed with an invalid or self-signed certificate now fails instead of being fetched.
-- **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable.
+- **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable. The generated self-signed certificate is now ECDSA so that SyncTERM can connect; `TELNET_TLS_KEY_TYPE=rsa` restores RSA.
 - **Login takes the same time for unknown usernames:** a login with a username that does not exist used to fail faster than a login with a real username and a wrong password, which let anyone tell which accounts exist by timing the responses. Both failures now take about the same time.
 - **WebDoor API only serves installed, enabled games:** the session, storage and leaderboard endpoints used under `/api/webdoor/` now accept only a `game_id` that names an installed WebDoor which is enabled and whose requirements are met. Any other id gets a `404` and nothing is read or written. Before, any string was accepted and created session, save and leaderboard rows.
 - **Telnet drops idle connections sooner before login:** a Telnet connection that sits silent at the login, register or reset-password prompts is now disconnected after 90 seconds instead of the 7 minutes allowed for a signed-in session. Set `TELNET_PREAUTH_IDLE_TIMEOUT` in `.env` to change it.
@@ -844,6 +844,16 @@ TELNET_TLS_CIPHERS=DEFAULT:@SECLEVEL=0
 - **`TELNET_TLS_CIPHERS`** is the OpenSSL cipher list. The default matches what was used before. Set a stricter list to harden the listener at the cost of older clients.
 
 If you set `TELNET_TLS_CERT` and `TELNET_TLS_KEY` to your own certificate and key, the daemon now checks them when it starts: both files must exist and be readable, be valid PEM, and the certificate must match the key. If any check fails, the daemon logs the exact reason and starts with the TLS listener off, while the plain Telnet listener keeps running. It does not create a self-signed certificate in place of the one you configured. A self-signed pair is generated under `data/telnet/` only when both settings are left unset.
+
+The self-signed certificate the daemon generates now uses an ECDSA P-256 key instead of RSA. With an RSA certificate, OpenSSL signs the TLS handshake with RSA-PSS, and SyncTERM cannot verify that signature: it fails with `TLS: Could not find any algorithm named 'PSS(SHA-256,MGF1,32)'`. A new setting selects the key type for generated certificates:
+
+```ini
+TELNET_TLS_KEY_TYPE=ec
+```
+
+- **`TELNET_TLS_KEY_TYPE`** is `ec` (the default) or `rsa`. Set `rsa` only if an old terminal program cannot handle ECDSA certificates.
+
+The setting only applies when a certificate is generated. A certificate created by an earlier version stays RSA, so SyncTERM keeps failing until you replace it: stop the telnet daemon, delete `data/telnet/telnetd.crt` and `data/telnet/telnetd.key`, and start it again. A certificate you supply through `TELNET_TLS_CERT` and `TELNET_TLS_KEY` is never replaced; use an ECDSA certificate there if SyncTERM users connect.
 
 Check that the TLS listener is up after restarting the telnet daemon. Each TLS connection is logged with the negotiated version, cipher and key size, for example `TLS connection from 192.0.2.10 [TLSv1.3 TLS_AES_256_GCM_SHA384 256-bit]`. See [TelnetServer.md](TelnetServer.md).
 
