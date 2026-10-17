@@ -7,7 +7,8 @@
     "author": "ChatGPT",
     "description": "Single-player Blackjack with play chips, WebDoor storage, and leaderboard",
     "entry_point": "index.php",
-    "icon": "icon.svg"
+    "icon": "icon.svg",
+    "genre": ["Casino"]
   },
   "requirements": {
     "min_host_version": "1.0",
