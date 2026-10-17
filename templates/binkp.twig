@@ -1052,7 +1052,11 @@ function renderHubOutboundSummary(rows) {
         else if (row.status === 'sent') stats.sent++;
     });
 
-    const addresses = Array.from(nodes.keys()).sort();
+    const addresses = Array.from(nodes.keys()).sort((a, b) => {
+        const ownerCmp = nodes.get(a).owner.localeCompare(nodes.get(b).owner, undefined, { sensitivity: 'base' });
+        if (ownerCmp !== 0) return ownerCmp;
+        return a.localeCompare(b, undefined, { numeric: true });
+    });
     tbody.innerHTML = addresses.map(address => {
         const stats = nodes.get(address);
         const downlink = `<code>${escapeHtml(address)}</code>${stats.name ? `<div class="small text-muted">${escapeHtml(stats.name)}</div>` : ''}${stats.owner ? `<div class="small text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.owner', 'Owner: {username}', { username: stats.owner }))}</div>` : ''}`;
