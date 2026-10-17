@@ -312,6 +312,7 @@ $mobileAssetVer = (string)@filemtime(__DIR__ . '/../../js/binkterm-mobile-termin
                     cols: TERM_COLS,
                     rows: TERM_ROWS,
                     isNative: true, // RLogin hosts expect standard ANSI
+                    minimizeKeyboardDesktop: <?php echo json_encode(\BinktermPHP\AppearanceConfig::shouldMinimizeKeyboardDesktop()); ?>,
                     onKey: (data) => {
                         if (socket && socket.readyState === WebSocket.OPEN) {
                             socket.send(data);

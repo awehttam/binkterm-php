@@ -766,6 +766,9 @@ return [
     'ui.admin.appearance.doors.leaderboard_heading' => 'Top Scores & Leaderboard',
     'ui.admin.appearance.doors.hide_top_scores_label' => 'Hide Top Scores',
     'ui.admin.appearance.doors.hide_top_scores_help' => 'When enabled, the monthly Top Scores (All Games) leaderboard table is hidden on the door games page.',
+    'ui.admin.appearance.doors.keyboard_heading' => 'Onscreen Keyboard & Touch Gamepad',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_label' => 'Minimize onscreen door keyboard on desktop by default',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_help' => 'When enabled, desktop players with physical keyboards start with the virtual gamepad toolbar collapsed into a compact \'Keys\' tab, maximizing terminal screen space. Mobile and touch devices always display the touch controls.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Default Dashboard Layout',

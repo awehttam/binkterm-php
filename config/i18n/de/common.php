@@ -749,6 +749,9 @@ Du kannst einzelne Erinnerungen mit den „Erinnern“-Schaltflächen in der Ben
     'ui.admin.appearance.doors.leaderboard_heading' => 'Bestenliste & Höchstwerte',
     'ui.admin.appearance.doors.hide_top_scores_label' => 'Bestwerte ausblenden',
     'ui.admin.appearance.doors.hide_top_scores_help' => 'Wenn aktiviert, wird die monatliche Bestenliste (alle Spiele) auf der Spiele-Seite ausgeblendet.',
+    'ui.admin.appearance.doors.keyboard_heading' => 'Bildschirmtastatur & Touch-Gamepad',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_label' => 'Bildschirmtastatur für Doors auf dem Desktop standardmäßig minimieren',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_help' => 'Wenn aktiviert, starten Desktop-Spieler mit physischer Tastatur mit einer kompakten \'Keys\'-Leiste, um den Bildschirmplatz zu maximieren. Mobil- und Touch-Geräte zeigen die Touch-Bedienelemente weiterhin an.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Standard-Dashboard-Layout',

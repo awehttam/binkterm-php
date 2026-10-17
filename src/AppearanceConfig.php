@@ -179,6 +179,7 @@ class AppearanceConfig
                 'group_by' => 'category',
                 'separate_servers' => true,
                 'hide_top_scores' => false,
+                'minimize_keyboard_desktop' => false,
             ],
         ];
     }
@@ -661,6 +662,15 @@ class AppearanceConfig
     {
         self::load();
         return (bool)(self::$config['doors']['hide_top_scores'] ?? false);
+    }
+
+    /**
+     * Whether to minimize the onscreen door keyboard / gamepad on desktop by default.
+     */
+    public static function shouldMinimizeKeyboardDesktop(): bool
+    {
+        self::load();
+        return (bool)(self::$config['doors']['minimize_keyboard_desktop'] ?? false);
     }
 }
 

@@ -219,6 +219,7 @@ $mobileAssetVer = (string)@filemtime(__DIR__ . '/js/binkterm-mobile-terminal.js'
                     cols: 80,
                     rows: 25,
                     isNative: DOOR_IS_NATIVE,
+                    minimizeKeyboardDesktop: <?php echo json_encode(\BinktermPHP\AppearanceConfig::shouldMinimizeKeyboardDesktop()); ?>,
                     onKey: (data) => {
                         if (socket && socket.readyState === WebSocket.OPEN) {
                             socket.send(data);

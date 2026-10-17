@@ -746,6 +746,9 @@ return [
     'ui.admin.appearance.doors.leaderboard_heading' => 'Punteggi migliori e classifica',
     'ui.admin.appearance.doors.hide_top_scores_label' => 'Nascondi punteggi migliori',
     'ui.admin.appearance.doors.hide_top_scores_help' => 'Se abilitato, la tabella mensile dei punteggi migliori (tutti i giochi) viene nascosta nella pagina dei giochi.',
+    'ui.admin.appearance.doors.keyboard_heading' => 'Tastiera su schermo e gamepad touch',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_label' => 'Riduci a icona la tastiera su schermo dei door su desktop per impostazione predefinita',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_help' => 'Se abilitato, i giocatori desktop con tastiera fisica iniziano con la barra gamepad virtuale compressa in una scheda compatta, massimizzando lo spazio del terminale. I dispositivi touch e mobili visualizzano sempre i controlli touch.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Layout dashboard predefinito',

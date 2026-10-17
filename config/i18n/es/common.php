@@ -746,6 +746,9 @@ return [
     'ui.admin.appearance.doors.leaderboard_heading' => 'Puntuaciones más altas y clasificación',
     'ui.admin.appearance.doors.hide_top_scores_label' => 'Ocultar puntuaciones más altas',
     'ui.admin.appearance.doors.hide_top_scores_help' => 'Cuando está habilitado, la tabla de clasificación mensual de mejores puntuaciones no se mostrará en la página de juegos.',
+    'ui.admin.appearance.doors.keyboard_heading' => 'Teclado en pantalla y gamepad táctil',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_label' => 'Minimizar por defecto el teclado en pantalla de puertas en escritorio',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_help' => 'Si está habilitado, los usuarios de escritorio con teclado físico inician con la barra táctil reducida a una pestaña compacta de teclas, maximizando el espacio de terminal. Los dispositivos táctiles y móviles siempre muestran los controles táctiles.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Diseno predeterminado del panel',
