@@ -2278,6 +2278,14 @@ class AdminDaemonServer
             if (!$this->isValidDoorManifestId($entry)) {
                 continue;
             }
+            // Underscore-prefixed directories (_doorsdk, _c64engine) are shared
+            // internal code, and dosdoors/rlogindoors are the launchers for
+            // other door types; none are WebDoors that take a manifest.
+            if ($doorType === 'web'
+                && (str_starts_with($entry, '_') || in_array($entry, ['dosdoors', 'rlogindoors'], true))
+            ) {
+                continue;
+            }
 
             $manifestPath = $typeRootPath . '/' . $entry . '/' . $manifestFilename;
             $manifestExists = file_exists($manifestPath);
