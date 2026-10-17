@@ -1042,7 +1042,7 @@ function renderHubOutboundSummary(rows) {
     const nodes = new Map();
     rows.forEach(row => {
         if (!nodes.has(row.node_address)) {
-            nodes.set(row.node_address, { name: row.node_name || '', owner: row.owner_username || '', pending: 0, failed: 0, held: 0, sent: 0, total: 0 });
+            nodes.set(row.node_address, { name: row.node_name || '', domain: row.domain || '', owner: row.owner_username || '', pending: 0, failed: 0, held: 0, sent: 0, total: 0 });
         }
         const stats = nodes.get(row.node_address);
         stats.total++;
@@ -1059,7 +1059,7 @@ function renderHubOutboundSummary(rows) {
     });
     tbody.innerHTML = addresses.map(address => {
         const stats = nodes.get(address);
-        const downlink = `<code>${escapeHtml(address)}</code>${stats.name ? `<div class="small text-muted">${escapeHtml(stats.name)}</div>` : ''}${stats.owner ? `<div class="small text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.owner', 'Owner: {username}', { username: stats.owner }))}</div>` : ''}`;
+        const downlink = `<code>${escapeHtml(address)}${stats.domain ? `@${escapeHtml(stats.domain)}` : ''}</code>${stats.name ? `<div class="small text-muted">${escapeHtml(stats.name)}</div>` : ''}${stats.owner ? `<div class="small text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.owner', 'Owner: {username}', { username: stats.owner }))}</div>` : ''}`;
         return `<tr class="hub-outbound-summary-row" style="cursor:pointer;" data-node-address="${escapeHtmlAttr(address)}">
             <td>${downlink}</td>
             <td>${stats.pending ? `<span class="badge bg-secondary">${stats.pending}</span>` : '0'}</td>
