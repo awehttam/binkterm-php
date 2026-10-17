@@ -73,22 +73,20 @@
     </div>
     {% if games|length > 0 %}
     {% if door_tabs|length > 1 %}
-    <div class="mb-4">
-        <ul class="nav nav-pills flex-wrap gap-1" id="doorFilterTabs" role="tablist">
+    <div class="door-filter-toolbar mb-4">
+        <div class="btn-group flex-wrap" role="group" aria-label="Door Filter" id="doorFilterButtons">
             {% for tab in door_tabs %}
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if loop.first %}active{% endif %} btn-sm py-1 px-3"
-                        id="tab-btn-{{ tab.id }}"
-                        data-filter-type="{{ tab.filter_type }}"
-                        data-filter-value="{{ tab.filter_value }}"
-                        type="button"
-                        onclick="filterDoors(this, '{{ tab.filter_type }}', '{{ tab.filter_value | e('js') }}')">
-                    {{ tab.label }}
-                    <span class="badge rounded-pill bg-secondary-subtle text-dark ms-1">{{ tab.count }}</span>
-                </button>
-            </li>
+            <button type="button"
+                    class="btn btn-sm {% if loop.first %}btn-primary active{% else %}btn-outline-secondary{% endif %} door-filter-btn"
+                    id="tab-btn-{{ tab.id }}"
+                    data-filter-type="{{ tab.filter_type }}"
+                    data-filter-value="{{ tab.filter_value }}"
+                    onclick="filterDoors(this, '{{ tab.filter_type }}', '{{ tab.filter_value | e('js') }}')">
+                <span>{{ tab.label }}</span>
+                <span class="badge {% if loop.first %}bg-dark text-white{% else %}bg-secondary text-white{% endif %} ms-1">{{ tab.count }}</span>
+            </button>
             {% endfor %}
-        </ul>
+        </div>
     </div>
     {% endif %}
 
@@ -180,6 +178,33 @@
 </div>
 
 <style>
+.door-filter-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+.door-filter-toolbar .btn-group {
+    flex-wrap: wrap;
+}
+.door-filter-toolbar .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    box-shadow: none !important;
+    outline: none !important;
+}
+.door-filter-toolbar .btn:focus,
+.door-filter-toolbar .btn:focus-visible,
+.door-filter-toolbar .btn:active,
+.door-filter-toolbar .btn.active {
+    box-shadow: none !important;
+    outline: none !important;
+}
+.door-filter-toolbar .btn .badge {
+    font-size: 0.72rem;
+    pointer-events: none;
+}
 .game-card {
     transition: transform 0.2s, box-shadow 0.2s;
 }
@@ -194,18 +219,27 @@
 .leaderboard-link:hover {
     text-decoration: underline;
 }
-#doorFilterTabs .nav-link {
-    border-radius: 20px;
-}
 </style>
 
 <script>
 function filterDoors(btn, filterType, filterValue) {
-    document.querySelectorAll('#doorFilterTabs .nav-link').forEach(function(b) {
-        b.classList.remove('active');
+    document.querySelectorAll('.door-filter-btn').forEach(function(b) {
+        b.classList.remove('btn-primary', 'active');
+        b.classList.add('btn-outline-secondary');
+        const badge = b.querySelector('.badge');
+        if (badge) {
+            badge.classList.remove('bg-dark');
+            badge.classList.add('bg-secondary');
+        }
     });
     if (btn) {
-        btn.classList.add('active');
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-primary', 'active');
+        const badge = btn.querySelector('.badge');
+        if (badge) {
+            badge.classList.remove('bg-secondary');
+            badge.classList.add('bg-dark');
+        }
     }
 
     const items = document.querySelectorAll('.door-item');
@@ -256,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const typeParam = (urlParams.get('type') || '').toLowerCase();
 
     if (hash || catParam || typeParam) {
-        const buttons = document.querySelectorAll('#doorFilterTabs .nav-link');
+        const buttons = document.querySelectorAll('.door-filter-btn');
         for (let i = 0; i < buttons.length; i++) {
             const b = buttons[i];
             const val = (b.getAttribute('data-filter-value') || '').toLowerCase();
