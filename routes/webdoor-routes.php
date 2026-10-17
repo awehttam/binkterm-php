@@ -329,9 +329,10 @@ SimpleRouter::get('/games', function() {
         return strcasecmp($a['name'], $b['name']);
     });
 
-    // Determine appearance settings for door grouping
+    // Determine appearance settings for door grouping and leaderboard
     $doorsGroupBy = \BinktermPHP\AppearanceConfig::getDoorsGroupBy();
     $separateServers = \BinktermPHP\AppearanceConfig::shouldSeparateDoorServers();
+    $hideTopScores = \BinktermPHP\AppearanceConfig::shouldHideTopScores();
 
     // Attach effective categories, network detection, and server status to each game
     $categoryCounts = [];
@@ -497,46 +498,48 @@ SimpleRouter::get('/games', function() {
     $leaderboardMonthLabel = $monthStart->format('F Y');
 
     $leaderboard = [];
-    try {
-        $db = \BinktermPHP\Database::getInstance()->getPdo();
-        $limit = 10;
-        $stmt = $db->prepare('
-            WITH best_scores AS (
-                SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
-                    l.user_id, l.game_id, l.board, l.score, l.created_at
-                FROM webdoor_leaderboards l
-                WHERE l.created_at >= ?
-                  AND l.created_at < ?
-                ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
-            )
-            SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
-            FROM best_scores b
-            JOIN users u ON b.user_id = u.id
-            ORDER BY b.score DESC, b.created_at DESC
-            LIMIT ?
-        ');
-        $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
-        $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
-        $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    if (!$hideTopScores) {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $limit = 10;
+            $stmt = $db->prepare('
+                WITH best_scores AS (
+                    SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
+                        l.user_id, l.game_id, l.board, l.score, l.created_at
+                    FROM webdoor_leaderboards l
+                    WHERE l.created_at >= ?
+                      AND l.created_at < ?
+                    ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
+                )
+                SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
+                FROM best_scores b
+                JOIN users u ON b.user_id = u.id
+                ORDER BY b.score DESC, b.created_at DESC
+                LIMIT ?
+            ');
+            $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
+            $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
+            $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        foreach ($rows as $index => $row) {
-            $displayName = $row['username'];
-            $gameInfo = $gameLookup[$row['game_id']] ?? null;
-            $leaderboard[] = [
-                'rank' => $index + 1,
-                'display_name' => $displayName,
-                'score' => (int)$row['score'],
-                'game_id' => $row['game_id'],
-                'game_name' => $gameInfo['name'] ?? ucfirst($row['game_id']),
-                'game_path' => $gameInfo['path'] ?? null,
-                'board' => $row['board'],
-                'date' => substr($row['created_at'], 0, 10)
-            ];
+            foreach ($rows as $index => $row) {
+                $displayName = $row['username'];
+                $gameInfo = $gameLookup[$row['game_id']] ?? null;
+                $leaderboard[] = [
+                    'rank' => $index + 1,
+                    'display_name' => $displayName,
+                    'score' => (int)$row['score'],
+                    'game_id' => $row['game_id'],
+                    'game_name' => $gameInfo['name'] ?? ucfirst($row['game_id']),
+                    'game_path' => $gameInfo['path'] ?? null,
+                    'board' => $row['board'],
+                    'date' => substr($row['created_at'], 0, 10)
+                ];
+            }
+        } catch (\Throwable $e) {
+            getServerLogger()->error('Failed to load WebDoor leaderboard: ' . $e->getMessage());
         }
-    } catch (\Throwable $e) {
-        getServerLogger()->error('Failed to load WebDoor leaderboard: ' . $e->getMessage());
     }
 
     $template = new Template();
@@ -547,6 +550,7 @@ SimpleRouter::get('/games', function() {
         'leaderboard_month_offset' => $monthOffset,
         'doors_group_by' => $doorsGroupBy,
         'doors_separate_servers' => $separateServers,
+        'hide_top_scores' => $hideTopScores,
         'door_tabs' => $tabs,
     ]);
 });

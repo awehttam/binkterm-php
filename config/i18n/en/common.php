@@ -763,6 +763,9 @@ return [
     'ui.admin.appearance.doors.networks_heading' => 'Door Networks',
     'ui.admin.appearance.doors.separate_servers_label' => 'Keep DoorParty, BBSLink, and A-Net on their own tabs',
     'ui.admin.appearance.doors.separate_servers_help' => 'When enabled, games from external door networks will appear in dedicated network tabs rather than flooding the general genre categories. Server connection gateways will appear under Door Servers.',
+    'ui.admin.appearance.doors.leaderboard_heading' => 'Top Scores & Leaderboard',
+    'ui.admin.appearance.doors.hide_top_scores_label' => 'Hide Top Scores',
+    'ui.admin.appearance.doors.hide_top_scores_help' => 'When enabled, the monthly Top Scores (All Games) leaderboard table is hidden on the door games page.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Default Dashboard Layout',

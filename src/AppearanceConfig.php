@@ -178,6 +178,7 @@ class AppearanceConfig
             'doors' => [
                 'group_by' => 'category',
                 'separate_servers' => true,
+                'hide_top_scores' => false,
             ],
         ];
     }
@@ -652,4 +653,14 @@ class AppearanceConfig
         self::load();
         return (bool)(self::$config['doors']['separate_servers'] ?? true);
     }
+
+    /**
+     * Whether to hide the Top Scores (All Games) leaderboard table on the doors page.
+     */
+    public static function shouldHideTopScores(): bool
+    {
+        self::load();
+        return (bool)(self::$config['doors']['hide_top_scores'] ?? false);
+    }
 }
+

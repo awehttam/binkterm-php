@@ -2847,10 +2847,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ? $doorsData['group_by']
                     : 'category';
                 $separateServers = !empty($doorsData['separate_servers']);
+                $hideTopScores = !empty($doorsData['hide_top_scores']);
 
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
                 $config['doors']['group_by'] = $groupBy;
                 $config['doors']['separate_servers'] = $separateServers;
+                $config['doors']['hide_top_scores'] = $hideTopScores;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);

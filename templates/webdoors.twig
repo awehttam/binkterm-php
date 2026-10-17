@@ -9,6 +9,7 @@
     </div>
 
     <p class="text-muted mb-4">{{ t('ui.webdoors.description', {}, locale, ['common']) }}</p>
+    {% if not hide_top_scores %}
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="fas fa-trophy text-warning me-2"></i>{{ t('ui.webdoors.top_scores_all_games', {}, locale, ['common']) }}</span>
@@ -71,6 +72,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
     {% if games|length > 0 %}
     {% if door_tabs|length > 1 %}
     <div class="door-filter-toolbar mb-4">
