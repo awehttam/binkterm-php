@@ -2848,11 +2848,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     : 'category';
                 $separateServers = !empty($doorsData['separate_servers']);
                 $hideTopScores = !empty($doorsData['hide_top_scores']);
+                $minimizeKeyboardDesktop = !empty($doorsData['minimize_keyboard_desktop']);
 
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
                 $config['doors']['group_by'] = $groupBy;
                 $config['doors']['separate_servers'] = $separateServers;
                 $config['doors']['hide_top_scores'] = $hideTopScores;
+                $config['doors']['minimize_keyboard_desktop'] = $minimizeKeyboardDesktop;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);

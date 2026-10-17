@@ -716,6 +716,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.appearance.doors.leaderboard_heading' => 'Meilleurs scores et classement',
     'ui.admin.appearance.doors.hide_top_scores_label' => 'Masquer les meilleurs scores',
     'ui.admin.appearance.doors.hide_top_scores_help' => 'Lorsqu\'il est activé, le tableau mensuel des meilleurs scores (tous les jeux) est masqué sur la page des jeux.',
+    'ui.admin.appearance.doors.keyboard_heading' => 'Clavier virtuel et manette tactile',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_label' => 'Réduire par défaut le clavier virtuel des doors sur ordinateur de bureau',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_help' => 'Lorsqu\'il est activé, les joueurs sur ordinateur avec clavier physique démarrent avec la barre de manette tactile réduite à un onglet compact, maximisant l\'espace de terminal. Les appareils mobiles et tactiles affichent toujours les commandes tactiles.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Mise en page par défaut du tableau de bord',

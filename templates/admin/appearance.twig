@@ -918,6 +918,20 @@
                     <div class="form-text ps-4">{{ t('ui.admin.appearance.doors.hide_top_scores_help', {}, locale, ['common']) }}</div>
                 </div>
 
+                <hr>
+
+                <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.doors.keyboard_heading', {}, locale, ['common']) }}</h6>
+
+                <div class="mb-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="doorsMinimizeKeyboardDesktop">
+                        <label class="form-check-label" for="doorsMinimizeKeyboardDesktop">
+                            <strong>{{ t('ui.admin.appearance.doors.minimize_keyboard_desktop_label', {}, locale, ['common']) }}</strong>
+                        </label>
+                    </div>
+                    <div class="form-text ps-4">{{ t('ui.admin.appearance.doors.minimize_keyboard_desktop_help', {}, locale, ['common']) }}</div>
+                </div>
+
                 <button type="button" class="btn btn-primary" onclick="saveDoorsAppearance()">
                     <i class="fas fa-save me-1"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                 </button>
@@ -1239,6 +1253,7 @@ function loadAppearanceConfig() {
             }
             $('#doorsSeparateServers').prop('checked', doorsConf.separate_servers !== false);
             $('#doorsHideTopScores').prop('checked', !!doorsConf.hide_top_scores);
+            $('#doorsMinimizeKeyboardDesktop').prop('checked', !!doorsConf.minimize_keyboard_desktop);
 
             // Dashboard default layout
             initAdminDashboardTab(config.dashboard || {});
@@ -2129,7 +2144,8 @@ function saveDoorsAppearance() {
         doors: {
             group_by: $('input[name="doorsGroupBy"]:checked').val() || 'category',
             separate_servers: $('#doorsSeparateServers').is(':checked'),
-            hide_top_scores: $('#doorsHideTopScores').is(':checked')
+            hide_top_scores: $('#doorsHideTopScores').is(':checked'),
+            minimize_keyboard_desktop: $('#doorsMinimizeKeyboardDesktop').is(':checked')
         }
     };
     $.post('/admin/api/appearance/doors', JSON.stringify(payload), null, 'json')

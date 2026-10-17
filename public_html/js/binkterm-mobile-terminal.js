@@ -1658,6 +1658,7 @@
                 onKey: null,     // Callback function(data) to pass raw key bytes to websocket
                 defaultScaleMode: 'fit-screen', // 'fit-screen' | 'fit-width' | 'native'
                 defaultContrastMode: 'vivid',   // High Contrast Vivid by default on mobile!
+                minimizeKeyboardDesktop: false, // Minimize gamepad on desktop by default
                 customLayout: null,
                 storageKey: 'binkterm_mobile_terminal_config',
                 containerId: 'terminal-container'
@@ -1672,6 +1673,9 @@
             this.doorId = (this.options.doorId || '').toLowerCase();
             this.doorName = (this.options.doorName || '').toLowerCase();
 
+            // Detect mobile/touch context early
+            this.isMobile = this.detectMobile();
+
             // Load saved configuration or fall back to defaults
             const savedConfig = this.loadConfig();
             this.scaleMode = savedConfig.scaleMode || this.options.defaultScaleMode;
@@ -1684,7 +1688,12 @@
                 this.contrastMode = savedConfig.contrastMode || this.options.defaultContrastMode;
             }
 
-            this.toolbarCollapsed = false; // Always show gamepad controller by default!
+            const defaultCollapsed = (!this.isMobile && !!this.options.minimizeKeyboardDesktop);
+            if (savedConfig.toolbarCollapsed !== undefined) {
+                this.toolbarCollapsed = !!savedConfig.toolbarCollapsed;
+            } else {
+                this.toolbarCollapsed = defaultCollapsed;
+            }
             this.userZoom = parseFloat(savedConfig.userZoom || '1.0');
 
             // Resolve active layout profile for this game
@@ -2099,7 +2108,7 @@
             // Collapse/Expand Tab
             const tab = document.createElement('div');
             tab.className = 'binkterm-toolbar-tab';
-            tab.innerHTML = `<span class="tab-icon">▼</span> <span class="tab-label">Hide</span>`;
+            tab.innerHTML = `<span class="tab-icon">${this.toolbarCollapsed ? '▲' : '▼'}</span> <span class="tab-label">${this.toolbarCollapsed ? 'Keys' : 'Hide'}</span>`;
             tab.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleCollapseToolbar();
@@ -2107,6 +2116,10 @@
             tabWrapper.appendChild(tab);
 
             this.toolbarElement.appendChild(tabWrapper);
+
+            if (this.toolbarCollapsed) {
+                this.toolbarElement.classList.add('is-collapsed');
+            }
 
             // Render buttons for current active profile
             this.renderToolbar();

@@ -784,6 +784,9 @@ return [
     'ui.admin.appearance.doors.leaderboard_heading' => 'Лучшие результаты и таблица лидеров',
     'ui.admin.appearance.doors.hide_top_scores_label' => 'Скрыть лучшие результаты',
     'ui.admin.appearance.doors.hide_top_scores_help' => 'Если включено, ежемесячная таблица лидеров (все игры) скрывается на странице игр.',
+    'ui.admin.appearance.doors.keyboard_heading' => 'Экранная клавиатура и сенсорный геймпад',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_label' => 'Сворачивать экранную клавиатуру в дверях на ПК по умолчанию',
+    'ui.admin.appearance.doors.minimize_keyboard_desktop_help' => 'Если включено, у пользователей ПК с физической клавиатурой панель сенсорного геймпада по умолчанию свернута в компактную вкладку, освобождая место для терминала. На мобильных и сенсорных устройствах управление всегда открыто.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Макет панели управления по умолчанию',
