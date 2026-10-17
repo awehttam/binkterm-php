@@ -404,6 +404,8 @@ return [
     'errors.admin.appearance.splash.license_required' => 'A valid license is required to configure splash pages',
     'errors.admin.appearance.splash.save_failed' => 'Failed to save splash settings',
     'errors.admin.appearance.file_areas.save_failed' => 'Failed to save file areas settings',
+    'errors.admin.appearance.doors.save_failed' => 'Failed to save doors appearance settings',
+    'errors.admin.appearance.doors.categories_failed' => 'Failed to load door categories',
     'errors.admin.dashboard.ram_usage_unavailable' => 'RAM usage details are not available on this system.',
     'errors.admin.shell_art.list_failed' => 'Failed to list shell art files',
     'errors.admin.shell_art.upload.no_file' => 'No shell art file uploaded',

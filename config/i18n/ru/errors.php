@@ -400,6 +400,8 @@ return [
     'errors.admin.appearance.splash.license_required' => 'Для настройки заставочных страниц требуется действующая лицензия',
     'errors.admin.appearance.splash.save_failed' => 'Не удалось сохранить настройки заставки',
     'errors.admin.appearance.file_areas.save_failed' => 'Не удалось сохранить настройки областей файлов',
+    'errors.admin.appearance.doors.save_failed' => 'Не удалось сохранить настройки внешнего вида дверей',
+    'errors.admin.appearance.doors.categories_failed' => 'Не удалось загрузить категории дверей',
     'errors.admin.dashboard.ram_usage_unavailable' => 'Сведения об использовании оперативной памяти недоступны в данной системе',
     'errors.admin.shell_art.list_failed' => 'Не удалось вывести список файлов shell‑арта',
     'errors.admin.shell_art.upload.no_file' => 'Файл shell‑арта не загружен',
