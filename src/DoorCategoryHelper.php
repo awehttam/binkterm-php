@@ -65,7 +65,23 @@ class DoorCategoryHelper
     }
 
     /**
+     * Common genre/tag aliases mapped to standard category names.
+     */
+    private const ALIAS_MAP = [
+        'multi-player'     => 'Multiplayer',
+        'multi player'     => 'Multiplayer',
+        'single-player'    => 'Singleplayer',
+        'single player'    => 'Singleplayer',
+        'sci fi'           => 'Sci-Fi',
+        'scifi'            => 'Sci-Fi',
+        'post apocalyptic' => 'Post-Apocalyptic',
+        'board game'       => 'Board Games',
+        'card game'        => 'Card Games',
+    ];
+
+    /**
      * Normalize a genre value (array or comma-separated string) to a list of trimmed strings.
+     * Maps known aliases (e.g. Multi-player -> Multiplayer) and aligns casing with standard categories.
      *
      * @param mixed $genre
      * @return string[]
@@ -78,12 +94,26 @@ class DoorCategoryHelper
         if (!is_array($genre)) {
             return [];
         }
+
+        static $canonical = null;
+        if ($canonical === null) {
+            $canonical = [];
+            foreach (self::getStandardCategories() as $cat) {
+                $canonical[strtolower($cat)] = $cat;
+            }
+            foreach (self::ALIAS_MAP as $alias => $target) {
+                $canonical[strtolower($alias)] = $target;
+            }
+        }
+
         $out = [];
         foreach ($genre as $g) {
             $g = trim((string)$g);
-            if ($g !== '') {
-                $out[] = $g;
+            if ($g === '') {
+                continue;
             }
+            $lower = strtolower($g);
+            $out[] = $canonical[$lower] ?? $g;
         }
         return array_values(array_unique($out));
     }
