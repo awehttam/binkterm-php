@@ -175,6 +175,10 @@ class AppearanceConfig
                 'default_layout' => null,
                 'show_system_info_stats' => 'sysop',
             ],
+            'doors' => [
+                'group_by' => 'category',
+                'separate_servers' => true,
+            ],
         ];
     }
 
@@ -624,5 +628,28 @@ class AppearanceConfig
         }
 
         return in_array($mode, self::VALID_DASHBOARD_STATS_MODES, true) ? $mode : self::DEFAULT_DASHBOARD_STATS_MODE;
+    }
+
+    // -------------------------------------------------------------------------
+    // Doors
+    // -------------------------------------------------------------------------
+
+    /**
+     * How door games are grouped and filtered on the front-end: 'category' or 'type'.
+     */
+    public static function getDoorsGroupBy(): string
+    {
+        self::load();
+        $val = (string)(self::$config['doors']['group_by'] ?? 'category');
+        return in_array($val, ['category', 'type'], true) ? $val : 'category';
+    }
+
+    /**
+     * Whether to isolate DoorParty, BBSLink, and A-Net games into their own tabs.
+     */
+    public static function shouldSeparateDoorServers(): bool
+    {
+        self::load();
+        return (bool)(self::$config['doors']['separate_servers'] ?? true);
     }
 }

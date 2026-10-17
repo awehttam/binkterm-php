@@ -81,6 +81,11 @@
             <i class="fas fa-folder-open me-1"></i> {{ t('ui.admin.appearance.tab_file_areas', {}, locale, ['common']) }}
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-doors-btn" data-bs-toggle="tab" data-bs-target="#tab-doors" type="button" role="tab">
+            <i class="fas fa-gamepad me-1"></i> {{ t('ui.admin.appearance.tab_doors', {}, locale, ['common']) }}
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="appearanceTabContent">
@@ -856,6 +861,57 @@
         </div>
     </div>
 
+    {# ====== TAB: DOORS ====== #}
+    <div class="tab-pane fade" id="tab-doors" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-gamepad me-2"></i>{{ t('ui.admin.appearance.doors.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">{{ t('ui.admin.appearance.doors.description', {}, locale, ['common']) }}</p>
+
+                <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.doors.group_heading', {}, locale, ['common']) }}</h6>
+
+                <div class="mb-4">
+                    <label class="form-label fw-medium">{{ t('ui.admin.appearance.doors.group_by_label', {}, locale, ['common']) }}</label>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="doorsGroupBy" id="doorsGroupByCat" value="category" checked>
+                        <label class="form-check-label" for="doorsGroupByCat">
+                            <strong>{{ t('ui.admin.appearance.doors.group_by_category', {}, locale, ['common']) }}</strong>
+                            <div class="form-text mt-0">{{ t('ui.admin.appearance.doors.group_by_category_help', {}, locale, ['common']) }}</div>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="doorsGroupBy" id="doorsGroupByType" value="type">
+                        <label class="form-check-label" for="doorsGroupByType">
+                            <strong>{{ t('ui.admin.appearance.doors.group_by_type', {}, locale, ['common']) }}</strong>
+                            <div class="form-text mt-0">{{ t('ui.admin.appearance.doors.group_by_type_help', {}, locale, ['common']) }}</div>
+                        </label>
+                    </div>
+                </div>
+
+                <hr>
+
+                <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.doors.networks_heading', {}, locale, ['common']) }}</h6>
+
+                <div class="mb-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="doorsSeparateServers" checked>
+                        <label class="form-check-label" for="doorsSeparateServers">
+                            <strong>{{ t('ui.admin.appearance.doors.separate_servers_label', {}, locale, ['common']) }}</strong>
+                        </label>
+                    </div>
+                    <div class="form-text ps-4">{{ t('ui.admin.appearance.doors.separate_servers_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveDoorsAppearance()">
+                    <i class="fas fa-save me-1"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
+                </button>
+                <span id="doorsAppearanceStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 {# Provider settings modal #}
@@ -1158,6 +1214,17 @@ function loadAppearanceConfig() {
             $('#faInfoTitle').val(fa.sidebar_info_title || '');
             $('#faInfoMarkdown').val(fa.sidebar_info_markdown || '');
             $('#faFooterMarkdown').val(fa.footer_markdown || '');
+
+            // Doors
+            const doorsConf = config.doors || {};
+            const doorsGroupBy = doorsConf.group_by || 'category';
+            if (doorsGroupBy === 'type') {
+                $('#doorsGroupByType').prop('checked', true);
+            } else {
+                $('#doorsGroupByCat').prop('checked', true);
+            }
+            $('#doorsSeparateServers').prop('checked', doorsConf.separate_servers !== false);
+
             // Dashboard default layout
             initAdminDashboardTab(config.dashboard || {});
 
@@ -2039,6 +2106,30 @@ function saveFileAreas() {
         })
         .fail(function(xhr) {
             $('#fileAreasStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
+        });
+}
+
+function saveDoorsAppearance() {
+    const payload = {
+        doors: {
+            group_by: $('input[name="doorsGroupBy"]:checked').val() || 'category',
+            separate_servers: $('#doorsSeparateServers').is(':checked')
+        }
+    };
+    $.post('/admin/api/appearance/doors', JSON.stringify(payload), null, 'json')
+        .done(function(r) {
+            if (r.success) {
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved'))
+                    : uiT('ui.common.saved_short', 'Saved');
+                $('#doorsAppearanceStatus').text(successMessage).removeClass('text-danger').addClass('text-success');
+                setTimeout(() => $('#doorsAppearanceStatus').text(''), 3000);
+            } else {
+                $('#doorsAppearanceStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(r, uiT('ui.common.unknown_error', 'Unknown error'))).addClass('text-danger');
+            }
+        })
+        .fail(function(xhr) {
+            $('#doorsAppearanceStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(xhr.responseJSON, uiT('ui.admin.appearance.request_failed', 'Request failed'))).addClass('text-danger');
         });
 }
 

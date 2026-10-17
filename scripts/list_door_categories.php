@@ -7,99 +7,59 @@
  * Doors without any genre are listed under "(uncategorized)".
  *
  * Usage:
- *   php scripts/list_door_categories.php             Categories with the doors in each
- *   php scripts/list_door_categories.php --by-door   One line per door with its categories
- *   php scripts/list_door_categories.php --json      JSON output
+ *   php scripts/list_door_categories.php                      Categories with the doors in each
+ *   php scripts/list_door_categories.php --separate-networks  Isolate DoorParty, BBSLink, ANET and Door Servers
+ *   php scripts/list_door_categories.php --by-door            One line per door with its categories
+ *   php scripts/list_door_categories.php --json               JSON output
  */
 
-require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../src/functions.php';
+$autoload = file_exists(__DIR__ . '/../vendor/autoload.php')
+    ? __DIR__ . '/../vendor/autoload.php'
+    : __DIR__ . '/vendor/autoload.php';
+require_once $autoload;
+$functions = file_exists(__DIR__ . '/../src/functions.php')
+    ? __DIR__ . '/../src/functions.php'
+    : __DIR__ . '/src/functions.php';
+require_once $functions;
 
-use BinktermPHP\Database;
-use BinktermPHP\DosBoxDoorManifest;
-use BinktermPHP\JsdosDoorManifest;
-use BinktermPHP\NativeDoorManifest;
-use BinktermPHP\RLoginDoorManager;
-use BinktermPHP\WebDoorManifest;
-
-/**
- * Normalize a genre value (array or comma-separated string) to a list of strings.
- *
- * @param mixed $genre
- * @return string[]
- */
-function normalizeGenres($genre): array
-{
-    if (is_string($genre)) {
-        $genre = explode(',', $genre);
-    }
-    if (!is_array($genre)) {
-        return [];
-    }
-    $out = [];
-    foreach ($genre as $g) {
-        $g = trim((string)$g);
-        if ($g !== '') {
-            $out[] = $g;
-        }
-    }
-    return array_values(array_unique($out));
-}
-
-/**
- * Collect every installed door as [type, id, name, categories].
- *
- * @return array<int, array{type: string, id: string, name: string, categories: string[]}>
- */
-function collectDoors(): array
-{
-    $doors = [];
-
-    foreach ((new DosBoxDoorManifest())->scanInstalledDoors() as $id => $m) {
-        $doors[] = ['type' => 'dos', 'id' => (string)$id, 'name' => $m['name'] ?? $id, 'categories' => normalizeGenres($m['genre'] ?? [])];
-    }
-
-    foreach ((new NativeDoorManifest())->scanInstalledDoors() as $id => $m) {
-        $doors[] = ['type' => 'native', 'id' => (string)$id, 'name' => $m['name'] ?? $id, 'categories' => normalizeGenres($m['genre'] ?? [])];
-    }
-
-    foreach (JsdosDoorManifest::listManifests() as $entry) {
-        $m = $entry['manifest'];
-        $genre = $m['genre'] ?? ($m['game']['genre'] ?? []);
-        $doors[] = ['type' => 'jsdos', 'id' => (string)$entry['id'], 'name' => $m['name'] ?? ($m['game']['name'] ?? $entry['id']), 'categories' => normalizeGenres($genre)];
-    }
-
-    foreach (WebDoorManifest::listManifests() as $entry) {
-        $m = $entry['manifest'];
-        $game = $m['game'] ?? [];
-        $doors[] = ['type' => 'webdoor', 'id' => (string)$entry['id'], 'name' => $game['name'] ?? $entry['id'], 'categories' => normalizeGenres($game['genre'] ?? ($game['category'] ?? []))];
-    }
-
-    try {
-        Database::getInstance()->getPdo();
-        foreach ((new RLoginDoorManager())->getAllDoors() as $d) {
-            $doors[] = ['type' => 'rlogin', 'id' => (string)($d['door_id'] ?? ''), 'name' => $d['name'] ?? ($d['door_id'] ?? ''), 'categories' => normalizeGenres($d['genre'] ?? [])];
-        }
-    } catch (\Throwable $e) {
-        fwrite(STDERR, "Warning: RLogin doors skipped (" . $e->getMessage() . ")\n");
-    }
-
-    return $doors;
-}
+use BinktermPHP\DoorCategoryHelper;
 
 $byDoor = in_array('--by-door', $argv, true);
 $asJson = in_array('--json', $argv, true);
+$separateNetworks = in_array('--separate-networks', $argv, true);
 
-$doors = collectDoors();
-$uncategorized = '(uncategorized)';
+$rawDoors = DoorCategoryHelper::collectInstalledDoors();
+$doors = [];
+foreach ($rawDoors as $door) {
+    $categories = $separateNetworks
+        ? DoorCategoryHelper::getEffectiveCategories($door, true)
+        : ($door['categories'] ?: [DoorCategoryHelper::UNCATEGORIZED]);
 
+    $doors[] = [
+        'type' => $door['type'],
+        'id' => $door['id'],
+        'name' => $door['name'],
+        'categories' => $categories,
+        'is_server' => $door['is_server'],
+        'network' => $door['network'],
+    ];
+}
+
+$uncategorized = DoorCategoryHelper::UNCATEGORIZED;
 $byCategory = [];
 foreach ($doors as $door) {
-    foreach ($door['categories'] ?: [$uncategorized] as $cat) {
+    foreach ($door['categories'] as $cat) {
         $byCategory[$cat][] = $door;
     }
 }
+
 uksort($byCategory, static function ($a, $b) use ($uncategorized) {
+    if ($a === DoorCategoryHelper::DOOR_SERVERS) {
+        return -1;
+    }
+    if ($b === DoorCategoryHelper::DOOR_SERVERS) {
+        return 1;
+    }
     if ($a === $uncategorized) {
         return 1;
     }

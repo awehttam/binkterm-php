@@ -2835,6 +2835,53 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/appearance/doors', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $doorsData = $payload['doors'] ?? [];
+
+                $groupBy = in_array($doorsData['group_by'] ?? '', ['category', 'type'], true)
+                    ? $doorsData['group_by']
+                    : 'category';
+                $separateServers = !empty($doorsData['separate_servers']);
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['doors']['group_by'] = $groupBy;
+                $config['doors']['separate_servers'] = $separateServers;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved_short'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.doors.save_failed', apiLocalizedText('errors.admin.appearance.doors.save_failed', 'Failed to save doors appearance settings'));
+            }
+        });
+
+        SimpleRouter::get('/appearance/door-categories', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $categories = \BinktermPHP\DoorCategoryHelper::getAllCategories();
+                echo json_encode([
+                    'success' => true,
+                    'categories' => $categories
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.doors.categories_failed', apiLocalizedText('errors.admin.appearance.doors.categories_failed', 'Failed to load door categories'));
+            }
+        });
+
         SimpleRouter::post('/appearance/term-menu-keys', function() {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');

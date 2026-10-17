@@ -72,9 +72,33 @@
         </div>
     </div>
     {% if games|length > 0 %}
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    {% if door_tabs|length > 1 %}
+    <div class="mb-4">
+        <ul class="nav nav-pills flex-wrap gap-1" id="doorFilterTabs" role="tablist">
+            {% for tab in door_tabs %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if loop.first %}active{% endif %} btn-sm py-1 px-3"
+                        id="tab-btn-{{ tab.id }}"
+                        data-filter-type="{{ tab.filter_type }}"
+                        data-filter-value="{{ tab.filter_value }}"
+                        type="button"
+                        onclick="filterDoors(this, '{{ tab.filter_type }}', '{{ tab.filter_value | e('js') }}')">
+                    {{ tab.label }}
+                    <span class="badge rounded-pill bg-secondary-subtle text-dark ms-1">{{ tab.count }}</span>
+                </button>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="doorsGrid">
         {% for game in games %}
-        <div class="col">
+        <div class="col door-item"
+             data-type="{{ game.type }}"
+             data-is-server="{{ game.is_door_server ? 'true' : 'false' }}"
+             data-network="{{ game.network | default('') }}"
+             data-categories="{{ game.effective_categories | json_encode | e('html_attr') }}">
             <div class="card h-100 game-card">
                 <div class="card-body d-flex">
                     <div class="game-icon me-3">
@@ -84,18 +108,39 @@
                              onerror="this.src='/favicon.svg'">
                     </div>
                     <div class="flex-grow-1">
-                        <h5 class="card-title mb-1">
-                            {{ game.name }}
-                            {% if game.type == 'dosdoor' %}
-                                <span class="badge bg-info text-white" style="font-size: 0.65rem;">DOS</span>
-                            {% elseif game.type == 'nativedoor' %}
-                                <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">NATIVE</span>
-                            {% elseif game.type == 'rlogindoor' %}
-                                <span class="badge bg-danger text-white" style="font-size: 0.65rem;">RLOGIN</span>
-                            {% elseif game.type == 'jsdosdoor' %}
-                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">{{ t('ui.webdoors.type_jsdos', {}, locale, ['common']) }}</span>
+                        <h5 class="card-title mb-1 d-flex flex-wrap align-items-center gap-1">
+                            <span>{{ game.name }}</span>
+                            {% if doors_group_by == 'category' %}
+                                {% for cat in game.effective_categories %}
+                                    {% if cat == 'Door Servers' %}
+                                        <span class="badge bg-dark text-white" style="font-size: 0.65rem;">{{ cat }}</span>
+                                    {% elseif cat == 'DoorParty' %}
+                                        <span class="badge bg-info text-dark" style="font-size: 0.65rem;">{{ cat }}</span>
+                                    {% elseif cat == 'BBSLink' %}
+                                        <span class="badge bg-primary text-white" style="font-size: 0.65rem;">{{ cat }}</span>
+                                    {% elseif cat == 'A-Net' %}
+                                        <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">{{ cat }}</span>
+                                    {% elseif cat == '(uncategorized)' %}
+                                        <span class="badge bg-secondary text-white" style="font-size: 0.65rem;">{{ cat }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary text-white" style="font-size: 0.65rem;">{{ cat }}</span>
+                                    {% endif %}
+                                {% endfor %}
                             {% else %}
-                                <span class="badge bg-success text-white" style="font-size: 0.65rem;">WEB</span>
+                                {% if game.type == 'dosdoor' %}
+                                    <span class="badge bg-info text-white" style="font-size: 0.65rem;">DOS</span>
+                                {% elseif game.type == 'nativedoor' %}
+                                    <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">NATIVE</span>
+                                {% elseif game.type == 'rlogindoor' %}
+                                    <span class="badge bg-danger text-white" style="font-size: 0.65rem;">RLOGIN</span>
+                                {% elseif game.type == 'jsdosdoor' %}
+                                    <span class="badge bg-primary text-white" style="font-size: 0.65rem;">{{ t('ui.webdoors.type_jsdos', {}, locale, ['common']) }}</span>
+                                {% else %}
+                                    <span class="badge bg-success text-white" style="font-size: 0.65rem;">WEB</span>
+                                {% endif %}
+                                {% if game.is_door_server %}
+                                    <span class="badge bg-dark text-white" style="font-size: 0.65rem;">SERVER</span>
+                                {% endif %}
                             {% endif %}
                         </h5>
                         <p class="card-text text-muted small mb-2">{{ game.description }}</p>
@@ -122,6 +167,11 @@
         </div>
         {% endfor %}
     </div>
+
+    <div id="noFilterMatchesAlert" class="alert alert-info mt-3" style="display: none;">
+        <i class="fas fa-info-circle me-1"></i> {{ t('ui.webdoors.no_games_in_category', {}, locale, ['common']) }}
+    </div>
+
     {% else %}
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i> {{ t('ui.webdoors.no_games_available', {}, locale, ['common']) }}
@@ -144,6 +194,80 @@
 .leaderboard-link:hover {
     text-decoration: underline;
 }
+#doorFilterTabs .nav-link {
+    border-radius: 20px;
+}
 </style>
+
+<script>
+function filterDoors(btn, filterType, filterValue) {
+    document.querySelectorAll('#doorFilterTabs .nav-link').forEach(function(b) {
+        b.classList.remove('active');
+    });
+    if (btn) {
+        btn.classList.add('active');
+    }
+
+    const items = document.querySelectorAll('.door-item');
+    let visibleCount = 0;
+
+    items.forEach(function(item) {
+        let match = false;
+        if (filterType === 'all') {
+            match = true;
+        } else if (filterType === 'category') {
+            try {
+                const cats = JSON.parse(item.getAttribute('data-categories') || '[]');
+                match = cats.some(function(c) {
+                    return c.toLowerCase() === filterValue.toLowerCase();
+                });
+            } catch (e) {
+                match = false;
+            }
+        } else if (filterType === 'type') {
+            match = item.getAttribute('data-type') === filterValue;
+        } else if (filterType === 'network') {
+            match = (item.getAttribute('data-network') || '').toLowerCase() === filterValue.toLowerCase();
+        }
+
+        if (match) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+
+    const noMatchesEl = document.getElementById('noFilterMatchesAlert');
+    if (noMatchesEl) {
+        noMatchesEl.style.display = visibleCount === 0 ? '' : 'none';
+    }
+
+    if (history.replaceState) {
+        const hash = filterType === 'all' ? '' : '#' + encodeURIComponent(filterValue.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+        history.replaceState(null, '', window.location.pathname + window.location.search + hash);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const hash = window.location.hash ? decodeURIComponent(window.location.hash.substring(1)).toLowerCase() : '';
+    const urlParams = new URLSearchParams(window.location.search);
+    const catParam = (urlParams.get('category') || urlParams.get('cat') || '').toLowerCase();
+    const typeParam = (urlParams.get('type') || '').toLowerCase();
+
+    if (hash || catParam || typeParam) {
+        const buttons = document.querySelectorAll('#doorFilterTabs .nav-link');
+        for (let i = 0; i < buttons.length; i++) {
+            const b = buttons[i];
+            const val = (b.getAttribute('data-filter-value') || '').toLowerCase();
+            const valSlug = val.replace(/[^a-z0-9]+/g, '-');
+            if (val === hash || valSlug === hash || val === catParam || valSlug === catParam || val === typeParam) {
+                b.click();
+                break;
+            }
+        }
+    }
+});
+</script>
 {% endblock %}
 
