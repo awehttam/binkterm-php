@@ -35,6 +35,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Docker: telnet Client Added for the BBSLink Door](#docker-telnet-client-added-for-the-bbslink-door)
   - [Admin Daemon Keeps Log Lines It Cannot Write](#admin-daemon-keeps-log-lines-it-cannot-write)
   - [Fixed: Each Login Recorded Exactly Once](#fixed-each-login-recorded-exactly-once)
+  - [Downlink Queue Sorted by Owner and Shows Network Domain](#downlink-queue-sorted-by-owner-and-shows-network-domain)
 - [Web Interface](#web-interface)
   - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
   - [Login Page Honors "Remember Me"](#login-page-honors-remember-me)
@@ -53,6 +54,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Door Screens Flushed Before the Connection Closes](#door-screens-flushed-before-the-connection-closes)
   - [Fixed: Door Player Limits Could Be Exceeded by Simultaneous Launches](#fixed-door-player-limits-could-be-exceeded-by-simultaneous-launches)
   - [Fixed: PubTerm Native Door Block Graphics](#fixed-pubterm-native-door-block-graphics)
+  - [Door Category Tabs and Door Display Settings](#door-category-tabs-and-door-display-settings)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
@@ -124,6 +126,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **SQL migrations split on real statement boundaries:** the upgrade script now finds the end of each statement in a `.sql` migration by reading the SQL, instead of by pattern matching. A `;` or `--` inside a quoted string, a function body or a block comment no longer corrupts the migration. Every migration shipped with BinktermPHP is split exactly as before.
 - **Docker: telnet client added for the BBSLink door:** the container image now includes the `telnet` package, which the BBSLink native door (`bbslinknative`) needs. Rebuild the image to get it.
 - **Fixed: each login is recorded exactly once:** Telnet and SSH logins were recorded twice, which inflated the total login count and Today's Callers, and credited half of them to the web. PacketBBS logins were not recorded at all and did not update the user's last login time. Each successful login now produces one login event tagged with the service it came in on (`web`, `telnet`, `ssh` or `packetbbs`).
+- **Downlink queue sorted by owner and shows network domain:** the summary table on the **Downlink Queue** tab of the BinkP status page now lists downlinks grouped by owner, then by address, and shows each downlink's network domain after its address, for example `21:3/236.10@examplenet`.
 
 ### Web Interface
 
@@ -146,6 +149,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Door screens flushed before the connection closes:** when a door exits, the bridge waits 800 ms before closing the browser connection, so the last screen the door wrote, such as a game-over screen, is shown.
 - **Fixed: door player limits could be exceeded by simultaneous launches:** several players launching the same door at the same moment could all pass the door's maximum-players check, or be given the same node number. The check and node assignment are now done as one step. A launch that loses the race for the last slot gets an HTTP `503` "Door at capacity" response.
 - **Fixed: PubTerm native door block graphics:** the PubTerm native door now uses CP437 output and an 8-bit Telnet connection, so ANSI block graphics display correctly instead of as replacement characters.
+- **Door category tabs and door display settings:** the door games page can now group doors by category (genre) instead of by runtime type, with filter tabs and live counts, and the door editors have a category dropdown. A new **Doors** tab under **Admin -> Appearance & Content** controls the grouping, whether DoorParty, BBSLink and A-Net keep their own tabs, and whether the Top Scores leaderboard is shown.
 
 ### MeshCore
 
@@ -180,7 +184,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Docker: config JSON files no longer world-readable:** the container now restricts the top-level `config/*.json` files, which hold uplink passwords and API keys, to the owner and group at startup. Previously they were readable by any user in the container.
 - **BinkP debug logging no longer records password material:** with debug logging on, BinkP authentication logged the first characters of the received and expected passwords and the CRAM-MD5 challenge with its digest. Only outcomes, lengths and a hint about why a password did not match are logged now, unless you set `BINKP_LOG_SENSITIVE_AUTH=true`.
 - **Auto Feed verifies TLS and allows only http(s) feeds:** RSS and Atom feeds are now fetched with HTTPS certificate and host name verification, and only `http://` and `https://` URLs are accepted. A feed with an invalid or self-signed certificate now fails instead of being fetched.
-- **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable.
+- **Telnet TLS offers TLS 1.3 and validates your certificate:** the TLS Telnet listener now accepts TLS 1.3 as well as 1.0 to 1.2. `TELNET_TLS_MIN_VERSION` sets the oldest version accepted and `TELNET_TLS_CIPHERS` sets the cipher list. A certificate and key you supply are checked at start-up, and TLS stays off, with the reason logged, if they are unusable. The generated self-signed certificate is now ECDSA so that SyncTERM can connect; `TELNET_TLS_KEY_TYPE=rsa` restores RSA.
 - **Login takes the same time for unknown usernames:** a login with a username that does not exist used to fail faster than a login with a real username and a wrong password, which let anyone tell which accounts exist by timing the responses. Both failures now take about the same time.
 - **WebDoor API only serves installed, enabled games:** the session, storage and leaderboard endpoints used under `/api/webdoor/` now accept only a `game_id` that names an installed WebDoor which is enabled and whose requirements are met. Any other id gets a `404` and nothing is read or written. Before, any string was accepted and created session, save and leaderboard rows.
 - **Telnet drops idle connections sooner before login:** a Telnet connection that sits silent at the login, register or reset-password prompts is now disconnected after 90 seconds instead of the 7 minutes allowed for a signed-in session. Set `TELNET_PREAUTH_IDLE_TIMEOUT` in `.env` to change it.
@@ -455,6 +459,15 @@ The login API is now the single place a login is recorded. It tags the event wit
 
 Login events recorded before the upgrade are not changed, so historical counts for Telnet and SSH callers stay higher than they should be.
 
+### Downlink Queue Sorted by Owner and Shows Network Domain
+
+The **Downlink Queue** tab on the BinkP status page summarizes the outbound packets queued for each downlink node or point, with its pending, failed, held and sent counts. The summary table was sorted by address alone, so downlinks belonging to the same user were scattered through the list, and an address did not show which network it belonged to.
+
+- **Order:** downlinks are now sorted by owner username first, ignoring letter case, and by address second. Addresses compare numerically within an owner, so `21:3/236.10` comes before `21:3/236.11`. Downlinks with no owner are listed first.
+- **Domain:** each address is now followed by its network domain, for example `21:3/236.10@examplenet`. For a node the domain is looked up from its address, and for a point it is the domain of the boss address it is attached to. If no domain can be determined, the address is shown without one.
+
+The queue list API behind this tab, `getHubOutboundQueue()`, now returns a `domain` field on each row.
+
 ## Web Interface
 
 ### Fresh Assets After an Upgrade
@@ -594,6 +607,25 @@ The PacketBBS Nodes card on the main dashboard, shown when MeshCore is enabled, 
 The PubTerm native door connects to a Telnet host and relays its output to the caller. Its manifest declared UTF-8 output, so the CP437 block and line-drawing characters sent by ANSI art were corrupted into Unicode replacement characters. The manifest now declares `cp437` output, and the launch script starts the Telnet client with `-8` so all 8 bits of each byte are passed through. The script is also now marked executable.
 
 If you copied or customized the PubTerm manifest (`native-doors/doors/pubterm/nativedoor.json`), set `output_encoding` to `cp437` in your copy.
+
+### Door Category Tabs and Door Display Settings
+
+The door games page (`/games`) used to organize doors only by runtime type: DOS, Native, RLogin, JS-DOS and Web. It can now organize them by category instead, and this is the new default.
+
+- **Category mode:** the page shows a tab for each category, with a count of the doors in it and an **All** tab. Each door card shows its category as a badge instead of its runtime type. A category with no doors shows "No games found in this category." Genre names are normalized, so aliases and differences in letter case no longer create separate tabs.
+- **Door Servers category:** gateways and hubs that connect to external door servers are listed under their own **Door Servers** category rather than among the games.
+- **Door networks:** by default, games from DoorParty, BBSLink and A-Net get their own tabs instead of being spread across the genre categories.
+- **Category dropdown in the door editors:** the RLogin door manager and the Door Manifest Editor now choose a category from a dropdown of the standard genres plus the genres of installed doors. **+ Add Category...** adds a new one.
+
+The grouping is set in **Admin -> Appearance & Content -> Doors**:
+
+- **Group doors by:** **Category (Genre)**, the default, or **Door Type (DOS, Native, RLogin, JS-DOS, Web)**, which keeps the previous layout.
+- **Keep DoorParty, BBSLink, and A-Net on their own tabs:** on by default. Turn it off to list those games under their genre categories.
+- **Hide Top Scores:** off by default. Turn it on to hide the monthly Top Scores (All Games) leaderboard on the door games page.
+
+`scripts/list_door_categories.php` uses the same category rules as the page, and its new `--separate-networks` option shows the DoorParty, BBSLink, A-Net and Door Servers groups separately.
+
+If you prefer the previous grouping after upgrading, set **Group doors by** to **Door Type**.
 
 ## Networks
 
@@ -844,6 +876,16 @@ TELNET_TLS_CIPHERS=DEFAULT:@SECLEVEL=0
 - **`TELNET_TLS_CIPHERS`** is the OpenSSL cipher list. The default matches what was used before. Set a stricter list to harden the listener at the cost of older clients.
 
 If you set `TELNET_TLS_CERT` and `TELNET_TLS_KEY` to your own certificate and key, the daemon now checks them when it starts: both files must exist and be readable, be valid PEM, and the certificate must match the key. If any check fails, the daemon logs the exact reason and starts with the TLS listener off, while the plain Telnet listener keeps running. It does not create a self-signed certificate in place of the one you configured. A self-signed pair is generated under `data/telnet/` only when both settings are left unset.
+
+The self-signed certificate the daemon generates now uses an ECDSA P-256 key instead of RSA. With an RSA certificate, OpenSSL signs the TLS handshake with RSA-PSS, and SyncTERM cannot verify that signature: it fails with `TLS: Could not find any algorithm named 'PSS(SHA-256,MGF1,32)'`. A new setting selects the key type for generated certificates:
+
+```ini
+TELNET_TLS_KEY_TYPE=ec
+```
+
+- **`TELNET_TLS_KEY_TYPE`** is `ec` (the default) or `rsa`. Set `rsa` only if an old terminal program cannot handle ECDSA certificates.
+
+The setting only applies when a certificate is generated. A certificate created by an earlier version stays RSA, so SyncTERM keeps failing until you replace it: stop the telnet daemon, delete `data/telnet/telnetd.crt` and `data/telnet/telnetd.key`, and start it again. A certificate you supply through `TELNET_TLS_CERT` and `TELNET_TLS_KEY` is never replaced; use an ECDSA certificate there if SyncTERM users connect.
 
 Check that the TLS listener is up after restarting the telnet daemon. Each TLS connection is logged with the negotiated version, cipher and key size, for example `TLS connection from 192.0.2.10 [TLSv1.3 TLS_AES_256_GCM_SHA384 256-bit]`. See [TelnetServer.md](TelnetServer.md).
 

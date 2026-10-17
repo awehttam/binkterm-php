@@ -749,6 +749,24 @@ return [
     'ui.admin.appearance.file_areas.footer_markdown_placeholder' => "DMCA contact: dmca@example.com",
     'ui.admin.appearance.file_areas.footer_markdown_help' => 'Markdown shown in a card below the file list. Useful for DMCA notices, upload ratio policies, or other notices. Leave blank to hide the footer.',
     'ui.admin.appearance.file_areas.save' => 'Save File Areas Settings',
+
+    // Appearance - Doors tab
+    'ui.admin.appearance.tab_doors' => 'Doors',
+    'ui.admin.appearance.doors.title' => 'Door Games Display & Grouping',
+    'ui.admin.appearance.doors.description' => 'Configure how BBS door games and web doors are organized and filtered when users browse the doors catalog.',
+    'ui.admin.appearance.doors.group_heading' => 'Catalog Grouping Mode',
+    'ui.admin.appearance.doors.group_by_label' => 'Group doors by:',
+    'ui.admin.appearance.doors.group_by_category' => 'Category (Genre)',
+    'ui.admin.appearance.doors.group_by_category_help' => 'Display tabs and badges for genres (RPG, Strategy, Door Servers, etc.) instead of technical execution types.',
+    'ui.admin.appearance.doors.group_by_type' => 'Door Type (DOS, Native, RLogin, JS-DOS, Web)',
+    'ui.admin.appearance.doors.group_by_type_help' => 'Display tabs and badges based on the underlying runtime platform.',
+    'ui.admin.appearance.doors.networks_heading' => 'Door Networks',
+    'ui.admin.appearance.doors.separate_servers_label' => 'Keep DoorParty, BBSLink, and A-Net on their own tabs',
+    'ui.admin.appearance.doors.separate_servers_help' => 'When enabled, games from external door networks will appear in dedicated network tabs rather than flooding the general genre categories. Server connection gateways will appear under Door Servers.',
+    'ui.admin.appearance.doors.leaderboard_heading' => 'Top Scores & Leaderboard',
+    'ui.admin.appearance.doors.hide_top_scores_label' => 'Hide Top Scores',
+    'ui.admin.appearance.doors.hide_top_scores_help' => 'When enabled, the monthly Top Scores (All Games) leaderboard table is hidden on the door games page.',
+
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Default Dashboard Layout',
     'ui.admin.appearance.dashboard.description' => 'Configure the default card layout shown to users who have not customized their dashboard. Cards with feature or admin requirements will only appear for users with access.',
@@ -1992,6 +2010,7 @@ return [
     'ui.admin.door_manifest_editor.field.game_screenshots' => 'Screenshots',
     'ui.admin.door_manifest_editor.field.game_screenshots_help' => 'One path per line, relative to the door directory.',
     'ui.admin.door_manifest_editor.field.tags_help' => 'Comma-separated list.',
+    'ui.admin.door_manifest_editor.add_category_placeholder' => '+ Add Category...',
     // DOS-specific
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Executable',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'The .EXE, .BAT, or .COM file to run.',
@@ -3943,6 +3962,8 @@ return [
     'ui.webdoors.by_author' => 'by {author}',
     'ui.webdoors.version_by_author' => 'v{version} by {author}',
     'ui.webdoors.launch' => 'Launch',
+    'ui.webdoors.tab_all' => 'All',
+    'ui.webdoors.no_games_in_category' => 'No games found in this category.',
     'ui.webdoors.no_games_available' => 'No games available yet. Check back later!',
     'ui.webdoors.errors.system_disabled' => 'Sorry, the game system is not enabled.',
     'ui.webdoors.errors.admin_only' => 'This door is restricted to administrators.',

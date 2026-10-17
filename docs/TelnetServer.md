@@ -104,6 +104,7 @@ Command-line options take precedence over `.env` values.
 | `TELNET_TLS_KEY` | (empty) | Path to TLS key PEM (equivalent to `--tls-key`) |
 | `TELNET_TLS_MIN_VERSION` | `1.0` | Minimum TLS version to accept (`1.0`/`1.1`/`1.2`/`1.3`); the floor and every version above it up to TLS 1.3 are offered. Invalid values fall back to `1.0` |
 | `TELNET_TLS_CIPHERS` | `DEFAULT:@SECLEVEL=0` | OpenSSL cipher list for the TLS listener |
+| `TELNET_TLS_KEY_TYPE` | `ec` | Key type for the auto-generated self-signed certificate: `ec` (ECDSA P-256) or `rsa`. Only affects newly generated certificates |
 | `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window; `0` disables rate limiting |
 | `TELNET_RATE_LIMIT_WINDOW` | `60` | Rate-limit window duration in seconds |
 | `TELNET_PREAUTH_IDLE_TIMEOUT` | `90` | Seconds of inactivity at the login / register prompts before the connection is dropped. Values below `15` are treated as a misconfiguration and ignored. Authenticated sessions are unaffected |
@@ -114,7 +115,9 @@ Command-line options take precedence over `.env` values.
 
 The Telnet daemon runs two listeners simultaneously by default: a plain-text listener on port 2323 and a TLS-encrypted listener on port 8023. Both listeners expose the same BBS session.
 
-On first start the daemon checks for a certificate and key at `data/telnetd.crt` and `data/telnetd.key`. If they do not exist, a self-signed certificate is generated automatically (using `ext-openssl` or the `openssl` CLI as a fallback) and stored there.
+On first start the daemon checks for a certificate and key at `data/telnet/telnetd.crt` and `data/telnet/telnetd.key`. If they do not exist, a self-signed certificate is generated automatically (using `ext-openssl` or the `openssl` CLI as a fallback) and stored there.
+
+The generated certificate uses an ECDSA P-256 key. An RSA certificate makes OpenSSL sign the handshake with RSA-PSS, which some clients cannot verify (SyncTERM fails with `TLS: Could not find any algorithm named 'PSS(SHA-256,MGF1,32)'`). If a legacy client cannot handle ECDSA, set `TELNET_TLS_KEY_TYPE=rsa`. Changing it has no effect on an existing certificate: delete `data/telnet/telnetd.crt` and `data/telnet/telnetd.key` and restart the daemon to regenerate. An RSA certificate you supply yourself will show the SyncTERM error; use an ECDSA one for such clients.
 
 To disable TLS:
 

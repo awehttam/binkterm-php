@@ -400,6 +400,8 @@ return [
     'errors.admin.appearance.splash.license_required' => 'È richiesta una licenza valida per configurare le pagine splash',
     'errors.admin.appearance.splash.save_failed' => 'Impossibile salvare le impostazioni splash',
     'errors.admin.appearance.file_areas.save_failed' => 'Impossibile salvare le impostazioni aree file',
+    'errors.admin.appearance.doors.save_failed' => 'Impossibile salvare le impostazioni di aspetto delle porte',
+    'errors.admin.appearance.doors.categories_failed' => 'Impossibile caricare le categorie delle porte',
     'errors.admin.dashboard.ram_usage_unavailable' => 'I dettagli sull’uso della RAM non sono disponibili su questo sistema.',
     'errors.admin.shell_art.list_failed' => 'Impossibile elencare i file shell art',
     'errors.admin.shell_art.upload.no_file' => 'Nessun file shell art caricato',

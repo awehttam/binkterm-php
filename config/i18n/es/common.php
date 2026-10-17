@@ -729,6 +729,24 @@ return [
     'ui.admin.appearance.file_areas.footer_markdown_placeholder' => "Contacto DMCA: dmca@example.com",
     'ui.admin.appearance.file_areas.footer_markdown_help' => 'Markdown que se muestra en una tarjeta debajo de la lista de archivos. Util para avisos DMCA, politicas de ratio de subida u otros avisos. Deja en blanco para ocultar el pie de pagina.',
     'ui.admin.appearance.file_areas.save' => 'Guardar ajustes de areas de archivos',
+
+    // Appearance - Doors tab
+    'ui.admin.appearance.tab_doors' => 'Puertas',
+    'ui.admin.appearance.doors.title' => 'Visualización y agrupación de juegos de puertas',
+    'ui.admin.appearance.doors.description' => 'Configure cómo se organizan y filtran los juegos de puertas BBS y puertas web al explorar el catálogo.',
+    'ui.admin.appearance.doors.group_heading' => 'Modo de agrupación del catálogo',
+    'ui.admin.appearance.doors.group_by_label' => 'Agrupar puertas por:',
+    'ui.admin.appearance.doors.group_by_category' => 'Categoría (Género)',
+    'ui.admin.appearance.doors.group_by_category_help' => 'Muestra pestañas e insignias por géneros (RPG, Estrategia, Servidores de puertas, etc.) en lugar de tipos de ejecución técnica.',
+    'ui.admin.appearance.doors.group_by_type' => 'Tipo de puerta (DOS, Nativo, RLogin, JS-DOS, Web)',
+    'ui.admin.appearance.doors.group_by_type_help' => 'Muestra pestañas e insignias basadas en la plataforma de ejecución subyacente.',
+    'ui.admin.appearance.doors.networks_heading' => 'Redes de puertas',
+    'ui.admin.appearance.doors.separate_servers_label' => 'Mantener DoorParty, BBSLink y A-Net en sus propias pestañas',
+    'ui.admin.appearance.doors.separate_servers_help' => 'Cuando está habilitado, los juegos de redes externas aparecerán en pestañas dedicadas para no saturar las categorías generales. Las pasarelas de conexión aparecerán bajo Servidores de puertas.',
+    'ui.admin.appearance.doors.leaderboard_heading' => 'Puntuaciones más altas y clasificación',
+    'ui.admin.appearance.doors.hide_top_scores_label' => 'Ocultar puntuaciones más altas',
+    'ui.admin.appearance.doors.hide_top_scores_help' => 'Cuando está habilitado, la tabla de clasificación mensual de mejores puntuaciones no se mostrará en la página de juegos.',
+
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Diseno predeterminado del panel',
     'ui.admin.appearance.dashboard.description' => 'Configure el diseno de tarjetas predeterminado que se muestra a los usuarios que no han personalizado su panel. Las tarjetas con requisitos de funcion o administrador solo apareceran para los usuarios con acceso.',
@@ -2025,6 +2043,7 @@ return [
     'ui.admin.door_manifest_editor.field.game_screenshots' => 'Capturas de pantalla',
     'ui.admin.door_manifest_editor.field.game_screenshots_help' => 'Una ruta por linea, relativa al directorio de la puerta.',
     'ui.admin.door_manifest_editor.field.tags_help' => 'Lista separada por comas.',
+    'ui.admin.door_manifest_editor.add_category_placeholder' => '+ Añadir categoría...',
 
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Ejecutable',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'El archivo .EXE, .BAT o .COM a ejecutar.',
@@ -3925,6 +3944,8 @@ return [
     'ui.webdoors.by_author' => 'por {author}',
     'ui.webdoors.version_by_author' => 'v{version} por {author}',
     'ui.webdoors.launch' => 'Iniciar',
+    'ui.webdoors.tab_all' => 'Todos',
+    'ui.webdoors.no_games_in_category' => 'No se encontraron juegos en esta categoría.',
     'ui.webdoors.no_games_available' => 'Todavia no hay juegos disponibles. Vuelva mas tarde.',
     'ui.webdoors.errors.system_disabled' => 'Lo sentimos, el sistema de juegos no esta habilitado.',
     'ui.webdoors.errors.admin_only' => 'Este door esta restringido a administradores.',

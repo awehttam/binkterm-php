@@ -76,7 +76,39 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_genre', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" name="genre" placeholder="RPG, Strategy">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="genre" id="rloginDoorGenre" placeholder="RPG, Strategy" list="rloginDoorCategoriesList">
+                                <select class="form-select" id="rloginCategoryQuickSelect" style="max-width: 170px;" onchange="onCategorySelectChange(this, 'rloginDoorGenre')">
+                                    <option value="">{{ t('ui.admin.door_manifest_editor.add_category_placeholder', {}, locale, ['common']) }}</option>
+                                    <option value="Door Servers">Door Servers</option>
+                                    <option value="DoorParty">DoorParty</option>
+                                    <option value="BBSLink">BBSLink</option>
+                                    <option value="A-Net">A-Net</option>
+                                    <option disabled>──────────</option>
+                                    <option value="RPG">RPG</option>
+                                    <option value="Strategy">Strategy</option>
+                                    <option value="Adventure">Adventure</option>
+                                    <option value="Classic">Classic</option>
+                                    <option value="Multiplayer">Multiplayer</option>
+                                    <option value="Arcade">Arcade</option>
+                                    <option value="Sci-Fi">Sci-Fi</option>
+                                    <option value="Fantasy">Fantasy</option>
+                                    <option value="Simulation">Simulation</option>
+                                    <option value="Space">Space</option>
+                                    <option value="Action">Action</option>
+                                    <option value="Casino">Casino</option>
+                                    <option value="Trivia">Trivia</option>
+                                    <option value="Board Games">Board Games</option>
+                                    <option value="Terminal">Terminal</option>
+                                    <option value="Interactive Fiction">Interactive Fiction</option>
+                                    <option value="Text">Text</option>
+                                    <option value="MUD">MUD</option>
+                                    <option value="BBS">BBS</option>
+                                    <option value="Card Games">Card Games</option>
+                                    <option value="Sports">Sports</option>
+                                </select>
+                            </div>
+                            <datalist id="rloginDoorCategoriesList"></datalist>
                             <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.tags_help', {}, locale, ['common']) }}</div>
                         </div>
                         <div class="col-md-6">
@@ -770,5 +802,34 @@ function showModalAlert(type, message) {
         </div>
     `;
 }
+
+function onCategorySelectChange(selectElem, targetInputId) {
+    const val = selectElem.value;
+    if (!val) return;
+    const input = document.getElementById(targetInputId);
+    if (!input) return;
+    const current = input.value.split(',').map(s => s.trim()).filter(s => s !== '');
+    if (!current.some(c => c.toLowerCase() === val.toLowerCase())) {
+        current.push(val);
+        input.value = current.join(', ');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    selectElem.value = '';
+}
+
+function loadCategoriesForDatalist() {
+    fetch('/admin/api/appearance/door-categories')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.categories)) {
+                const datalist = document.getElementById('rloginDoorCategoriesList');
+                if (!datalist) return;
+                datalist.innerHTML = data.categories.map(c => `<option value="${escapeHtml(c)}">`).join('');
+            }
+        })
+        .catch(() => {});
+}
+loadCategoriesForDatalist();
 </script>
 {% endblock %}

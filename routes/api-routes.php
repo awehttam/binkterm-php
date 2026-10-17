@@ -1449,11 +1449,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         unset($row);
 
-        if ($roomId && !$beforeId) {
-            // No before_id means this is a room switch or initial page-load
-            // restore, not pagination (loadOlderMessages() always sets
-            // before_id) — the one signal that the user actually entered
-            // this room, as opposed to scrolling up for older history.
+        if ($roomId && !$beforeId && !empty($_GET['entered'])) {
+            // Clients pass entered=1 only on a real room switch or initial
+            // load. Pagination (before_id) and background snapshot refreshes
+            // (e.g. the terminal server re-fetching the active room) must not
+            // log an enter event.
             $roomName = $rows[0]['room_name'] ?? null;
             ActivityTracker::track($userId, ActivityTracker::TYPE_CHAT_ROOM_ENTER, $roomId, $roomName);
         }

@@ -399,6 +399,8 @@ return [
     'errors.admin.appearance.splash.license_required' => 'A valid license is erforderlich to configure splash pages',
     'errors.admin.appearance.splash.save_failed' => 'splash Einstellungen konnte nicht gespeichert werden',
     'errors.admin.appearance.file_areas.save_failed' => 'file areas Einstellungen konnte nicht gespeichert werden',
+    'errors.admin.appearance.doors.save_failed' => 'Door-Erscheinungsbildeinstellungen konnten nicht gespeichert werden',
+    'errors.admin.appearance.doors.categories_failed' => 'Door-Kategorien konnten nicht geladen werden',
     'errors.admin.dashboard.ram_usage_unavailable' => 'RAM usage details are not available on this system.',
     'errors.admin.shell_art.list_failed' => 'Failed to list shell art files',
     'errors.admin.shell_art.upload.no_file' => 'No shell art file hochgeladen',

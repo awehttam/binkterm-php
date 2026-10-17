@@ -611,6 +611,8 @@ class ChatHandler
             : '/api/chat/messages?dm_user_id=' . $id . '&limit=80';
         if ($beforeId !== null) {
             $path .= '&before_id=' . $beforeId;
+        } else {
+            $path .= '&entered=1';
         }
 
         $response = $this->apiRequest('GET', $path, null, $session, $state);

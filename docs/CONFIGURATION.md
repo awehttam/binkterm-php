@@ -161,6 +161,10 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 # OpenSSL cipher list for the TLS listener. Default DEFAULT:@SECLEVEL=0 keeps
 # compatibility with old SSL stacks; set a stricter list to harden it.
 # TELNET_TLS_CIPHERS=DEFAULT:@SECLEVEL=0
+# Key type for the auto-generated self-signed certificate: ec (default, ECDSA
+# P-256) or rsa. RSA certificates are signed with RSA-PSS, which SyncTERM
+# cannot verify. Only affects newly generated certificates.
+# TELNET_TLS_KEY_TYPE=ec
 
 # Per-IP connection rate limiting (0 in MAX disables it)
 # TELNET_RATE_LIMIT_MAX=5

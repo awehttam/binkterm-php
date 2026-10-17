@@ -347,6 +347,20 @@ class TelnetServer
     }
 
     /**
+     * Whether the auto-generated TLS certificate should use an RSA key.
+     *
+     * The default is an ECDSA P-256 key. With an RSA certificate OpenSSL signs
+     * the handshake with RSA-PSS, which some clients (e.g. SyncTERM's Botan
+     * build: "Could not find any algorithm named 'PSS(SHA-256,MGF1,32)'")
+     * cannot verify. Set TELNET_TLS_KEY_TYPE=rsa for legacy clients that lack
+     * ECDSA support. Only affects newly generated certificates.
+     */
+    private function tlsUseRsaKey(): bool
+    {
+        return strtolower(trim((string) Config::env('TELNET_TLS_KEY_TYPE', 'ec'))) === 'rsa';
+    }
+
+    /**
      * Configure an optional debug user for auto-login.
      */
     public function setDebugUser(?string $username): void
@@ -827,10 +841,10 @@ class TelnetServer
         // Fallback: PHP openssl_* functions
         $opensslCfg = $opensslCnf ? ['config' => $opensslCnf] : [];
 
-        $pkey = openssl_pkey_new(array_merge([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ], $opensslCfg));
+        $keyOpts = $this->tlsUseRsaKey()
+            ? ['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]
+            : ['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1'];
+        $pkey = openssl_pkey_new(array_merge($keyOpts, $opensslCfg));
 
         if ($pkey === false) {
             throw new \RuntimeException('openssl_pkey_new() failed — check that the openssl PHP extension is enabled');
@@ -887,7 +901,9 @@ class TelnetServer
         $cmd = implode(' ', [
             'openssl', 'req',
             '-x509',
-            '-newkey', 'rsa:2048',
+            '-newkey', $this->tlsUseRsaKey() ? 'rsa:2048' : 'ec',
+            $this->tlsUseRsaKey() ? '' : '-pkeyopt',
+            $this->tlsUseRsaKey() ? '' : 'ec_paramgen_curve:prime256v1',
             '-keyout', escapeshellarg($this->tlsKey),
             '-out',    escapeshellarg($this->tlsCert),
             '-days',   '3650',

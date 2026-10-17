@@ -323,7 +323,7 @@ class BinkpController
             // packet_data is excluded, so each row is lightweight metadata only.
             $stmt = $db->query("
                 SELECT hno.id, hno.hub_node_id, hn.node_address, hn.name AS node_name, hn.node_type,
-                       u.username AS owner_username,
+                       hn.boss_address, u.username AS owner_username,
                        hno.message_type, hno.status, hno.size_bytes, hno.priority, hno.attempts,
                        hno.created_at, hno.next_attempt_at, hno.sent_at, hno.error_message
                 FROM hub_node_outbound hno
@@ -332,9 +332,22 @@ class BinkpController
                 ORDER BY hno.created_at DESC
             ");
 
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager($db);
+            $domainCache = [];
+            foreach ($rows as &$row) {
+                $cacheKey = $row['node_address'] . '|' . ($row['boss_address'] ?? '');
+                if (!array_key_exists($cacheKey, $domainCache)) {
+                    $domainCache[$cacheKey] = $hubNodeManager->resolveDomain($row);
+                }
+                $row['domain'] = $domainCache[$cacheKey];
+                unset($row['boss_address']);
+            }
+            unset($row);
+
             return [
                 'success' => true,
-                'rows' => $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [],
+                'rows' => $rows,
             ];
         } catch (\Exception $e) {
             return $this->apiErrorResponse('errors.binkp.hub_outbound.list_failed', $e->getMessage());

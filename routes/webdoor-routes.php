@@ -179,6 +179,7 @@ SimpleRouter::get('/games', function() {
         $game['path'] = $entry['path'];
         $game['icon_url'] = "/webdoors/{$entry['path']}/" . ($game['icon'] ?? 'icon.png');
         $game['type'] = 'webdoor';
+        $game['genre'] = \BinktermPHP\DoorCategoryHelper::normalizeGenres($manifest['game']['genre'] ?? ($manifest['game']['category'] ?? []));
 
         if(GameConfig::isEnabled($entry['id'])){
             // Check for display_name and display_description overrides in configuration
@@ -227,7 +228,7 @@ SimpleRouter::get('/games', function() {
             'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
             'icon_url' => $iconUrl,
             'type' => 'dosdoor',
-            'genre' => $door['genre'] ?? [],
+            'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? []),
             'players' => $door['players'] ?? null
         ];
     }
@@ -258,7 +259,7 @@ SimpleRouter::get('/games', function() {
             'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
             'icon_url' => $iconUrl,
             'type' => 'nativedoor',
-            'genre' => $door['genre'] ?? [],
+            'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? []),
             'players' => $door['players'] ?? null
         ];
     }
@@ -289,7 +290,7 @@ SimpleRouter::get('/games', function() {
             'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
             'icon_url' => $iconUrl,
             'type' => 'rlogindoor',
-            'genre' => $door['genre'] ?? [],
+            'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? []),
             'players' => $door['players'] ?? null
         ];
     }
@@ -318,6 +319,7 @@ SimpleRouter::get('/games', function() {
                 'path'        => $gameId,
                 'icon_url'    => $iconUrl,
                 'type'        => 'jsdosdoor',
+                'genre'       => \BinktermPHP\DoorCategoryHelper::normalizeGenres($manifest['genre'] ?? ($manifest['game']['genre'] ?? [])),
             ];
         }
     }
@@ -326,6 +328,147 @@ SimpleRouter::get('/games', function() {
     usort($games, function($a, $b) {
         return strcasecmp($a['name'], $b['name']);
     });
+
+    // Determine appearance settings for door grouping and leaderboard
+    $doorsGroupBy = \BinktermPHP\AppearanceConfig::getDoorsGroupBy();
+    $separateServers = \BinktermPHP\AppearanceConfig::shouldSeparateDoorServers();
+    $hideTopScores = \BinktermPHP\AppearanceConfig::shouldHideTopScores();
+
+    // Attach effective categories, network detection, and server status to each game
+    $categoryCounts = [];
+    $typeCounts = [];
+
+    foreach ($games as &$game) {
+        $effCats = \BinktermPHP\DoorCategoryHelper::getEffectiveCategories($game, $separateServers);
+        $game['effective_categories'] = $effCats;
+        $game['is_door_server'] = \BinktermPHP\DoorCategoryHelper::isDoorServer($game['id'], $game['name'], $game['genre'] ?? []);
+        $game['network'] = \BinktermPHP\DoorCategoryHelper::detectNetwork($game['id'], $game['name'], $game['genre'] ?? []);
+
+        // Count for category tabs
+        foreach ($effCats as $c) {
+            $categoryCounts[$c] = ($categoryCounts[$c] ?? 0) + 1;
+        }
+
+        // Count for type tabs
+        $typeKey = $game['type'];
+        $typeCounts[$typeKey] = ($typeCounts[$typeKey] ?? 0) + 1;
+        if ($separateServers && $game['is_door_server']) {
+            $typeCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS] = ($typeCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS] ?? 0) + 1;
+        } elseif ($separateServers && !empty($game['network'])) {
+            $typeCounts[$game['network']] = ($typeCounts[$game['network']] ?? 0) + 1;
+        }
+    }
+    unset($game);
+
+    $tabs = [];
+    $tabs[] = [
+        'id' => 'all',
+        'label' => 'All',
+        'count' => count($games),
+        'filter_type' => 'all',
+        'filter_value' => 'all'
+    ];
+
+    if ($doorsGroupBy === 'category') {
+        // Priority order for category tabs:
+        // 1. Door Servers
+        if (!empty($categoryCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS])) {
+            $tabs[] = [
+                'id' => 'cat-door-servers',
+                'label' => \BinktermPHP\DoorCategoryHelper::DOOR_SERVERS,
+                'count' => $categoryCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS],
+                'filter_type' => 'category',
+                'filter_value' => \BinktermPHP\DoorCategoryHelper::DOOR_SERVERS
+            ];
+            unset($categoryCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS]);
+        }
+
+        // 2. Network tabs (DoorParty, BBSLink, A-Net)
+        $priorityNetworks = [\BinktermPHP\DoorCategoryHelper::NET_DOORPARTY, \BinktermPHP\DoorCategoryHelper::NET_BBSLINK, \BinktermPHP\DoorCategoryHelper::NET_ANET];
+        foreach ($priorityNetworks as $netName) {
+            if (!empty($categoryCounts[$netName])) {
+                $tabs[] = [
+                    'id' => 'cat-' . strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $netName)),
+                    'label' => $netName,
+                    'count' => $categoryCounts[$netName],
+                    'filter_type' => 'category',
+                    'filter_value' => $netName
+                ];
+                unset($categoryCounts[$netName]);
+            }
+        }
+
+        // 3. Uncategorized holds until the very end
+        $uncatCount = $categoryCounts[\BinktermPHP\DoorCategoryHelper::UNCATEGORIZED] ?? 0;
+        unset($categoryCounts[\BinktermPHP\DoorCategoryHelper::UNCATEGORIZED]);
+
+        // 4. Alphabetical for remaining categories
+        uksort($categoryCounts, 'strcasecmp');
+        foreach ($categoryCounts as $catName => $count) {
+            $tabs[] = [
+                'id' => 'cat-' . strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $catName)),
+                'label' => $catName,
+                'count' => $count,
+                'filter_type' => 'category',
+                'filter_value' => $catName
+            ];
+        }
+
+        // 5. Uncategorized tab at the end if any
+        if ($uncatCount > 0) {
+            $tabs[] = [
+                'id' => 'cat-uncategorized',
+                'label' => 'Uncategorized',
+                'count' => $uncatCount,
+                'filter_type' => 'category',
+                'filter_value' => \BinktermPHP\DoorCategoryHelper::UNCATEGORIZED
+            ];
+        }
+    } else {
+        // Group by Type
+        if ($separateServers && !empty($typeCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS])) {
+            $tabs[] = [
+                'id' => 'type-door-servers',
+                'label' => \BinktermPHP\DoorCategoryHelper::DOOR_SERVERS,
+                'count' => $typeCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS],
+                'filter_type' => 'category',
+                'filter_value' => \BinktermPHP\DoorCategoryHelper::DOOR_SERVERS
+            ];
+        }
+        if ($separateServers) {
+            foreach ([\BinktermPHP\DoorCategoryHelper::NET_DOORPARTY, \BinktermPHP\DoorCategoryHelper::NET_BBSLINK, \BinktermPHP\DoorCategoryHelper::NET_ANET] as $netName) {
+                if (!empty($typeCounts[$netName])) {
+                    $tabs[] = [
+                        'id' => 'type-' . strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $netName)),
+                        'label' => $netName,
+                        'count' => $typeCounts[$netName],
+                        'filter_type' => 'network',
+                        'filter_value' => $netName
+                    ];
+                }
+            }
+        }
+
+        $typeOrder = [
+            'dosdoor'    => 'DOS',
+            'nativedoor' => 'Native',
+            'rlogindoor' => 'RLogin',
+            'jsdosdoor'  => 'JS-DOS',
+            'webdoor'    => 'Web',
+        ];
+
+        foreach ($typeOrder as $typeKey => $typeLabel) {
+            if (!empty($typeCounts[$typeKey])) {
+                $tabs[] = [
+                    'id' => 'type-' . $typeKey,
+                    'label' => $typeLabel,
+                    'count' => $typeCounts[$typeKey],
+                    'filter_type' => 'type',
+                    'filter_value' => $typeKey
+                ];
+            }
+        }
+    }
 
     // Build game lookup table for leaderboard (includes display_name overrides)
     $gameLookup = [];
@@ -355,46 +498,48 @@ SimpleRouter::get('/games', function() {
     $leaderboardMonthLabel = $monthStart->format('F Y');
 
     $leaderboard = [];
-    try {
-        $db = \BinktermPHP\Database::getInstance()->getPdo();
-        $limit = 10;
-        $stmt = $db->prepare('
-            WITH best_scores AS (
-                SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
-                    l.user_id, l.game_id, l.board, l.score, l.created_at
-                FROM webdoor_leaderboards l
-                WHERE l.created_at >= ?
-                  AND l.created_at < ?
-                ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
-            )
-            SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
-            FROM best_scores b
-            JOIN users u ON b.user_id = u.id
-            ORDER BY b.score DESC, b.created_at DESC
-            LIMIT ?
-        ');
-        $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
-        $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
-        $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    if (!$hideTopScores) {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $limit = 10;
+            $stmt = $db->prepare('
+                WITH best_scores AS (
+                    SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
+                        l.user_id, l.game_id, l.board, l.score, l.created_at
+                    FROM webdoor_leaderboards l
+                    WHERE l.created_at >= ?
+                      AND l.created_at < ?
+                    ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
+                )
+                SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
+                FROM best_scores b
+                JOIN users u ON b.user_id = u.id
+                ORDER BY b.score DESC, b.created_at DESC
+                LIMIT ?
+            ');
+            $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
+            $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
+            $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        foreach ($rows as $index => $row) {
-            $displayName = $row['username'];
-            $gameInfo = $gameLookup[$row['game_id']] ?? null;
-            $leaderboard[] = [
-                'rank' => $index + 1,
-                'display_name' => $displayName,
-                'score' => (int)$row['score'],
-                'game_id' => $row['game_id'],
-                'game_name' => $gameInfo['name'] ?? ucfirst($row['game_id']),
-                'game_path' => $gameInfo['path'] ?? null,
-                'board' => $row['board'],
-                'date' => substr($row['created_at'], 0, 10)
-            ];
+            foreach ($rows as $index => $row) {
+                $displayName = $row['username'];
+                $gameInfo = $gameLookup[$row['game_id']] ?? null;
+                $leaderboard[] = [
+                    'rank' => $index + 1,
+                    'display_name' => $displayName,
+                    'score' => (int)$row['score'],
+                    'game_id' => $row['game_id'],
+                    'game_name' => $gameInfo['name'] ?? ucfirst($row['game_id']),
+                    'game_path' => $gameInfo['path'] ?? null,
+                    'board' => $row['board'],
+                    'date' => substr($row['created_at'], 0, 10)
+                ];
+            }
+        } catch (\Throwable $e) {
+            getServerLogger()->error('Failed to load WebDoor leaderboard: ' . $e->getMessage());
         }
-    } catch (\Throwable $e) {
-        getServerLogger()->error('Failed to load WebDoor leaderboard: ' . $e->getMessage());
     }
 
     $template = new Template();
@@ -402,7 +547,11 @@ SimpleRouter::get('/games', function() {
         'games' => $games,
         'leaderboard' => $leaderboard,
         'leaderboard_month_label' => $leaderboardMonthLabel,
-        'leaderboard_month_offset' => $monthOffset
+        'leaderboard_month_offset' => $monthOffset,
+        'doors_group_by' => $doorsGroupBy,
+        'doors_separate_servers' => $separateServers,
+        'hide_top_scores' => $hideTopScores,
+        'door_tabs' => $tabs,
     ]);
 });
 

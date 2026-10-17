@@ -699,6 +699,24 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.appearance.file_areas.footer_markdown_placeholder' => "Contact DMCA : dmca@example.com",
     'ui.admin.appearance.file_areas.footer_markdown_help' => 'Markdown affiché dans une carte sous la liste de fichiers. Utile pour les avis DMCA, les politiques de ratio de téléchargement ou d\'autres avis. Laissez vide pour masquer le pied de page.',
     'ui.admin.appearance.file_areas.save' => 'Enregistrer les paramètres des zones de fichiers',
+
+    // Appearance - Doors tab
+    'ui.admin.appearance.tab_doors' => 'Doors',
+    'ui.admin.appearance.doors.title' => 'Affichage et regroupement des jeux doors',
+    'ui.admin.appearance.doors.description' => 'Configurez la façon dont les jeux doors BBS et doors web sont organisés et filtrés lors de la consultation du catalogue.',
+    'ui.admin.appearance.doors.group_heading' => 'Mode de regroupement du catalogue',
+    'ui.admin.appearance.doors.group_by_label' => 'Grouper les doors par :',
+    'ui.admin.appearance.doors.group_by_category' => 'Catégorie (Genre)',
+    'ui.admin.appearance.doors.group_by_category_help' => 'Affiche des onglets et des badges par genre (RPG, Stratégie, Serveurs doors, etc.) plutôt que par type technique.',
+    'ui.admin.appearance.doors.group_by_type' => 'Type de door (DOS, Natif, RLogin, JS-DOS, Web)',
+    'ui.admin.appearance.doors.group_by_type_help' => 'Affiche des onglets et des badges selon la plateforme d\'exécution sous-jacente.',
+    'ui.admin.appearance.doors.networks_heading' => 'Réseaux de doors',
+    'ui.admin.appearance.doors.separate_servers_label' => 'Conserver DoorParty, BBSLink et A-Net sur leurs propres onglets',
+    'ui.admin.appearance.doors.separate_servers_help' => 'Lorsqu\'il est activé, les jeux des réseaux externes apparaîtront dans des onglets dédiés au lieu d\'encombrer les catégories générales. Les passerelles de connexion apparaîtront sous Serveurs doors.',
+    'ui.admin.appearance.doors.leaderboard_heading' => 'Meilleurs scores et classement',
+    'ui.admin.appearance.doors.hide_top_scores_label' => 'Masquer les meilleurs scores',
+    'ui.admin.appearance.doors.hide_top_scores_help' => 'Lorsqu\'il est activé, le tableau mensuel des meilleurs scores (tous les jeux) est masqué sur la page des jeux.',
+
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Mise en page par défaut du tableau de bord',
     'ui.admin.appearance.dashboard.description' => 'Configurez la mise en page de cartes par défaut présentée aux utilisateurs n\'ayant pas personnalisé leur tableau de bord. Les cartes soumises à des exigences de fonctionnalité ou d\'administration ne s\'afficheront que pour les utilisateurs autorisés.',
@@ -1735,6 +1753,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.door_manifest_editor.field.game_screenshots' => 'Captures d\'écran',
     'ui.admin.door_manifest_editor.field.game_screenshots_help' => 'Un chemin par ligne, relatif au répertoire de la porte.',
     'ui.admin.door_manifest_editor.field.tags_help' => 'Liste séparée par des virgules.',
+    'ui.admin.door_manifest_editor.add_category_placeholder' => '+ Ajouter une catégorie...',
 
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Exécutable',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'Le fichier .EXE, .BAT ou .COM à exécuter.',
@@ -3264,6 +3283,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.webdoors.by_author' => 'par {author}',
     'ui.webdoors.version_by_author' => 'v{version} par {author}',
     'ui.webdoors.launch' => 'Lancer',
+    'ui.webdoors.tab_all' => 'Tous',
+    'ui.webdoors.no_games_in_category' => 'Aucun jeu trouvé dans cette catégorie.',
     'ui.webdoors.no_games_available' => 'Aucun jeu disponible pour le moment. Revenez plus tard !',
     'ui.webdoors.errors.system_disabled' => 'Désolé, le système de jeux n\'est pas activé.',
     'ui.webdoors.errors.admin_only' => 'Cette porte est réservée aux administrateurs.',

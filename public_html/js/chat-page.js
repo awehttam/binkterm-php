@@ -364,6 +364,7 @@
         }
         const limit = 200;
         params.set('limit', limit);
+        params.set('entered', '1');
         fetch(`/api/chat/messages?${params.toString()}`)
             .then(res => res.json())
             .then(data => {

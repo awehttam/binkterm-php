@@ -768,6 +768,22 @@ return [
     'ui.admin.appearance.file_areas.footer_markdown_help' => 'Markdown-текст, отображаемый на карточке под списком файлов. Подходит для уведомлений DMCA, правил соотношения загрузки или других объявлений. Оставьте поле пустым, чтобы скрыть нижний колонтитул.',
     'ui.admin.appearance.file_areas.save' => 'Сохранить настройки файловых областей',
 
+    // Appearance - Doors tab
+    'ui.admin.appearance.tab_doors' => 'Двери',
+    'ui.admin.appearance.doors.title' => 'Отображение и группировка игр дверей',
+    'ui.admin.appearance.doors.description' => 'Настройте организацию и фильтрацию BBS-дверей и веб-дверей при просмотре каталога.',
+    'ui.admin.appearance.doors.group_heading' => 'Режим группировки каталога',
+    'ui.admin.appearance.doors.group_by_label' => 'Группировать двери по:',
+    'ui.admin.appearance.doors.group_by_category' => 'Категории (Жанр)',
+    'ui.admin.appearance.doors.group_by_category_help' => 'Отображать вкладки и значки по жанрам (RPG, Стратегия, Серверы дверей и т.д.) вместо технических типов выполнения.',
+    'ui.admin.appearance.doors.group_by_type' => 'Типу двери (DOS, Нативный, RLogin, JS-DOS, Web)',
+    'ui.admin.appearance.doors.group_by_type_help' => 'Отображать вкладки и значки на основе платформы выполнения.',
+    'ui.admin.appearance.doors.networks_heading' => 'Сети дверей',
+    'ui.admin.appearance.doors.separate_servers_label' => 'Держать DoorParty, BBSLink и A-Net на отдельных вкладках',
+    'ui.admin.appearance.doors.separate_servers_help' => 'Если включено, игры из внешних сетей будут отображаться на отдельных вкладках, не перегружая общие категории. Шлюзы серверов будут отображаться в категории Серверы дверей.',
+    'ui.admin.appearance.doors.leaderboard_heading' => 'Лучшие результаты и таблица лидеров',
+    'ui.admin.appearance.doors.hide_top_scores_label' => 'Скрыть лучшие результаты',
+    'ui.admin.appearance.doors.hide_top_scores_help' => 'Если включено, ежемесячная таблица лидеров (все игры) скрывается на странице игр.',
 
     // Appearance - Dashboard tab
     'ui.admin.appearance.dashboard.title' => 'Макет панели управления по умолчанию',
@@ -2012,6 +2028,7 @@ return [
     'ui.admin.door_manifest_editor.field.game_screenshots' => 'Снимки экрана',
     'ui.admin.door_manifest_editor.field.game_screenshots_help' => 'По одному пути на строку, относительно директории двери.',
     'ui.admin.door_manifest_editor.field.tags_help' => 'Список через запятую.',
+    'ui.admin.door_manifest_editor.add_category_placeholder' => '+ Добавить категорию...',
 
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Исполняемый файл',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'Файл .EXE, .BAT или .COM для запуска.',
@@ -3949,6 +3966,8 @@ return [
     'ui.webdoors.by_author' => 'от {author}',
     'ui.webdoors.version_by_author' => 'v{version} от {author}',
     'ui.webdoors.launch' => 'Запустить',
+    'ui.webdoors.tab_all' => 'Все',
+    'ui.webdoors.no_games_in_category' => 'В этой категории игр не найдено.',
     'ui.webdoors.no_games_available' => 'Пока игр нет. Загляните позже!',
     'ui.webdoors.errors.system_disabled' => 'К сожалению, игровая система отключена.',
     'ui.webdoors.errors.admin_only' => 'Эта дверь доступна только администраторам.',

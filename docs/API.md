@@ -2123,6 +2123,7 @@ Retrieves paginated messages from either a chat room or a direct message convers
 | `dm_user_id` | integer | No | User ID for direct message thread (mutually exclusive with room_id) |
 | `before_id` | integer | No | Fetch messages before this message ID (for pagination) |
 | `limit` | integer | No | Max messages to return (default 50, max 200) |
+| `entered` | integer | No | Pass `1` on a real room switch or initial load to record a "Chat Room Entered" activity event. Omit for pagination and background refreshes. |
 
 **Response** _(JSON)_
 
