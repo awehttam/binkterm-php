@@ -35,6 +35,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Docker: telnet Client Added for the BBSLink Door](#docker-telnet-client-added-for-the-bbslink-door)
   - [Admin Daemon Keeps Log Lines It Cannot Write](#admin-daemon-keeps-log-lines-it-cannot-write)
   - [Fixed: Each Login Recorded Exactly Once](#fixed-each-login-recorded-exactly-once)
+  - [Downlink Queue Sorted by Owner and Shows Network Domain](#downlink-queue-sorted-by-owner-and-shows-network-domain)
 - [Web Interface](#web-interface)
   - [Fresh Assets After an Upgrade](#fresh-assets-after-an-upgrade)
   - [Login Page Honors "Remember Me"](#login-page-honors-remember-me)
@@ -124,6 +125,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **SQL migrations split on real statement boundaries:** the upgrade script now finds the end of each statement in a `.sql` migration by reading the SQL, instead of by pattern matching. A `;` or `--` inside a quoted string, a function body or a block comment no longer corrupts the migration. Every migration shipped with BinktermPHP is split exactly as before.
 - **Docker: telnet client added for the BBSLink door:** the container image now includes the `telnet` package, which the BBSLink native door (`bbslinknative`) needs. Rebuild the image to get it.
 - **Fixed: each login is recorded exactly once:** Telnet and SSH logins were recorded twice, which inflated the total login count and Today's Callers, and credited half of them to the web. PacketBBS logins were not recorded at all and did not update the user's last login time. Each successful login now produces one login event tagged with the service it came in on (`web`, `telnet`, `ssh` or `packetbbs`).
+- **Downlink queue sorted by owner and shows network domain:** the summary table on the **Downlink Queue** tab of the BinkP status page now lists downlinks grouped by owner, then by address, and shows each downlink's network domain after its address, for example `21:3/236.10@examplenet`.
 
 ### Web Interface
 
@@ -454,6 +456,15 @@ Login events feed Today's Callers, the total login count and the administrator's
 The login API is now the single place a login is recorded. It tags the event with the service the login arrived on and the caller's real IP address, and the terminal session no longer records a second one. A successful PacketBBS LOGIN now updates the user's last login time and records one event tagged `packetbbs`. Later PacketBBS commands do not record another, and a revoked session followed by a new LOGIN counts as a new login. An auto-approved terminal registration is recorded once in the same way.
 
 Login events recorded before the upgrade are not changed, so historical counts for Telnet and SSH callers stay higher than they should be.
+
+### Downlink Queue Sorted by Owner and Shows Network Domain
+
+The **Downlink Queue** tab on the BinkP status page summarizes the outbound packets queued for each downlink node or point, with its pending, failed, held and sent counts. The summary table was sorted by address alone, so downlinks belonging to the same user were scattered through the list, and an address did not show which network it belonged to.
+
+- **Order:** downlinks are now sorted by owner username first, ignoring letter case, and by address second. Addresses compare numerically within an owner, so `21:3/236.10` comes before `21:3/236.11`. Downlinks with no owner are listed first.
+- **Domain:** each address is now followed by its network domain, for example `21:3/236.10@examplenet`. For a node the domain is looked up from its address, and for a point it is the domain of the boss address it is attached to. If no domain can be determined, the address is shown without one.
+
+The queue list API behind this tab, `getHubOutboundQueue()`, now returns a `domain` field on each row.
 
 ## Web Interface
 
