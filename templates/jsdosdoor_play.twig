@@ -30,17 +30,19 @@
 
         #jsdos-canvas {
             display: block;
-            width: 100%;
-            height: 100%;
             image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            max-width: 100% !important;
+            max-height: 100% !important;
         }
 
         #jsdos-stage canvas,
         #jsdos-stage video {
             display: block;
-            max-width: 100%;
-            max-height: 100%;
+            max-width: 100% !important;
+            max-height: 100% !important;
             image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
     </style>
 </head>
@@ -282,15 +284,128 @@
         errorPanel.classList.add('d-none');
     }
 
-    function sizeHostCanvas() {
-        var stageWidth = playerStage.clientWidth || 0;
-        var stageHeight = playerStage.clientHeight || 0;
+    var canvasObserver = null;
+
+    function isFullscreenActive() {
+        return !!(document.fullscreenElement ||
+                  document.webkitFullscreenElement ||
+                  document.mozFullScreenElement ||
+                  document.msFullscreenElement);
+    }
+
+    function fitCanvas() {
+        if (!playerStage || !playerCanvas) {
+            return;
+        }
+
+        var stageWidth = playerStage.clientWidth || window.innerWidth || 0;
+        var stageHeight = playerStage.clientHeight || window.innerHeight || 0;
         if (!stageWidth || !stageHeight) {
             return;
         }
 
-        playerCanvas.width = stageWidth;
-        playerCanvas.height = stageHeight;
+        var aspect = 4 / 3;
+        var cw = playerCanvas.width || 0;
+        var ch = playerCanvas.height || 0;
+
+        if (cw > 0 && ch > 0) {
+            var rawAspect = cw / ch;
+            // Standard DOS VGA modes like 320x200 (1.6) and 640x400 (1.6) were designed for 4:3 CRT displays
+            if (Math.abs(rawAspect - 1.6) < 0.05) {
+                aspect = 4 / 3;
+            } else {
+                aspect = rawAspect;
+            }
+        }
+
+        var fitWidth = stageWidth;
+        var fitHeight = Math.round(stageWidth / aspect);
+
+        if (fitHeight > stageHeight) {
+            fitHeight = stageHeight;
+            fitWidth = Math.round(stageHeight * aspect);
+        }
+
+        playerCanvas.style.setProperty('width', fitWidth + 'px', 'important');
+        playerCanvas.style.setProperty('height', fitHeight + 'px', 'important');
+        playerCanvas.style.setProperty('max-width', '100%', 'important');
+        playerCanvas.style.setProperty('max-height', '100%', 'important');
+        playerCanvas.style.setProperty('display', 'block', 'important');
+        playerCanvas.style.setProperty('image-rendering', 'pixelated', 'important');
+    }
+
+    function observeCanvas(canvas) {
+        if (canvasObserver) {
+            canvasObserver.disconnect();
+            canvasObserver = null;
+        }
+        if (!canvas || !window.MutationObserver) {
+            return;
+        }
+        canvasObserver = new MutationObserver(function (mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+                if (mutations[i].attributeName === 'width' || mutations[i].attributeName === 'height') {
+                    fitCanvas();
+                    break;
+                }
+            }
+        });
+        canvasObserver.observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+    }
+
+    function updateFullscreenButton() {
+        var btn = document.getElementById('jsdos-fullscreen-btn');
+        if (!btn) {
+            return;
+        }
+        var icon = btn.querySelector('i');
+        if (isFullscreenActive()) {
+            btn.classList.add('btn-primary');
+            btn.classList.remove('btn-secondary');
+            if (icon) {
+                icon.className = 'fas fa-compress';
+            }
+        } else {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+            if (icon) {
+                icon.className = 'fas fa-expand';
+            }
+        }
+    }
+
+    function toggleFullscreen() {
+        resumeTrackedAudioContexts();
+        focusPlayerCanvas();
+
+        if (isFullscreenActive()) {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        } else {
+            var target = playerDiv;
+            if (target.requestFullscreen) {
+                target.requestFullscreen().catch(function () {});
+            } else if (target.webkitRequestFullscreen) {
+                target.webkitRequestFullscreen();
+            } else if (target.mozRequestFullScreen) {
+                target.mozRequestFullScreen();
+            } else if (target.msRequestFullscreen) {
+                target.msRequestFullscreen();
+            }
+        }
+
+        window.setTimeout(function () {
+            fitCanvas();
+            focusPlayerCanvas();
+            updateFullscreenButton();
+        }, 100);
     }
 
     function focusPlayerCanvas() {
@@ -508,10 +623,6 @@
         var nextCanvas = document.createElement('canvas');
         nextCanvas.id = 'jsdos-canvas';
         nextCanvas.tabIndex = 0;
-        nextCanvas.style.width = '100%';
-        nextCanvas.style.height = '100%';
-        nextCanvas.style.maxWidth = '100%';
-        nextCanvas.style.maxHeight = '100%';
         nextCanvas.style.display = 'block';
         nextCanvas.style.imageRendering = 'pixelated';
         if (playerCanvas && playerCanvas.parentNode === playerStage) {
@@ -521,7 +632,8 @@
             playerStage.appendChild(nextCanvas);
         }
         playerCanvas = nextCanvas;
-        sizeHostCanvas();
+        observeCanvas(playerCanvas);
+        fitCanvas();
         activeFs = null;
         initialWritableFiles = {};
         discoveredWritablePaths = [];
@@ -1112,7 +1224,8 @@
             }).filter(matchesWritablePattern));
 
             setStatus(loadingEmulatorMsg);
-            sizeHostCanvas();
+            observeCanvas(playerCanvas);
+            fitCanvas();
 
             dosPlayer = Dos(playerCanvas, {
                 wdosboxUrl: '/js/jsdos/wdosbox.js',
@@ -1177,7 +1290,13 @@
                         startExitMarkerPoll(fs);
                         startAutosaveLoop();
                         main(['-conf', 'dosbox.conf']);
-                        window.setTimeout(focusPlayerCanvas, 50);
+                        fitCanvas();
+                        window.setTimeout(function () {
+                            fitCanvas();
+                            focusPlayerCanvas();
+                        }, 50);
+                        window.setTimeout(fitCanvas, 300);
+                        window.setTimeout(fitCanvas, 1000);
                         setStatus('');
                     });
                 }).catch(handleLaunchFailure);
@@ -1214,27 +1333,7 @@
         setStatus('');
     });
 
-    document.getElementById('jsdos-fullscreen-btn').addEventListener('click', function () {
-        resumeTrackedAudioContexts();
-        focusPlayerCanvas();
-
-        if (dosPlayer && typeof dosPlayer.setFullScreen === 'function') {
-            dosPlayer.setFullScreen(true);
-            window.setTimeout(function () {
-                sizeHostCanvas();
-                focusPlayerCanvas();
-            }, 100);
-            return;
-        }
-
-        if (playerDiv.requestFullscreen) {
-            playerDiv.requestFullscreen();
-        } else if (playerDiv.webkitRequestFullscreen) {
-            playerDiv.webkitRequestFullscreen();
-        } else if (playerDiv.msRequestFullscreen) {
-            playerDiv.msRequestFullscreen();
-        }
-    });
+    document.getElementById('jsdos-fullscreen-btn').addEventListener('click', toggleFullscreen);
 
     window.addEventListener('beforeunload', function () {
         if (saveOnExitViaBeacon()) {
@@ -1245,15 +1344,26 @@
     });
 
     window.addEventListener('resize', function () {
-        sizeHostCanvas();
+        fitCanvas();
         focusPlayerCanvas();
     });
-    document.addEventListener('fullscreenchange', function () {
-        window.setTimeout(function () {
-            sizeHostCanvas();
-            focusPlayerCanvas();
-        }, 100);
+
+    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(function (evt) {
+        document.addEventListener(evt, function () {
+            updateFullscreenButton();
+            window.setTimeout(function () {
+                fitCanvas();
+                focusPlayerCanvas();
+            }, 100);
+        });
     });
+
+    if (window.ResizeObserver && playerStage) {
+        var stageObserver = new ResizeObserver(function () {
+            fitCanvas();
+        });
+        stageObserver.observe(playerStage);
+    }
     document.addEventListener('pointerlockchange', function () {
         if (playerDiv.classList.contains('d-none')) {
             return;
