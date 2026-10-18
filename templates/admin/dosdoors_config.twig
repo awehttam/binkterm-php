@@ -21,20 +21,6 @@
         <div class="col-lg-4">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.dosdoors_config.installed_doors', {}, locale, ['common']) }}</h6>
-                </div>
-                <div class="card-body" id="doorsList">
-                    <div class="text-center text-muted">
-                        <div class="spinner-border spinner-border-sm" role="status">
-                            <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
-                        </div>
-                        {{ t('ui.admin.dosdoors_config.loading_doors', {}, locale, ['common']) }}
-                    </div>
-                </div>
-            </div>
-
-            <div class="card shadow mt-3">
-                <div class="card-header">
                     <h6 class="mb-0">{{ t('ui.admin.dosdoors_config.quick_actions', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
@@ -68,9 +54,6 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">{{ t('ui.admin.dosdoors_config.config_filename', {}, locale, ['common']) }}</h6>
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="formatJson()">
-                            <i class="fas fa-align-left"></i> {{ t('ui.admin.dosdoors_config.format', {}, locale, ['common']) }}
-                        </button>
                         <button class="btn btn-sm btn-outline-primary" onclick="saveConfig()" id="saveBtn">
                             <i class="fas fa-save"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                         </button>
@@ -78,7 +61,27 @@
                 </div>
                 <div class="card-body">
                     <div id="editorAlert"></div>
-                    <textarea id="configEditor" class="form-control font-monospace" rows="20" spellcheck="false"></textarea>
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="doorFormTab" data-bs-toggle="tab" data-bs-target="#doorFormPane" type="button" role="tab">{{ t('ui.admin.door_config_form.tab_settings', {}, locale, ['common']) }}</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="doorJsonTab" data-bs-toggle="tab" data-bs-target="#doorJsonPane" type="button" role="tab">{{ t('ui.admin.door_config_form.tab_json', {}, locale, ['common']) }}</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="doorFormPane" role="tabpanel">
+                            <div id="doorFormContainer"></div>
+                        </div>
+                        <div class="tab-pane fade" id="doorJsonPane" role="tabpanel">
+                            <div class="mb-2 text-end">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatJson()">
+                                    <i class="fas fa-align-left"></i> {{ t('ui.admin.dosdoors_config.format', {}, locale, ['common']) }}
+                                </button>
+                            </div>
+                            <textarea id="configEditor" class="form-control font-monospace" rows="20" spellcheck="false"></textarea>
+                        </div>
+                    </div>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <small class="text-muted" id="jsonStatus">{{ t('ui.admin.dosdoors_config.loading_config', {}, locale, ['common']) }}</small>
                         <small class="text-muted">{{ t('ui.admin.dosdoors_config.json_validation_before_save', {}, locale, ['common']) }}</small>
@@ -126,7 +129,9 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/door-config-form.js"></script>
 <script>
+let doorForm = null;
 let doorsState = {
     config: {},
     availableDoors: [],
@@ -147,6 +152,22 @@ document.addEventListener('DOMContentLoaded', function() {
         loadDiscoverDoors();
     });
 
+    doorForm = DoorConfigForm.create({
+        container: 'doorFormContainer',
+        manifestType: 'dos',
+        editor: 'configEditor',
+        indent: 4,
+        fields: [
+            {key: 'enabled', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_enabled', fallback: 'Enabled'},
+            {key: 'credit_cost', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.credit_cost', fallback: 'Credit Cost', helpKey: 'ui.admin.door_manifest_editor.field.credit_cost_help', helpFallback: 'Credits required per session (0 = free).'},
+            {key: 'max_time_minutes', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.max_time_minutes', fallback: 'Max Session Time (min)'},
+            {key: 'cpu_cycles', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.cpu_cycles', fallback: 'CPU Cycles', helpKey: 'ui.admin.door_manifest_editor.field.cpu_cycles_help', helpFallback: 'DOSBox CPU speed (10000 = typical).'},
+            {key: 'max_concurrent_sessions', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.max_sessions', fallback: 'Max Concurrent Sessions'},
+            {key: 'hide_from_web', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web', fallback: 'Hide from Web', helpKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web_help', helpFallback: 'Only offer this door from telnet/SSH, not the web game library.'}
+        ],
+        getDoors: () => doorsState.availableDoors,
+        onChange: () => { updateJsonStatus(); renderDoorsList(); }
+    });
     document.getElementById('configEditor').addEventListener('input', () => {
         updateJsonStatus();
         renderDoorsList();
@@ -224,136 +245,8 @@ function loadAvailableDoors() {
 }
 
 function renderDoorsList() {
-    const container = document.getElementById('doorsList');
-
-    if (doorsState.availableDoors.length === 0) {
-        container.innerHTML = '<div class="text-muted">' + uiT('ui.admin.dosdoors_config.no_doors_found_prefix', 'No doors found. Install doors in') + ' <code>dosbox-bridge/dos/doors/</code></div>';
-        return;
-    }
-
-    // Parse current editor config
-    let currentConfig = {};
-    try {
-        const editorValue = document.getElementById('configEditor').value.trim();
-        if (editorValue) {
-            currentConfig = JSON.parse(editorValue);
-            // Handle edge case: config is an array instead of object
-            if (Array.isArray(currentConfig)) {
-                currentConfig = {};
-            }
-        }
-    } catch (e) {
-        currentConfig = doorsState.config;
-    }
-
-    let html = '<div class="list-group list-group-flush">';
-
-    doorsState.availableDoors.forEach(door => {
-        const doorConfig = currentConfig[door.id] || {};
-        const enabled = doorConfig.enabled || false;
-        const cost = doorConfig.credit_cost || 0;
-        const hideFromWeb = doorConfig.hide_from_web || false;
-
-        const statusClass = enabled ? 'success' : 'secondary';
-        const statusIcon = enabled ? 'fa-check-circle' : 'fa-circle';
-
-        html += `
-            <div class="list-group-item">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <i class="fas ${statusIcon} text-${statusClass}"></i>
-                            <strong>${door.name}</strong>
-                        </div>
-                        <div class="small text-muted">${door.description || uiT('ui.admin.dosdoors_config.no_description', 'No description')}</div>
-                        <div class="small mt-1">
-                            <span class="badge bg-secondary">${door.id}</span>
-                            ${cost > 0 ? `<span class="badge bg-info">${cost} ${uiT('ui.admin.dosdoors_config.credits', 'credits')}</span>` : '<span class="badge bg-success">' + uiT('ui.admin.dosdoors_config.free', 'Free') + '</span>'}
-                            ${hideFromWeb ? `<span class="badge bg-warning text-dark">${uiT('ui.admin.dosdoors_config.telnet_only', 'Telnet/SSH only')}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="btn-group-vertical btn-group-sm">
-                        <button class="btn btn-outline-${enabled ? 'success' : 'secondary'}"
-                                onclick="toggleDoor('${door.id}', ${!enabled})"
-                                title="${enabled ? uiT('ui.admin.dosdoors_config.disable', 'Disable') : uiT('ui.admin.dosdoors_config.enable', 'Enable')}">
-                            <i class="fas fa-power-off"></i>
-                        </button>
-                        <button class="btn btn-outline-${hideFromWeb ? 'warning' : 'secondary'}"
-                                onclick="toggleHideFromWeb('${door.id}', ${!hideFromWeb})"
-                                title="${hideFromWeb ? uiT('ui.admin.dosdoors_config.show_on_web', 'Show on web') : uiT('ui.admin.dosdoors_config.hide_from_web', 'Hide from web (telnet/SSH only)')}">
-                            <i class="fas fa-globe"></i>
-                        </button>
-                        <a href="/admin/doors/dos/${door.id}/manifest" class="btn btn-outline-info" title="${uiT('ui.admin.door_manifest_editor.heading', 'Door Manifest Editor')}">
-                            <i class="fas fa-file-code"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    html += '</div>';
-    container.innerHTML = html;
-}
-
-function toggleDoor(doorId, enable) {
-    try {
-        const editor = document.getElementById('configEditor');
-        let config = JSON.parse(editor.value || '{}');
-
-        // Handle edge case: config is an array instead of object
-        if (Array.isArray(config)) {
-            config = {};
-        }
-
-        if (!config[doorId]) {
-            // Initialize with defaults if not exists
-            config[doorId] = {
-                enabled: enable,
-                credit_cost: 0,
-                max_time_minutes: 30,
-                cpu_cycles: 10000,
-                max_concurrent_sessions: 10
-            };
-        } else {
-            config[doorId].enabled = enable;
-        }
-
-        editor.value = JSON.stringify(config, null, 4);
-        updateJsonStatus();
-        renderDoorsList();
-    } catch (e) {
-        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.invalid_json_toggle', 'Invalid JSON - cannot toggle door'));
-    }
-}
-
-function toggleHideFromWeb(doorId, hide) {
-    try {
-        const editor = document.getElementById('configEditor');
-        let config = JSON.parse(editor.value || '{}');
-
-        if (Array.isArray(config)) {
-            config = {};
-        }
-
-        if (!config[doorId]) {
-            config[doorId] = {
-                enabled: false,
-                credit_cost: 0,
-                max_time_minutes: 30,
-                cpu_cycles: 10000,
-                max_concurrent_sessions: 10,
-                hide_from_web: hide
-            };
-        } else {
-            config[doorId].hide_from_web = hide;
-        }
-
-        editor.value = JSON.stringify(config, null, 4);
-        updateJsonStatus();
-        renderDoorsList();
-    } catch (e) {
-        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.invalid_json_toggle', 'Invalid JSON - cannot toggle door'));
+    if (doorForm) {
+        doorForm.render();
     }
 }
 

@@ -279,12 +279,13 @@ class AdminDaemonClient
         return $this->sendCommand('get_door_manifest', ['door_type' => $doorType, 'door_id' => $doorId]);
     }
 
-    public function saveDoorManifest(string $doorType, string $doorId, array $manifest): array
+    public function saveDoorManifest(string $doorType, string $doorId, array $manifest, ?array $runtime = null): array
     {
         return $this->sendCommand('save_door_manifest', [
             'door_type' => $doorType,
             'door_id'   => $doorId,
             'manifest'  => $manifest,
+            'runtime'   => $runtime,
         ]);
     }
 

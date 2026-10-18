@@ -148,7 +148,7 @@
                                {% if (field.value is not null and field.value) or (field.value is null and field.default) %}checked{% endif %}
                                {% if not editable %}disabled{% endif %}>
                         <label class="form-check-label" for="field_{{ field.path | replace({'.': '_'}) }}">
-                            {{ t('ui.admin.door_manifest_editor.enabled_label', {}, locale, ['common']) }}
+                            {{ t(field.checkbox_label_key ?? 'ui.admin.door_manifest_editor.enabled_label', {}, locale, ['common']) }}
                         </label>
                     </div>
 
@@ -478,6 +478,8 @@
         return el.value;
     }
 
+    const RUNTIME_PREFIX = 'runtime.';
+
     function collectManifest() {
         // Deep-clone the original so unknown fields survive.
         const manifest = JSON.parse(JSON.stringify(originalManifest));
@@ -485,6 +487,7 @@
         for (const section of fieldSections) {
             for (const field of section.fields) {
                 if (field.type === 'readonly') continue;
+                if (field.path.startsWith(RUNTIME_PREFIX)) continue;
                 const el = getFieldElement(field.path);
                 if (!el) continue;
                 const value = readFieldValue(el, field.type);
@@ -497,6 +500,22 @@
         manifest.managed = 'web';
 
         return manifest;
+    }
+
+    // Runtime settings live in config/*.json, not the manifest; they are saved
+    // in the same request so one Save button covers both.
+    function collectRuntime() {
+        const runtime = {};
+        for (const section of fieldSections) {
+            for (const field of section.fields) {
+                if (!field.path.startsWith(RUNTIME_PREFIX)) continue;
+                const el = getFieldElement(field.path);
+                if (!el) continue;
+                const value = readFieldValue(el, field.type);
+                if (value !== undefined) runtime[field.path.slice(RUNTIME_PREFIX.length)] = value;
+            }
+        }
+        return runtime;
     }
 
     // -------------------------------------------------------------------------
@@ -533,7 +552,7 @@
         fetch(`/admin/api/door-manifest/${encodeURIComponent(DOOR_TYPE)}/${encodeURIComponent(DOOR_ID)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ manifest }),
+            body: JSON.stringify({ manifest, runtime: collectRuntime() }),
         })
         .then(r => r.json())
         .then(data => {

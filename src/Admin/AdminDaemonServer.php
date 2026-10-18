@@ -26,6 +26,7 @@ use BinktermPHP\FileAreaManager;
 use BinktermPHP\Realtime\PostgresSseEventMaintenance;
 use BinktermPHP\Realtime\SseEventMaintenanceInterface;
 use BinktermPHP\Admin\DoorManifest\DoorManifestTypeRegistry;
+use BinktermPHP\Admin\DoorManifest\DoorRuntimeFields;
 
 class AdminDaemonServer
 {
@@ -1109,7 +1110,8 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'missing_manifest']);
                         break;
                     }
-                    $this->saveDoorManifest($doorType, $doorId, $manifest);
+                    $runtime = $data['runtime'] ?? null;
+                    $this->saveDoorManifest($doorType, $doorId, $manifest, is_array($runtime) ? $runtime : null);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['saved' => true]]);
                     break;
                 case 'list_door_manifest_files':
@@ -2346,11 +2348,15 @@ class AdminDaemonServer
             }
         }
 
+        $fieldSections   = $typeDef->getFieldSections();
+        $fieldSections[] = DoorRuntimeFields::getSection($doorType);
+
         return [
             'manifest'              => $manifest,
+            'runtime'               => $this->readDoorRuntimeEntry($typeDef->getRuntimeConfigPath(), $doorId),
             'editable'              => $editable,
             'exists'                => $exists,
-            'field_sections'        => $typeDef->getFieldSections(),
+            'field_sections'        => $fieldSections,
             'picker_profiles'       => $typeDef->getFilePickerProfiles(),
             'root_directory'        => $typeDef->getRootDirectory(),
             'manifest_filename'     => $typeDef->getManifestFilename(),
@@ -2363,7 +2369,7 @@ class AdminDaemonServer
     /**
      * Validate and write a door manifest via the adapter's rules.
      */
-    private function saveDoorManifest(string $doorType, string $doorId, array $manifest): void
+    private function saveDoorManifest(string $doorType, string $doorId, array $manifest, ?array $runtime = null): void
     {
         $typeDef = DoorManifestTypeRegistry::getType($doorType);
         if ($typeDef === null) {
@@ -2421,10 +2427,63 @@ class AdminDaemonServer
             throw new \RuntimeException("Failed to write manifest: {$manifestPath}");
         }
 
+        if ($runtime !== null) {
+            $this->saveDoorRuntimeEntry($doorType, $typeDef->getRuntimeConfigPath(), $doorId, $runtime);
+        }
+
         $this->logger->info('Door manifest saved', [
             'type' => $doorType,
             'id'   => $doorId,
         ]);
+    }
+
+    /**
+     * Read one door's entry from a runtime config file (e.g. config/dosdoors.json).
+     *
+     * @return array The entry, or an empty array when the file or entry is missing.
+     */
+    private function readDoorRuntimeEntry(?string $relativePath, string $doorId): array
+    {
+        if ($relativePath === null) {
+            return [];
+        }
+        $path = __DIR__ . '/../../' . $relativePath;
+        if (!file_exists($path)) {
+            return [];
+        }
+        $config = json_decode((string)file_get_contents($path), true);
+        $entry = is_array($config) ? ($config[$doorId] ?? null) : null;
+        return is_array($entry) ? $entry : [];
+    }
+
+    /**
+     * Merge submitted runtime settings into one door's entry in its config file.
+     */
+    private function saveDoorRuntimeEntry(string $doorType, ?string $relativePath, string $doorId, array $runtime): void
+    {
+        if ($relativePath === null) {
+            return;
+        }
+        $path = __DIR__ . '/../../' . $relativePath;
+
+        $config = [];
+        if (file_exists($path)) {
+            $config = json_decode((string)file_get_contents($path), true);
+            if (!is_array($config)) {
+                throw new \RuntimeException("Runtime config contains invalid JSON: {$relativePath}");
+            }
+        }
+
+        $existing = isset($config[$doorId]) && is_array($config[$doorId]) ? $config[$doorId] : [];
+        $config[$doorId] = DoorRuntimeFields::merge($doorType, $existing, $runtime);
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode runtime config as JSON');
+        }
+        if (file_put_contents($path, $json . PHP_EOL) === false) {
+            throw new \RuntimeException("Failed to write runtime config: {$relativePath}");
+        }
     }
 
     /**

@@ -727,7 +727,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             foreach ($fieldSections as &$section) {
                 foreach ($section['fields'] as &$field) {
-                    $field['value'] = $resolveValue($manifest, $field['path']);
+                    $prefix = \BinktermPHP\Admin\DoorManifest\DoorRuntimeFields::PATH_PREFIX;
+                    $field['value'] = str_starts_with($field['path'], $prefix)
+                        ? $resolveValue($result['runtime'] ?? [], substr($field['path'], strlen($prefix)))
+                        : $resolveValue($manifest, $field['path']);
                     if ($field['value'] === null && isset($field['default'])) {
                         $field['value'] = $field['default'];
                     }
@@ -5071,7 +5074,8 @@ PROMPT;
                     return;
                 }
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $client->saveDoorManifest($doorType, $doorId, $manifest);
+                $runtime = is_array($payload['runtime'] ?? null) ? $payload['runtime'] : null;
+                $client->saveDoorManifest($doorType, $doorId, $manifest, $runtime);
                 echo json_encode([
                     'success'      => true,
                     'message_code' => 'ui.admin.door_manifest_editor.saved_success',
