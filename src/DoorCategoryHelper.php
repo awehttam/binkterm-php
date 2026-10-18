@@ -199,6 +199,18 @@ class DoorCategoryHelper
     }
 
     /**
+     * Strip network suffixes like (DoorParty), (BBSLink), (A-Net), etc. from door titles
+     * since the network is already conveyed by badges/tags.
+     *
+     * @param string $title
+     * @return string
+     */
+    public static function cleanDoorTitle(string $title): string
+    {
+        return trim((string)preg_replace('/\s*\((?:Door\s*Party|BBS\s*Link|A-Net(?:\s*Online)?|ANet)\)/i', '', $title));
+    }
+
+    /**
      * Get the effective display categories for a door based on sysop appearance preferences.
      *
      * @param array{id: string, name?: string, genre?: mixed} $door
