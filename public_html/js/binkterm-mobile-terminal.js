@@ -21,6 +21,13 @@
 (function () {
     'use strict';
 
+    function t(key, fallback = '', params = {}) {
+        if (typeof window.t === 'function') {
+            return window.t(key, params, fallback);
+        }
+        return fallback || key;
+    }
+
     class BinktermMobileTerminalAddon {
         // Built-in Color Themes
         static THEMES = {
@@ -146,34 +153,34 @@
                     const sysMove = [
                         { label: 'ESC', code: 'Escape', cls: 'btn-esc' },
                         { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
-                        { label: '* Camp', send: '*', cls: 'btn-action btn-back-key', title: 'Camp / Logoff (*)' },
+                        { label: t('ui.mobile_terminal.btn.camp', '* Camp'), send: '*', cls: 'btn-action btn-back-key', title: t('ui.mobile_terminal.btn.camp_title', 'Camp / Logoff (*)') },
                         { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                        { label: '⚔ Combat', action: 'submode:combat', cls: 'btn-submode-toggle', title: 'Switch to Combat Layout' },
+                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                        { label: t('ui.mobile_terminal.btn.combat', '⚔ Combat'), action: 'submode:combat', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_combat', 'Switch to Combat Layout') },
                         { type: 'zoom' }
                     ];
 
                     const sysCombat = [
                         { label: 'ESC', code: 'Escape', cls: 'btn-esc' },
                         { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
-                        { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: 'Confirm Yes (Y)' },
-                        { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: 'Confirm No (N)' },
-                        { label: '⚔️ A (Atk)', send: 'A', cls: 'btn-action btn-combat-atk', title: 'Attack (A)' },
-                        { label: '⚡ T (Death)', send: 'T', cls: 'btn-action btn-combat-death', title: 'Fight to the Death (T)' },
-                        { label: '🏃 R (Run)', send: 'R', cls: 'btn-action btn-combat-flee', title: 'Run from Combat (R)' },
-                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                        { label: '🧭 Move', action: 'submode:movement', cls: 'btn-submode-toggle', title: 'Switch to Movement Layout' }
+                        { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                        { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
+                        { label: '⚔️ A (Atk)', send: 'A', cls: 'btn-action btn-combat-atk', title: t('ui.mobile_terminal.btn.attack_title', 'Attack (A)') },
+                        { label: '⚡ T (Death)', send: 'T', cls: 'btn-action btn-combat-death', title: t('ui.mobile_terminal.btn.death_title', 'Fight to the Death (T)') },
+                        { label: '🏃 R (Run)', send: 'R', cls: 'btn-action btn-combat-flee', title: t('ui.mobile_terminal.btn.flee_title', 'Run from Combat (R)') },
+                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                        { label: t('ui.mobile_terminal.btn.move', '🧭 Move'), action: 'submode:movement', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_movement', 'Switch to Movement Layout') }
                     ];
 
                     if (signature === 'prompt_yes_no') {
                         return [
                             sysMove,
                             [
-                                { label: '👍 YES (Y)', send: 'Y', cls: 'btn-confirm-yes', title: 'Yes (Y)' },
-                                { label: '👎 NO (N)', send: 'N', cls: 'btn-confirm-no', title: 'No (N)' },
-                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: 'Spacebar' },
-                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: 'Enter' }
+                                { label: '👍 YES (Y)', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 NO (N)', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
+                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: t('ui.mobile_terminal.spacebar', 'Spacebar') },
+                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: t('ui.mobile_terminal.enter', 'Enter') }
                             ],
                             [
                                 { label: '1', send: '1' },
@@ -186,7 +193,7 @@
                                 { label: '8', send: '8' },
                                 { label: '9', send: '9' },
                                 { label: '0', send: '0' },
-                                { label: '*', send: '*', cls: 'btn-action', title: 'Camp / Cancel (*)' },
+                                { label: '*', send: '*', cls: 'btn-action', title: t('ui.mobile_terminal.btn.camp_title', 'Camp / Cancel (*)') },
                                 { label: '⌫', code: 'Backspace', cls: 'btn-action' }
                             ]
                         ];
@@ -212,26 +219,26 @@
                         const row2 = [];
                         if (medItem) {
                             row2.push({
-                                label: `💊 Quick Heal (${medItem.num})`,
+                                label: t('ui.mobile_terminal.btn.quick_heal', `💊 Quick Heal (${medItem.num})`, { num: medItem.num }),
                                 send: medItem.num,
                                 cls: 'btn-lord-healer',
-                                title: `Quick Heal - ${medItem.name} (${medItem.num})`
+                                title: t('ui.mobile_terminal.btn.quick_heal_title', `Quick Heal - ${medItem.name} (${medItem.num})`, { name: medItem.name, num: medItem.num })
                             });
                         } else {
                             row2.push({
-                                label: '💊 Quick Heal (6)',
+                                label: t('ui.mobile_terminal.btn.quick_heal_default', '💊 Quick Heal (6)'),
                                 send: '6',
                                 cls: 'btn-lord-healer',
-                                title: 'Quick Heal - Use MedPack (6)'
+                                title: t('ui.mobile_terminal.btn.quick_heal_default_title', 'Quick Heal - Use MedPack (6)')
                             });
                         }
 
                         if (rationItem) {
                             row2.push({
-                                label: `🍞 Rations (${rationItem.num})`,
+                                label: t('ui.mobile_terminal.btn.rations', `🍞 Rations (${rationItem.num})`, { num: rationItem.num }),
                                 send: rationItem.num,
                                 cls: 'btn-lord-forest',
-                                title: `Eat Rations (${rationItem.num})`
+                                title: t('ui.mobile_terminal.btn.rations_title', `Eat Rations (${rationItem.num})`, { num: rationItem.num })
                             });
                         }
 
@@ -400,11 +407,11 @@
                             [
                                 { label: 'ESC', code: 'Escape', cls: 'btn-esc' },
                                 { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
-                                { label: '* Camp', send: '*', cls: 'btn-action btn-back-key', title: 'Camp / Logoff (*)' },
+                                { label: t('ui.mobile_terminal.btn.camp', '* Camp'), send: '*', cls: 'btn-action btn-back-key', title: t('ui.mobile_terminal.btn.camp_title', 'Camp / Logoff (*)') },
                                 { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                                { label: '⚔ Combat', action: 'submode:combat', cls: 'btn-submode-toggle', title: 'Switch to Combat Layout' },
+                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                                { label: t('ui.mobile_terminal.btn.combat', '⚔ Combat'), action: 'submode:combat', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_combat', 'Switch to Combat Layout') },
                                 { type: 'zoom' }
                             ],
                             [
@@ -423,8 +430,8 @@
                                 { label: '🔍 I (Camp)', send: 'I', cls: 'btn-lord-inn', title: 'Investigate Camp (I)' },
                                 { label: '⚙️ A (Specs)', send: 'A', cls: 'btn-hotkey', title: 'Adjust User Specs (A)' },
                                 { label: '🔄 R (Redraw)', send: 'R', cls: 'btn-action', title: 'Redraw Screen (R)' },
-                                { label: '👍 Y (Yes)', send: 'Y', cls: 'btn-confirm-yes', title: 'Yes (Y)' },
-                                { label: '👎 N (No)', send: 'N', cls: 'btn-confirm-no', title: 'No (N)' }
+                                { label: '👍 Y (Yes)', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 N (No)', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') }
                             ],
                             [
                                 { label: '1', send: '1', title: '1 / SW diagonal' },
@@ -451,13 +458,13 @@
                             [
                                 { label: 'ESC', code: 'Escape', cls: 'btn-esc' },
                                 { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
-                                { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: 'Confirm Yes (Y)' },
-                                { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: 'Confirm No (N)' },
-                                { label: '⚔️ A (Atk)', send: 'A', cls: 'btn-action btn-combat-atk', title: 'Attack (A)' },
-                                { label: '⚡ T (Death)', send: 'T', cls: 'btn-action btn-combat-death', title: 'Fight to the Death (T)' },
-                                { label: '🏃 R (Run)', send: 'R', cls: 'btn-action btn-combat-flee', title: 'Run from Combat (R)' },
-                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                                { label: '🧭 Move', action: 'submode:movement', cls: 'btn-submode-toggle', title: 'Switch to Movement Layout' }
+                                { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
+                                { label: '⚔️ A (Atk)', send: 'A', cls: 'btn-action btn-combat-atk', title: t('ui.mobile_terminal.btn.attack_title', 'Attack (A)') },
+                                { label: '⚡ T (Death)', send: 'T', cls: 'btn-action btn-combat-death', title: t('ui.mobile_terminal.btn.death_title', 'Fight to the Death (T)') },
+                                { label: '🏃 R (Run)', send: 'R', cls: 'btn-action btn-combat-flee', title: t('ui.mobile_terminal.btn.flee_title', 'Run from Combat (R)') },
+                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                                { label: t('ui.mobile_terminal.btn.move', '🧭 Move'), action: 'submode:movement', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_movement', 'Switch to Movement Layout') }
                             ],
                             [
                                 { label: '🏹 L (Range)', send: 'L', cls: 'btn-action btn-combat-range', title: 'Long-Range Combat (L)' },
@@ -618,9 +625,9 @@
                         { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
                         { label: 'SPACE', send: ' ', cls: 'btn-action' },
                         { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                        { label: '⚔ Battle', action: 'submode:combat', cls: 'btn-submode-toggle', title: 'Switch to Combat Layout' },
+                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                        { label: t('ui.mobile_terminal.btn.combat', '⚔ Battle'), action: 'submode:combat', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_combat', 'Switch to Combat Layout') },
                         { type: 'zoom' }
                     ];
                     const sysCombat = [
@@ -628,9 +635,9 @@
                         { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
                         { label: 'SPACE', send: ' ', cls: 'btn-action' },
                         { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                        { label: '🏰 Town', action: 'submode:town', cls: 'btn-submode-toggle', title: 'Switch to Town Layout' },
+                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                        { label: t('ui.mobile_terminal.btn.town', '🏰 Town'), action: 'submode:town', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_town', 'Switch to Town Layout') },
                         { type: 'zoom' }
                     ];
 
@@ -638,10 +645,10 @@
                         return [
                             sysTown,
                             [
-                                { label: '👍 YES (Y)', send: 'Y', cls: 'btn-confirm-yes', title: 'Yes (Y)' },
-                                { label: '👎 NO (N)', send: 'N', cls: 'btn-confirm-no', title: 'No (N)' },
-                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: 'Spacebar' },
-                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: 'Enter' }
+                                { label: '👍 YES (Y)', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 NO (N)', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
+                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: t('ui.mobile_terminal.spacebar', 'Spacebar') },
+                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: t('ui.mobile_terminal.enter', 'Enter') }
                             ],
                             [
                                 { label: '1', send: '1' },
@@ -958,9 +965,9 @@
                                 { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
                                 { label: 'SPACE', send: ' ', cls: 'btn-action' },
                                 { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                                { label: '⚔ Battle', action: 'submode:combat', cls: 'btn-submode-toggle', title: 'Switch to Combat Layout' },
+                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                                { label: t('ui.mobile_terminal.btn.combat', '⚔ Battle'), action: 'submode:combat', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_combat', 'Switch to Combat Layout') },
                                 { type: 'zoom' }
                             ],
                             [
@@ -992,8 +999,8 @@
                                 { label: '8', send: '8' },
                                 { label: '9', send: '9' },
                                 { label: '0', send: '0' },
-                                { label: 'Y', send: 'Y', cls: 'btn-confirm-yes', title: 'Yes (Y)' },
-                                { label: 'N', send: 'N', cls: 'btn-confirm-no', title: 'No (N)' },
+                                { label: 'Y', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: 'N', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
                                 { label: 'C', send: 'C', cls: 'btn-hotkey', title: 'Check Mail (C)' },
                                 { label: 'M', send: 'M', cls: 'btn-hotkey', title: 'Make Announcement (M)' }
                             ]
@@ -1010,9 +1017,9 @@
                                 { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
                                 { label: 'SPACE', send: ' ', cls: 'btn-action' },
                                 { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                                { label: '🏰 Town', action: 'submode:town', cls: 'btn-submode-toggle', title: 'Switch to Town Layout' },
+                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                                { label: t('ui.mobile_terminal.btn.town', '🏰 Town'), action: 'submode:town', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_town', 'Switch to Town Layout') },
                                 { type: 'zoom' }
                             ],
                             [
@@ -1025,10 +1032,10 @@
                                 { label: '📜 V (Stats)', send: 'V', cls: 'btn-lord-stats', title: 'View Stats (V)' },
                                 { label: '🗡️ S (Stance)', send: 'S', cls: 'btn-hotkey', title: 'Special / Stance (S)' },
                                 { label: '⚔️ D (Death)', send: 'D', cls: 'btn-combat-death', title: 'Fight to Death (D)' },
-                                { label: '👍 Y (Yes)', send: 'Y', cls: 'btn-confirm-yes', title: 'Confirm Yes (Y)' },
-                                { label: '👎 N (No)', send: 'N', cls: 'btn-confirm-no', title: 'Confirm No (N)' },
-                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: 'Spacebar' },
-                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: 'Enter' }
+                                { label: '👍 Y (Yes)', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 N (No)', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
+                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: t('ui.mobile_terminal.spacebar', 'Spacebar') },
+                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: t('ui.mobile_terminal.enter', 'Enter') }
                             ],
                             [
                                 { label: '1', send: '1' },
@@ -1103,8 +1110,8 @@
                         { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
                         { label: 'SPACE', send: ' ', cls: 'btn-action' },
                         { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
+                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
                         { type: 'zoom' }
                     ],
                     // Row 2
@@ -1134,8 +1141,8 @@
                         { label: 'C', send: 'C', cls: 'btn-hotkey', title: 'Computer' },
                         { label: 'R', send: 'R', cls: 'btn-hotkey', title: 'Report' },
                         { label: 'T', send: 'T', cls: 'btn-hotkey', title: 'TransWarp' },
-                        { label: 'Y', send: 'Y', cls: 'btn-action', title: 'Yes' },
-                        { label: 'N', send: 'N', cls: 'btn-action', title: 'No' },
+                        { label: 'Y', send: 'Y', cls: 'btn-action', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                        { label: 'N', send: 'N', cls: 'btn-action', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
                         { label: 'Q', send: 'Q', cls: 'btn-action', title: 'Quit' }
                     ]
                 ]
@@ -1205,19 +1212,19 @@
                         { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
                         { label: 'SPACE', send: ' ', cls: 'btn-action' },
                         { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                        { label: '👊 Crime', action: 'submode:crime', cls: 'btn-submode-toggle', title: 'Switch to Crime Layout' },
+                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                        { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                        { label: t('ui.mobile_terminal.btn.crime', '👊 Crime'), action: 'submode:crime', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_crime', 'Switch to Crime Layout') },
                         { type: 'zoom' }
                     ];
 
                     const sysCrime = [
                         { label: 'ESC', code: 'Escape', cls: 'btn-esc' },
                         { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
-                        { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: 'Confirm Yes (Y)' },
-                        { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: 'Confirm No (N)' },
-                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                        { label: '🏙️ Streets', action: 'submode:street', cls: 'btn-submode-toggle', title: 'Switch to Street Layout' },
+                        { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                        { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
+                        { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                        { label: t('ui.mobile_terminal.btn.street', '🏙️ Streets'), action: 'submode:street', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_street', 'Switch to Street Layout') },
                         { type: 'zoom' }
                     ];
 
@@ -1225,10 +1232,10 @@
                         return [
                             sysStreet,
                             [
-                                { label: '👍 YES (Y)', send: 'Y', cls: 'btn-confirm-yes', title: 'Yes (Y)' },
-                                { label: '👎 NO (N)', send: 'N', cls: 'btn-confirm-no', title: 'No (N)' },
-                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: 'Spacebar' },
-                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: 'Enter' }
+                                { label: '👍 YES (Y)', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 NO (N)', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
+                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: t('ui.mobile_terminal.spacebar', 'Spacebar') },
+                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: t('ui.mobile_terminal.enter', 'Enter') }
                             ],
                             [
                                 { label: '1', send: '1' },
@@ -1468,9 +1475,9 @@
                                 { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
                                 { label: 'SPACE', send: ' ', cls: 'btn-action' },
                                 { label: '⌫', code: 'Backspace', cls: 'btn-action' },
-                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: 'Toggle High Contrast' },
-                                { label: '⚔ Rumble', action: 'submode:combat', cls: 'btn-submode-toggle', title: 'Switch to Rumble Layout' },
+                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                                { label: '◐', cls: 'btn-utility btn-contrast-key', action: 'contrast', title: t('ui.mobile_terminal.toggle_contrast', 'Toggle High Contrast') },
+                                { label: t('ui.mobile_terminal.btn.rumble', '⚔ Rumble'), action: 'submode:combat', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_rumble', 'Switch to Rumble Layout') },
                                 { type: 'zoom' }
                             ],
                             [
@@ -1502,8 +1509,8 @@
                                 { label: '8', send: '8' },
                                 { label: '9', send: '9' },
                                 { label: '0', send: '0' },
-                                { label: 'Y', send: 'Y', cls: 'btn-confirm-yes', title: 'Yes (Y)' },
-                                { label: 'N', send: 'N', cls: 'btn-confirm-no', title: 'No (N)' },
+                                { label: 'Y', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: 'N', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
                                 { label: '?', send: '?', cls: 'btn-hotkey', title: 'Help (?)' }
                             ]
                         ]
@@ -1517,25 +1524,25 @@
                             [
                                 { label: 'ESC', code: 'Escape', cls: 'btn-esc' },
                                 { label: 'ENTER', code: 'Enter', cls: 'btn-enter' },
-                                { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: 'Confirm Yes (Y)' },
-                                { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: 'Confirm No (N)' },
+                                { label: '👍 Y', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 N', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') },
                                 { label: '⚔️ A (Atk)', send: 'A', cls: 'btn-action btn-combat-atk', title: 'Attack (A)' },
                                 { label: '🏃 F (Flee)', send: 'F', cls: 'btn-action btn-combat-flee', title: 'Flee (F)' },
-                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: 'Toggle Keyboard' },
-                                { label: '🏙️ Street', action: 'submode:street', cls: 'btn-submode-toggle', title: 'Switch to Street Layout' }
+                                { label: '⌨', cls: 'btn-utility btn-keyboard', allowFocus: true, title: t('ui.mobile_terminal.toggle_keyboard', 'Toggle Keyboard') },
+                                { label: t('ui.mobile_terminal.btn.street', '🏙️ Street'), action: 'submode:street', cls: 'btn-submode-toggle', title: t('ui.mobile_terminal.btn.switch_street', 'Switch to Street Layout') }
                             ],
                             [
                                 { label: '⚔️ A (Attack)', send: 'A', cls: 'btn-space-combat btn-combat-atk', title: 'Attack (A)' },
                                 { label: '🏃 F (Flee)', send: 'F', cls: 'btn-action btn-combat-flee', title: 'Flee (F)' },
                                 { label: '🔫 S (Shoot)', send: 'S', cls: 'btn-lord-weapons', title: 'Shoot (S)' },
-                                { label: '👍 Y (Yes)', send: 'Y', cls: 'btn-confirm-yes', title: 'Yes (Y)' },
-                                { label: '👎 N (No)', send: 'N', cls: 'btn-confirm-no', title: 'No (N)' }
+                                { label: '👍 Y (Yes)', send: 'Y', cls: 'btn-confirm-yes', title: t('ui.mobile_terminal.btn.confirm_yes', 'Confirm Yes (Y)') },
+                                { label: '👎 N (No)', send: 'N', cls: 'btn-confirm-no', title: t('ui.mobile_terminal.btn.confirm_no', 'Confirm No (N)') }
                             ],
                             [
                                 { label: '📜 Y (Stats)', send: 'Y', cls: 'btn-lord-stats', title: 'My Stats (Y)' },
                                 { label: '🔍 E (Examine)', send: 'E', cls: 'btn-hotkey', title: 'Examine (E)' },
-                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: 'Spacebar' },
-                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: 'Enter' }
+                                { label: '⎵ SPACE', send: ' ', cls: 'btn-action', title: t('ui.mobile_terminal.spacebar', 'Spacebar') },
+                                { label: '⏎ ENTER', code: 'Enter', cls: 'btn-enter', title: t('ui.mobile_terminal.enter', 'Enter') }
                             ],
                             [
                                 { label: '1', send: '1' },
@@ -1659,11 +1666,13 @@
                 defaultScaleMode: 'fit-screen', // 'fit-screen' | 'fit-width' | 'native'
                 defaultContrastMode: 'vivid',   // High Contrast Vivid by default on mobile!
                 minimizeKeyboardDesktop: false, // Minimize gamepad on desktop by default
+                debug: false,                   // Verbose debugging output in console
                 customLayout: null,
                 storageKey: 'binkterm_mobile_terminal_config',
                 containerId: 'terminal-container'
             }, options);
 
+            this.debug = Boolean(this.options.debug || (typeof window !== 'undefined' && window.BINKTERM_MOBILE_DEBUG));
             this.term = null;
             this.terminalElement = null;
             this.scalerElement = null;
@@ -1823,7 +1832,9 @@
 
             this.renderToolbar();
             this.rescale();
-            console.log('[MobileTerminalAddon] Switched to layout profile:', profileId);
+            if (this.debug) {
+                console.log('[MobileTerminalAddon] Switched to layout profile:', profileId);
+            }
         }
 
         /**
@@ -1846,7 +1857,9 @@
 
             this.renderToolbar();
             this.rescale();
-            console.log(`[MobileTerminalAddon] Submode set to '${subModeId}' (auto=${this.autoSubMode})`);
+            if (this.debug) {
+                console.log(`[MobileTerminalAddon] Submode set to '${subModeId}' (auto=${this.autoSubMode})`);
+            }
         }
 
         /**
@@ -1869,7 +1882,10 @@
         }
 
         /**
-         * Extract visible text lines from active terminal buffer
+         * Extract visible text lines from active terminal buffer.
+         * Note: Reads relative to buffer.baseY rather than viewportY so the game state
+         * sniffer continues monitoring the live door screen even if the user has scrolled
+         * back in their terminal scrollback buffer.
          */
         getScreenText() {
             if (!this.term || !this.term.buffer || !this.term.buffer.active) return '';
@@ -1920,7 +1936,9 @@
             if (profile.subModes && typeof profile.detectSubMode === 'function') {
                 const targetSubMode = profile.detectSubMode(screenText);
                 if (targetSubMode && targetSubMode !== this.activeSubMode && profile.subModes[targetSubMode]) {
-                    console.log(`[MobileTerminalAddon] Detected game state shift: ${this.activeSubMode} -> ${targetSubMode}`);
+                    if (this.debug) {
+                        console.log(`[MobileTerminalAddon] Detected game state shift: ${this.activeSubMode} -> ${targetSubMode}`);
+                    }
                     this.activeSubMode = targetSubMode;
                     this._activeMenuSignature = null;
                     stateChanged = true;
@@ -1949,7 +1967,9 @@
             this.term = term;
             this.terminalElement = term.element;
 
-            console.log('[MobileTerminalAddon] Activating mobile terminal addon. Profile:', this.activeProfileId, 'IsMobile:', this.isMobile);
+            if (this.debug) {
+                console.log('[MobileTerminalAddon] Activating mobile terminal addon. Profile:', this.activeProfileId, 'IsMobile:', this.isMobile);
+            }
 
             // Set up DOM hierarchy:
             // container -> viewportElement -> scalerElement -> terminalElement
@@ -2088,7 +2108,7 @@
             // Layout Picker Pill
             this.layoutPill = document.createElement('div');
             this.layoutPill.className = 'binkterm-layout-pill';
-            this.layoutPill.title = 'Change Gamepad Layout';
+            this.layoutPill.title = t('ui.mobile_terminal.pill.change_layout', 'Change Gamepad Layout');
             this.layoutPill.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.openLayoutModal();
@@ -2098,7 +2118,7 @@
             // Submode Dynamic Pill (Combat / Movement indicator & switcher)
             this.subModePill = document.createElement('div');
             this.subModePill.className = 'binkterm-submode-pill';
-            this.subModePill.title = 'Current Mode. Tap to toggle or switch Auto/Manual';
+            this.subModePill.title = t('ui.mobile_terminal.pill.mode_tooltip', 'Current Mode. Tap to toggle or switch Auto/Manual');
             this.subModePill.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleSubModeAuto();
@@ -2108,7 +2128,8 @@
             // Collapse/Expand Tab
             const tab = document.createElement('div');
             tab.className = 'binkterm-toolbar-tab';
-            tab.innerHTML = `<span class="tab-icon">${this.toolbarCollapsed ? '▲' : '▼'}</span> <span class="tab-label">${this.toolbarCollapsed ? 'Keys' : 'Hide'}</span>`;
+            tab.title = this.toolbarCollapsed ? t('ui.mobile_terminal.tab_keys_title', 'Expand touch gamepad toolbar') : t('ui.mobile_terminal.tab_hide', 'Hide');
+            tab.innerHTML = `<span class="tab-icon">${this.toolbarCollapsed ? '▲' : '▼'}</span> <span class="tab-label">${this.toolbarCollapsed ? t('ui.mobile_terminal.tab_keys', 'Keys') : t('ui.mobile_terminal.tab_hide', 'Hide')}</span>`;
             tab.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleCollapseToolbar();
@@ -2161,17 +2182,17 @@
                     let pillIcon = currentSub.icon || '🎮';
                     if (this.activeProfileId === 'lord' && this._activeMenuSignature) {
                         const sigMap = {
-                            'menu_forest': { label: 'Forest', icon: '🌲' },
-                            'menu_town': { label: 'Town', icon: '🏰' },
-                            'menu_bank': { label: 'Bank', icon: '🏦' },
-                            'menu_armour': { label: 'Armour', icon: '🛡️' },
-                            'menu_weapons': { label: 'Weapons', icon: '🗡️' },
-                            'menu_healer': { label: 'Healer', icon: '🌿' },
-                            'menu_training': { label: 'Training', icon: '🏋️' },
-                            'menu_inn': { label: 'Inn', icon: '🍺' },
-                            'combat': { label: 'Combat', icon: '⚔️' },
-                            'prompt_yes_no': { label: 'Yes/No', icon: '❓' },
-                            'prompt_news': { label: 'News', icon: '📰' }
+                            'menu_forest': { label: t('ui.mobile_terminal.status.forest', 'Forest'), icon: '🌲' },
+                            'menu_town': { label: t('ui.mobile_terminal.status.town', 'Town'), icon: '🏰' },
+                            'menu_bank': { label: t('ui.mobile_terminal.status.bank', 'Bank'), icon: '🏦' },
+                            'menu_armour': { label: t('ui.mobile_terminal.status.armour', 'Armour'), icon: '🛡️' },
+                            'menu_weapons': { label: t('ui.mobile_terminal.status.weapons', 'Weapons'), icon: '🗡️' },
+                            'menu_healer': { label: t('ui.mobile_terminal.status.healer', 'Healer'), icon: '🌿' },
+                            'menu_training': { label: t('ui.mobile_terminal.status.training', 'Training'), icon: '🏋️' },
+                            'menu_inn': { label: t('ui.mobile_terminal.status.inn', 'Inn'), icon: '🍺' },
+                            'combat': { label: t('ui.mobile_terminal.status.combat', 'Combat'), icon: '⚔️' },
+                            'prompt_yes_no': { label: t('ui.mobile_terminal.status.yes_no', 'Yes/No'), icon: '❓' },
+                            'prompt_news': { label: t('ui.mobile_terminal.status.news', 'News'), icon: '📰' }
                         };
                         if (sigMap[this._activeMenuSignature]) {
                             pillLabel = sigMap[this._activeMenuSignature].label;
@@ -2179,11 +2200,11 @@
                         }
                     } else if (this.activeProfileId === 'ooii' && this._activeMenuSignature) {
                         const sigMap = {
-                            'movement': { label: 'Wasteland', icon: '🧭' },
-                            'combat': { label: 'Combat', icon: '⚔️' },
-                            'inventory': { label: 'Inventory', icon: '🎒' },
-                            'base': { label: 'Base', icon: '🏰' },
-                            'prompt_yes_no': { label: 'Yes/No', icon: '❓' }
+                            'movement': { label: t('ui.mobile_terminal.status.wasteland', 'Wasteland'), icon: '🧭' },
+                            'combat': { label: t('ui.mobile_terminal.status.combat', 'Combat'), icon: '⚔️' },
+                            'inventory': { label: t('ui.mobile_terminal.status.inventory', 'Inventory'), icon: '🎒' },
+                            'base': { label: t('ui.mobile_terminal.status.base', 'Base'), icon: '🏰' },
+                            'prompt_yes_no': { label: t('ui.mobile_terminal.status.yes_no', 'Yes/No'), icon: '❓' }
                         };
                         if (sigMap[this._activeMenuSignature]) {
                             pillLabel = sigMap[this._activeMenuSignature].label;
@@ -2191,13 +2212,13 @@
                         }
                     } else if (this.activeProfileId === 'pimpwars' && this._activeMenuSignature) {
                         const sigMap = {
-                            'street': { label: 'Streets', icon: '🏙️' },
-                            'menu_move': { label: 'Moving', icon: '🚶' },
-                            'menu_sheinen': { label: 'Sheinen', icon: '🍗' },
-                            'menu_pete': { label: 'Stiff Pete', icon: '👔' },
-                            'menu_casino': { label: 'Casino', icon: '🎰' },
-                            'menu_steal': { label: 'Crime', icon: '👊' },
-                            'prompt_yes_no': { label: 'Yes/No', icon: '❓' }
+                            'street': { label: t('ui.mobile_terminal.status.streets', 'Streets'), icon: '🏙️' },
+                            'menu_move': { label: t('ui.mobile_terminal.status.moving', 'Moving'), icon: '🚶' },
+                            'menu_sheinen': { label: t('ui.mobile_terminal.status.sheinen', 'Sheinen'), icon: '🍗' },
+                            'menu_pete': { label: t('ui.mobile_terminal.status.stiff_pete', 'Stiff Pete'), icon: '👔' },
+                            'menu_casino': { label: t('ui.mobile_terminal.status.casino', 'Casino'), icon: '🎰' },
+                            'menu_steal': { label: t('ui.mobile_terminal.status.crime', 'Crime'), icon: '👊' },
+                            'prompt_yes_no': { label: t('ui.mobile_terminal.status.yes_no', 'Yes/No'), icon: '❓' }
                         };
                         if (sigMap[this._activeMenuSignature]) {
                             pillLabel = sigMap[this._activeMenuSignature].label;
@@ -2205,7 +2226,7 @@
                         }
                     }
 
-                    this.subModePill.innerHTML = `<span>${pillIcon}</span> <span>${pillLabel}</span> <span class="badge-mode">${this.autoSubMode ? 'Auto' : 'Lock'}</span>`;
+                    this.subModePill.innerHTML = `<span>${pillIcon}</span> <span>${pillLabel}</span> <span class="badge-mode">${this.autoSubMode ? t('ui.mobile_terminal.pill.auto', 'Auto') : t('ui.mobile_terminal.pill.lock', 'Lock')}</span>`;
                 } else {
                     this.subModePill.style.display = 'none';
                 }
@@ -2262,7 +2283,7 @@
                         const zoomMinus = document.createElement('button');
                         zoomMinus.type = 'button';
                         zoomMinus.textContent = '−';
-                        zoomMinus.title = 'Zoom Out';
+                        zoomMinus.title = t('ui.mobile_terminal.zoom_out', 'Zoom Out');
                         zoomMinus.addEventListener('pointerdown', (e) => { e.preventDefault(); this.zoomOut(); });
                         const zoomLabel = document.createElement('span');
                         zoomLabel.className = 'binkterm-zoom-label';
@@ -2270,7 +2291,7 @@
                         const zoomPlus = document.createElement('button');
                         zoomPlus.type = 'button';
                         zoomPlus.textContent = '+';
-                        zoomPlus.title = 'Zoom In';
+                        zoomPlus.title = t('ui.mobile_terminal.zoom_in', 'Zoom In');
                         zoomPlus.addEventListener('pointerdown', (e) => { e.preventDefault(); this.zoomIn(); });
                         zoomGroup.appendChild(zoomMinus);
                         zoomGroup.appendChild(zoomLabel);
@@ -2354,7 +2375,7 @@
             const modal = document.createElement('div');
             modal.className = 'binkterm-mobile-modal';
             modal.innerHTML = `
-                <h6><span>🎮 Game Controller Layout</span> <button type="button" class="modal-close-btn">&times;</button></h6>
+                <h6><span>🎮 ${t('ui.mobile_terminal.modal.select_profile', 'Game Controller Layout')}</span> <button type="button" class="modal-close-btn">&times;</button></h6>
                 <div class="binkterm-layout-options-list"></div>
             `;
 
@@ -2435,7 +2456,9 @@
             this.saveConfig({ contrastMode: mode, contrastVersion: 2 });
             this.applyContrast();
             this.updateContrastButtons();
-            console.log('[MobileTerminalAddon] Contrast mode set to:', mode);
+            if (this.debug) {
+                console.log('[MobileTerminalAddon] Contrast mode set to:', mode);
+            }
         }
 
         /**
@@ -2471,9 +2494,9 @@
          */
         updateContrastButtons() {
             const labelMap = {
-                'standard': 'Contrast: Standard',
-                'vivid': 'Contrast: Vivid',
-                'amber': 'Contrast: Amber'
+                'standard': t('ui.mobile_terminal.contrast.standard', 'Contrast: Standard'),
+                'vivid': t('ui.mobile_terminal.contrast.vivid', 'Contrast: Vivid'),
+                'amber': t('ui.mobile_terminal.contrast.amber', 'Contrast: Amber')
             };
 
             const headerBtn = document.getElementById('contrastBtn');
@@ -2607,7 +2630,13 @@
                 tabIcon.textContent = this.toolbarCollapsed ? '▲' : '▼';
             }
             if (tabLabel) {
-                tabLabel.textContent = this.toolbarCollapsed ? 'Keys' : 'Hide';
+                tabLabel.textContent = this.toolbarCollapsed ? t('ui.mobile_terminal.tab_keys', 'Keys') : t('ui.mobile_terminal.tab_hide', 'Hide');
+            }
+            if (this.toolbarElement) {
+                const tabEl = this.toolbarElement.querySelector('.binkterm-toolbar-tab');
+                if (tabEl) {
+                    tabEl.title = this.toolbarCollapsed ? t('ui.mobile_terminal.tab_keys_title', 'Expand touch gamepad toolbar') : t('ui.mobile_terminal.tab_hide', 'Hide');
+                }
             }
             this.saveConfig({ toolbarCollapsed: this.toolbarCollapsed });
             setTimeout(this._boundRescale, 150);

@@ -188,6 +188,28 @@ $mobileAssetVer = (string)@filemtime(__DIR__ . '/../../js/binkterm-mobile-termin
     </div>
     <div id="terminal-container"></div>
 
+<?php
+$mobileCatalog = array_filter(
+    $translator->getCatalog($locale, 'common') ?? [],
+    static fn($k) => str_starts_with($k, 'ui.mobile_terminal.') || str_starts_with($k, 'ui.dosdoor_player.') || str_starts_with($k, 'ui.rlogindoor_player.'),
+    ARRAY_FILTER_USE_KEY
+);
+?>
+    <script>
+        window.i18nCatalog = <?= json_encode($mobileCatalog, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        window.t = function(key, params, fallback) {
+            if (window.top && window.top !== window && typeof window.top.t === 'function') {
+                return window.top.t(key, params, fallback);
+            }
+            var val = (window.i18nCatalog && window.i18nCatalog[key]) !== undefined ? window.i18nCatalog[key] : (fallback || key);
+            if (params && typeof params === 'object') {
+                Object.keys(params).forEach(function(k) {
+                    val = val.replace(new RegExp('\\{' + k + '\\}', 'g'), params[k]);
+                });
+            }
+            return val;
+        };
+    </script>
     <script src="/webdoors/terminal/assets/xterm.js"></script>
     <script src="/js/binkterm-mobile-terminal.js?v=<?= htmlspecialchars($mobileAssetVer, ENT_QUOTES) ?>"></script>
     <script>

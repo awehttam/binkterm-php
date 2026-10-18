@@ -153,6 +153,14 @@ $mobileAssetVer = (string)@filemtime(__DIR__ . '/js/binkterm-mobile-terminal.js'
     </div>
     <div id="terminal-container"></div>
 
+    <script>
+        window.t = function(key, params, fallback) {
+            if (window.top && window.top !== window && typeof window.top.t === 'function') {
+                return window.top.t(key, params, fallback);
+            }
+            return fallback || key;
+        };
+    </script>
     <script src="/webdoors/terminal/assets/xterm.js"></script>
     <script src="/js/xterm-addon-fit.js"></script>
     <script src="/js/binkterm-mobile-terminal.js?v=<?= htmlspecialchars($mobileAssetVer, ENT_QUOTES) ?>"></script>

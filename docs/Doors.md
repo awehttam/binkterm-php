@@ -389,6 +389,31 @@ SSLProxyEngine on
 
 ---
 
+## Mobile Touch Gamepad & Terminal Game Profiles
+
+When playing DOS or RLogin doors on mobile devices or tablets, BinktermPHP attaches a touch-optimized terminal gamepad controller (`binkterm-mobile-terminal.js`) with responsive canvas auto-scaling and game-specific profiles:
+
+### Built-in Game Profiles
+- **Operation: Overkill II (`ooii`)**: Dynamic layouts with automatic screen-buffer sniffing between Wasteland movement, Combat (with full-width giant spacebar action button and tactical flee/melee/ranged keys), and dynamic quick-heal / ration inventory hotkeys.
+- **Legend of the Red Dragon (`lord`)**: Dynamic layout switching between Town Square, Combat, Forest, Healer, Bank, Weapons, Armour, and Inn.
+- **Pimp Wars (`pimpwars`)**: Dynamic layouts detecting Street Corner, Sheinen's Restaurant, Stiff Pete's Wardrobe, Casino, and Crime/Sabotage.
+- **Trade Wars 2002 (`tw2002`)**: Dedicated sector navigation d-pad, Port, Scan, TransWarp, Computer, and Report hotkeys.
+- **Standard Gamepad (`default`)**: General-purpose gamepad with Esc, Enter, Space, Backspace, arrow navigation d-pad, numbers 0-9, and hotkey actions.
+
+### In-Game State Sniffing
+The gamepad addon reads the live screen buffer (relative to `buffer.baseY`) to detect in-game context shifts (such as combat vs movement or dialogue prompts) and updates the visible touch buttons automatically in real time without needing server-side hooks. Users can tap the mode pill in the toolbar to lock into a specific submode or cycle available layouts.
+
+### Admin Appearance Setting
+Sysops can control whether the touch gamepad is minimized on desktop browsers by default:
+- Navigate to **Admin -> Settings -> Appearance -> Web Doors**.
+- Toggle **Minimize On-Screen Door Gamepad on Desktop by Default** (`minimize_onscreen_keyboard_desktop`).
+- When enabled, desktop players see the compact pull tab (`Keys` / `Hide`) to expand the gamepad on demand, while mobile touch devices always start with the gamepad expanded.
+
+### Themes & i18n
+All gamepad UI buttons, status badges, and layout picker labels are fully localized across all 6 supported languages (`en`, `de`, `es`, `fr`, `it`, `ru`) and support the standard, dark, amber monochrome, green phosphor monochrome, and cyberpunk themes.
+
+---
+
 ## Door Type Details
 
 - [DOS Doors](DOSDoors.md) — Setup, DOSBox configuration, adding door games, drop file format, troubleshooting
