@@ -6,6 +6,7 @@
     "version": "1.0.0",
     "author": "Claude",
     "description": "Guess the five-letter word in six tries",
+    "genre": ["Trivia"],
     "entry_point": "index.html",
     "icon": "icon.svg",
     "screenshots": []

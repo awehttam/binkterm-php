@@ -5,6 +5,7 @@
     "id": "klondike-solitaire",
     "name": "Klondike Solitaire",
     "description": "Classic single-player Klondike Solitaire implemented as a WebDoor game.",
+    "genre": ["Card Games"],
     "version": "1.0.0",
     "author": "Claude",
     "license": "MIT",

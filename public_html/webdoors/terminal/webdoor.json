@@ -6,6 +6,7 @@
     "version": "1.0.1",
     "author": "awehttam",
     "description": "Connect to hosts on the Internet",
+    "genre": ["Terminal"],
     "entry_point": "index.php",
     "icon": "icon.svg",
     "screenshots": []
@@ -74,5 +75,5 @@
         }
       ]
     }
-
+  }
 }

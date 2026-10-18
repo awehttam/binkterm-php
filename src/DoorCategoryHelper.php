@@ -61,6 +61,7 @@ class DoorCategoryHelper
             'BBS',
             'Card Games',
             'Sports',
+            'Communications',
         ];
     }
 

@@ -4,6 +4,7 @@
     "id": "hangman",
     "name": "Hangman",
     "description": "Classic Hangman. Guess the word before the stick figure is complete.",
+    "genre": ["Arcade"],
     "version": "1.0.0",
     "author": "ChatGPT",
     "license": "MIT",
