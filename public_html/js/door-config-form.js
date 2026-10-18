@@ -73,7 +73,30 @@ window.DoorConfigForm = (function () {
             input = `<input type="number" min="0" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
         } else if (field.type === 'tags') {
             const tagVal = Array.isArray(value) ? value.join(', ') : (typeof value === 'string' ? value : '');
-            input = `<input type="text" class="form-control" data-field="${esc(field.key)}" data-field-type="tags" value="${esc(tagVal)}" placeholder="e.g. JSDOS, Adventure, Sci-Fi" list="manifestCategoriesList">`;
+            let optionsHtml = '';
+            const datalist = document.getElementById('manifestCategoriesList');
+            if (datalist && datalist.options.length > 0) {
+                Array.from(datalist.options).forEach(opt => {
+                    optionsHtml += `<option value="${esc(opt.value)}">${esc(opt.value)}</option>`;
+                });
+            } else {
+                const defaults = [
+                    'JSDOS', 'Adventure', 'RPG', 'Strategy', 'Classic', 'Multiplayer',
+                    'Arcade', 'Action', 'Sci-Fi', 'Fantasy', 'Simulation', 'Comedy',
+                    'Space', 'Casino', 'Trivia', 'Board Games', 'Door Servers'
+                ];
+                defaults.forEach(cat => {
+                    optionsHtml += `<option value="${esc(cat)}">${esc(cat)}</option>`;
+                });
+            }
+            input = `
+                <div class="input-group">
+                    <input type="text" class="form-control" data-field="${esc(field.key)}" data-field-type="tags" value="${esc(tagVal)}" placeholder="e.g. JSDOS, Adventure, Sci-Fi" list="manifestCategoriesList">
+                    <select class="form-select door-tag-select" style="max-width: 170px;">
+                        <option value="">${esc(t('ui.admin.door_manifest_editor.add_category_placeholder', 'Add category...'))}</option>
+                        ${optionsHtml}
+                    </select>
+                </div>`;
         } else {
             input = `<input type="text" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
         }
@@ -205,6 +228,22 @@ window.DoorConfigForm = (function () {
                 </div>`;
             document.body.appendChild(modalEl);
             modalEl.querySelector('[data-role="save"]').addEventListener('click', saveModal);
+            modalEl.addEventListener('change', event => {
+                const select = event.target.closest('.door-tag-select');
+                if (!select || !select.value) {
+                    return;
+                }
+                const input = select.closest('.input-group')?.querySelector('input[data-field-type="tags"]');
+                if (input) {
+                    const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+                    if (!current.some(c => c.toLowerCase() === select.value.toLowerCase())) {
+                        current.push(select.value);
+                        input.value = current.join(', ');
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                }
+                select.value = '';
+            });
             return modalEl;
         }
 
@@ -221,7 +260,7 @@ window.DoorConfigForm = (function () {
             el.querySelector('.modal-title').textContent = entry.display_name || info.name || key;
             el.querySelector('[data-role="fields"]').innerHTML = opts.fields.map(f => {
                 let val = entry[f.key];
-                if ((val === undefined || val === null) && f.key === 'genre' && info.genre) {
+                if ((val === undefined || val === null || (Array.isArray(val) && val.length === 0)) && f.key === 'genre' && info.genre) {
                     val = info.genre;
                 }
                 return renderField(f, val);

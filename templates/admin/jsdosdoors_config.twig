@@ -92,6 +92,7 @@
         </div>
     </div>
     <datalist id="manifestCategoriesList">
+        <option value="JSDOS">
         {% for cat in standard_categories %}
         <option value="{{ cat }}">
         {% endfor %}
@@ -100,7 +101,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/js/door-config-form.js"></script>
+<script src="/js/door-config-form.js?v=1.3.0"></script>
 <script>
 let doorForm = null;
 let jsdoorsConfigState = {
