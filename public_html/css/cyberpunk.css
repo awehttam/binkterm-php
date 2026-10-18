@@ -1789,3 +1789,119 @@ tbody, td, tfoot, th, thead, tr {
 .ai-response-text pre { background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 4px; overflow-x: auto; }
 .ai-response-text code { font-size: 0.85em; }
 .ai-response-text h1, .ai-response-text h2, .ai-response-text h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+
+/* Mobile Terminal Gamepad & Virtual Keys - Cyberpunk Neon Theme */
+.binkterm-mobile-toolbar {
+    background: var(--cyber-dark) !important;
+    border-top: 1px solid var(--border-color) !important;
+    box-shadow: 0 -4px 16px rgba(157, 78, 221, 0.25) !important;
+}
+
+.binkterm-toolbar-tab,
+.binkterm-layout-pill,
+.binkterm-submode-pill {
+    background: var(--cyber-dark-light) !important;
+    border: 1px solid var(--border-color) !important;
+    border-bottom: none !important;
+    color: var(--cyber-cyan) !important;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-toolbar-tab,
+.binkterm-mobile-toolbar.is-collapsed .binkterm-layout-pill,
+.binkterm-mobile-toolbar.is-collapsed .binkterm-submode-pill {
+    border: 1px solid var(--cyber-pink) !important;
+    background: var(--cyber-dark-light) !important;
+    color: var(--cyber-yellow) !important;
+    box-shadow: 0 0 10px rgba(255, 42, 109, 0.3) !important;
+}
+
+.binkterm-submode-pill .badge-mode {
+    background: rgba(249, 240, 2, 0.2) !important;
+    color: var(--cyber-yellow) !important;
+}
+
+.binkterm-submode-pill.mode-combat {
+    background: rgba(255, 42, 109, 0.2) !important;
+    border-color: var(--cyber-pink) !important;
+    color: var(--cyber-pink-bright) !important;
+}
+
+.binkterm-key-btn {
+    background: var(--cyber-dark-light) !important;
+    color: var(--text-color) !important;
+    border-color: var(--cyber-purple-dim) !important;
+}
+
+.binkterm-key-btn:active,
+.binkterm-key-btn.is-active {
+    background: var(--cyber-pink) !important;
+    color: #fff !important;
+    border-color: var(--cyber-pink-bright) !important;
+    box-shadow: 0 0 10px rgba(255, 42, 109, 0.8) !important;
+}
+
+.binkterm-key-btn.btn-action,
+.binkterm-key-btn.btn-nav {
+    background: var(--cyber-blue) !important;
+    border-color: var(--cyber-cyan-dim) !important;
+    color: var(--cyber-cyan-bright) !important;
+}
+
+.binkterm-key-btn.btn-enter,
+.binkterm-key-btn.btn-confirm-yes {
+    background: #0f382a !important;
+    border-color: #05d9a0 !important;
+    color: #05d9a0 !important;
+}
+
+.binkterm-key-btn.btn-esc,
+.binkterm-key-btn.btn-confirm-no {
+    background: #3d0d20 !important;
+    border-color: var(--cyber-pink-dim) !important;
+    color: var(--cyber-pink) !important;
+}
+
+.binkterm-key-btn.btn-space-combat-giant,
+.binkterm-key-btn.btn-space-combat,
+.binkterm-key-btn.btn-combat-atk,
+.binkterm-key-btn.btn-combat-death {
+    background: linear-gradient(180deg, #6e0c30 0%, #3d0517 100%) !important;
+    border-color: var(--cyber-pink) !important;
+    color: #fff !important;
+    box-shadow: 0 0 12px rgba(255, 42, 109, 0.6) !important;
+}
+
+.binkterm-key-btn.btn-submode-toggle,
+.binkterm-key-btn.btn-hotkey {
+    background: var(--cyber-dark-lighter) !important;
+    border-color: var(--cyber-yellow) !important;
+    color: var(--cyber-yellow) !important;
+}
+
+.binkterm-key-btn.btn-combat-flee,
+.binkterm-key-btn.btn-combat-range,
+.binkterm-key-btn.btn-combat-melee,
+.binkterm-key-btn.btn-back-key,
+.binkterm-key-btn[class*="btn-lord-"] {
+    background: var(--cyber-dark-light) !important;
+    border-color: var(--cyber-purple) !important;
+    color: var(--cyber-cyan) !important;
+}
+
+.binkterm-mobile-modal {
+    background: var(--cyber-dark) !important;
+    border-color: var(--cyber-pink) !important;
+    color: var(--text-color) !important;
+    box-shadow: 0 0 25px rgba(255, 42, 109, 0.4) !important;
+}
+
+.binkterm-profile-option {
+    background: var(--cyber-dark-light) !important;
+    border-color: var(--cyber-purple-dim) !important;
+}
+
+.binkterm-profile-option.is-selected {
+    border-color: var(--cyber-cyan) !important;
+    background: var(--cyber-dark-lighter) !important;
+}
+

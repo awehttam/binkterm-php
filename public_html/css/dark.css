@@ -1359,3 +1359,56 @@ a:hover {
 .ai-response-text pre { background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 4px; overflow-x: auto; }
 .ai-response-text code { font-size: 0.85em; }
 .ai-response-text h1, .ai-response-text h2, .ai-response-text h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+
+/* Mobile Terminal Gamepad & Virtual Keys - Dark Theme */
+.binkterm-mobile-toolbar {
+    background: var(--bg-primary) !important;
+    border-top: 1px solid var(--border-color) !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+.binkterm-toolbar-tab,
+.binkterm-layout-pill,
+.binkterm-submode-pill {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-bottom: none !important;
+    color: var(--text-color) !important;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-toolbar-tab,
+.binkterm-mobile-toolbar.is-collapsed .binkterm-layout-pill,
+.binkterm-mobile-toolbar.is-collapsed .binkterm-submode-pill {
+    border: 1px solid var(--border-color) !important;
+    background: var(--bg-card) !important;
+    color: var(--fidonet-blue) !important;
+}
+
+.binkterm-key-btn {
+    background: var(--bg-card) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+.binkterm-key-btn:active,
+.binkterm-key-btn.is-active {
+    background: #3e3e50 !important;
+    color: #fff !important;
+}
+
+.binkterm-mobile-modal {
+    background: var(--bg-card) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+.binkterm-profile-option {
+    background: var(--bg-secondary) !important;
+    border-color: var(--border-color) !important;
+}
+
+.binkterm-profile-option.is-selected {
+    border-color: var(--fidonet-blue) !important;
+    background: #2f3b4c !important;
+}
+

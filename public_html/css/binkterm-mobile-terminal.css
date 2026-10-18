@@ -631,16 +631,16 @@
 
 /* OOII Large Action Combat Space Bar */
 .binkterm-key-btn.btn-space-combat {
-    background: #7a1d1d !important;
-    border-color: #b83838 !important;
-    color: #ffffff !important;
-    font-weight: 800 !important;
+    background: #7a1d1d;
+    border-color: #b83838;
+    color: #ffffff;
+    font-weight: 800;
     box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
 }
 .binkterm-key-btn.btn-space-combat:active,
 .binkterm-key-btn.btn-space-combat.is-active {
-    background: #b83838 !important;
-    color: #ffffff !important;
+    background: #b83838;
+    color: #ffffff;
 }
 
 /* Full-width Giant Action Combat Space Bar */
@@ -657,27 +657,27 @@
 }
 
 .binkterm-key-btn.btn-space-combat-giant {
-    background: linear-gradient(180deg, #991b1b 0%, #6e1010 100%) !important;
-    border: 2px solid #ef4444 !important;
-    color: #ffffff !important;
-    font-size: clamp(11px, 3.5vw, 15px) !important;
-    font-weight: 900 !important;
-    letter-spacing: 0.8px !important;
-    border-radius: 8px !important;
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8) !important;
+    background: linear-gradient(180deg, #991b1b 0%, #6e1010 100%);
+    border: 2px solid #ef4444;
+    color: #ffffff;
+    font-size: clamp(11px, 3.5vw, 15px);
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    border-radius: 8px;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
     animation: combatPulse 2s infinite ease-in-out;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .binkterm-key-btn.btn-space-combat-giant:active,
 .binkterm-key-btn.btn-space-combat-giant.is-active {
-    background: #dc2626 !important;
-    border-color: #ffffff !important;
-    transform: scale(0.98) translateY(2px) !important;
-    box-shadow: 0 0 18px rgba(255, 68, 68, 0.85) !important;
+    background: #dc2626;
+    border-color: #ffffff;
+    transform: scale(0.98) translateY(2px);
+    box-shadow: 0 0 18px rgba(255, 68, 68, 0.85);
 }
 
 @keyframes combatPulse {
@@ -693,107 +693,107 @@
 
 /* Combat Attack / Flee / Switcher Buttons */
 .binkterm-key-btn.btn-combat-atk {
-    background: #8b1818 !important;
-    border-color: #c92a2a !important;
-    color: #ffcccc !important;
-    font-weight: 800 !important;
+    background: #6e1818;
+    border-color: #a82828;
+    color: #fca5a5;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-combat-atk:active {
-    background: #c92a2a !important;
-    color: #ffffff !important;
+    background: #a82828;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-combat-flee {
-    background: #36294d !important;
-    border-color: #5c4485 !important;
-    color: #d8c2ff !important;
-    font-weight: 800 !important;
+    background: #2e2344;
+    border-color: #4f3b72;
+    color: #c4b5fd;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-combat-flee:active {
-    background: #5c4485 !important;
-    color: #ffffff !important;
+    background: #4f3b72;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-combat-death {
-    background: #4a1532 !important;
-    border-color: #8c275e !important;
-    color: #ffb3d9 !important;
-    font-weight: 800 !important;
+    background: #40142b;
+    border-color: #72204c;
+    color: #f472b6;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-combat-death:active {
-    background: #8c275e !important;
-    color: #ffffff !important;
+    background: #72204c;
+    color: #ffffff;
 }
 
 /* Combat Range (L) and Melee (H) Buttons */
 .binkterm-key-btn.btn-combat-range {
-    background: #132f4c !important;
-    border-color: #26598c !important;
-    color: #70b8ff !important;
-    font-weight: 800 !important;
+    background: #112a45;
+    border-color: #1e4976;
+    color: #60a5fa;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-combat-range:active {
-    background: #26598c !important;
-    color: #ffffff !important;
+    background: #1e4976;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-combat-melee {
-    background: #472615 !important;
-    border-color: #7d4425 !important;
-    color: #ffa366 !important;
-    font-weight: 800 !important;
+    background: #3b2012;
+    border-color: #67371f;
+    color: #fb923c;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-combat-melee:active {
-    background: #7d4425 !important;
-    color: #ffffff !important;
+    background: #67371f;
+    color: #ffffff;
 }
 
 /* Yes / No Confirmation Keys (e.g. Fight to the death Y/N) */
 .binkterm-key-btn.btn-confirm-yes {
-    background: #143d23 !important;
-    border-color: #246339 !important;
-    color: #79e09d !important;
-    font-weight: 900 !important;
+    background: #143520;
+    border-color: #1f5431;
+    color: #4ade80;
+    font-weight: 900;
 }
 .binkterm-key-btn.btn-confirm-yes:active {
-    background: #246339 !important;
-    color: #ffffff !important;
+    background: #1f5431;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-confirm-no {
-    background: #42181c !important;
-    border-color: #69262d !important;
-    color: #ff8591 !important;
-    font-weight: 900 !important;
+    background: #381519;
+    border-color: #592026;
+    color: #f87171;
+    font-weight: 900;
 }
 .binkterm-key-btn.btn-confirm-no:active {
-    background: #69262d !important;
-    color: #ffffff !important;
+    background: #592026;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-submode-toggle {
-    background: #1e1e38 !important;
-    border-color: #444470 !important;
-    color: #ffd700 !important;
-    font-weight: 800 !important;
-    font-size: 11px !important;
+    background: #1c1c34;
+    border-color: #3b3b63;
+    color: #facc15;
+    font-weight: 800;
+    font-size: 11px;
 }
 .binkterm-key-btn.btn-submode-toggle:active {
-    background: #323258 !important;
-    color: #ffffff !important;
+    background: #3b3b63;
+    color: #ffffff;
 }
 
 /* OOII * Go Back button */
 .binkterm-key-btn.btn-back-key {
-    background: #4e2e0e !important;
-    border-color: #8b5118 !important;
-    color: #ffe099 !important;
-    font-weight: 800 !important;
+    background: #3b230b;
+    border-color: #663d13;
+    color: #fcd34d;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-back-key:active,
 .binkterm-key-btn.btn-back-key.is-active {
-    background: #8b5118 !important;
-    color: #ffffff !important;
+    background: #663d13;
+    color: #ffffff;
 }
 
 .binkterm-row-sep {
@@ -959,111 +959,111 @@
 
 /* LORD Specialized Theme Buttons */
 .binkterm-key-btn.btn-lord-forest {
-    background: #143d22 !important;
-    border-color: #266b3c !important;
-    color: #8ae3af !important;
-    font-weight: 800 !important;
+    background: #143820;
+    border-color: #225e36;
+    color: #4ade80;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-forest:active {
-    background: #266b3c !important;
-    color: #ffffff !important;
+    background: #225e36;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-slaught {
-    background: #4a1717 !important;
-    border-color: #7d2a2a !important;
-    color: #ff9999 !important;
-    font-weight: 800 !important;
+    background: #421515;
+    border-color: #6d2424;
+    color: #f87171;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-slaught:active {
-    background: #7d2a2a !important;
-    color: #ffffff !important;
+    background: #6d2424;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-weapons {
-    background: #3b2c12 !important;
-    border-color: #6e5223 !important;
-    color: #ffd685 !important;
-    font-weight: 800 !important;
+    background: #362610;
+    border-color: #5d421d;
+    color: #fbbf24;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-weapons:active {
-    background: #6e5223 !important;
-    color: #ffffff !important;
+    background: #5d421d;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-armour {
-    background: #3d2414 !important;
-    border-color: #704224 !important;
-    color: #ffb88c !important;
-    font-weight: 800 !important;
+    background: #361f12;
+    border-color: #5c351f;
+    color: #fb923c;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-armour:active {
-    background: #704224 !important;
-    color: #ffffff !important;
+    background: #5c351f;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-healer {
-    background: #143d28 !important;
-    border-color: #246e45 !important;
-    color: #7de8aa !important;
-    font-weight: 800 !important;
+    background: #133624;
+    border-color: #1f593b;
+    color: #34d399;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-healer:active {
-    background: #246e45 !important;
-    color: #ffffff !important;
+    background: #1f593b;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-inn {
-    background: #382c16 !important;
-    border-color: #634e24 !important;
-    color: #ffe094 !important;
-    font-weight: 800 !important;
+    background: #312613;
+    border-color: #544120;
+    color: #fcd34d;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-inn:active {
-    background: #634e24 !important;
-    color: #ffffff !important;
+    background: #544120;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-bank {
-    background: #3b3012 !important;
-    border-color: #6e571c !important;
-    color: #ffdf7a !important;
-    font-weight: 800 !important;
+    background: #332910;
+    border-color: #574517;
+    color: #facc15;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-bank:active {
-    background: #6e571c !important;
-    color: #ffffff !important;
+    background: #574517;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-train {
-    background: #3b1735 !important;
-    border-color: #6e2762 !important;
-    color: #ff9ee8 !important;
-    font-weight: 800 !important;
+    background: #33142e;
+    border-color: #592050;
+    color: #f472b6;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-train:active {
-    background: #6e2762 !important;
-    color: #ffffff !important;
+    background: #592050;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-stats {
-    background: #182844 !important;
-    border-color: #2c497a !important;
-    color: #91beff !important;
-    font-weight: 800 !important;
+    background: #142238;
+    border-color: #243b61;
+    color: #60a5fa;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-stats:active {
-    background: #2c497a !important;
-    color: #ffffff !important;
+    background: #243b61;
+    color: #ffffff;
 }
 
 .binkterm-key-btn.btn-lord-news {
-    background: #1a2c3d !important;
-    border-color: #2d4e6d !important;
-    color: #94cbff !important;
-    font-weight: 800 !important;
+    background: #162533;
+    border-color: #254059;
+    color: #38bdf8;
+    font-weight: 800;
 }
 .binkterm-key-btn.btn-lord-news:active {
-    background: #2d4e6d !important;
-    color: #ffffff !important;
+    background: #254059;
+    color: #ffffff;
 }

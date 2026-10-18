@@ -1699,3 +1699,107 @@ tbody, td, tfoot, th, thead, tr {
 .ai-response-text pre { background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 4px; overflow-x: auto; }
 .ai-response-text code { font-size: 0.85em; }
 .ai-response-text h1, .ai-response-text h2, .ai-response-text h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+
+/* Mobile Terminal Gamepad & Virtual Keys - Green Phosphor Monochrome Theme */
+.binkterm-mobile-toolbar {
+    background: var(--term-black) !important;
+    border-top: 1px solid var(--term-green-dark) !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.75) !important;
+}
+
+.binkterm-toolbar-tab,
+.binkterm-layout-pill,
+.binkterm-submode-pill {
+    background: var(--term-black-light) !important;
+    border: 1px solid var(--term-green-dark) !important;
+    border-bottom: none !important;
+    color: var(--term-green) !important;
+}
+
+.binkterm-mobile-toolbar.is-collapsed .binkterm-toolbar-tab,
+.binkterm-mobile-toolbar.is-collapsed .binkterm-layout-pill,
+.binkterm-mobile-toolbar.is-collapsed .binkterm-submode-pill {
+    border: 1px solid var(--term-green) !important;
+    background: var(--term-black-light) !important;
+    color: var(--term-green-bright) !important;
+}
+
+.binkterm-submode-pill .badge-mode {
+    background: var(--term-green-dark) !important;
+    color: var(--term-black) !important;
+}
+
+.binkterm-submode-pill.mode-combat {
+    background: var(--term-black-lighter) !important;
+    border-color: var(--term-green-bright) !important;
+    color: var(--term-green-bright) !important;
+}
+
+.binkterm-key-btn {
+    background: var(--term-black-light) !important;
+    color: var(--term-green) !important;
+    border-color: var(--term-green-dark) !important;
+    text-shadow: 0 0 3px rgba(51, 255, 51, 0.4);
+}
+
+.binkterm-key-btn:active,
+.binkterm-key-btn.is-active {
+    background: var(--term-green) !important;
+    color: var(--term-black) !important;
+    border-color: var(--term-green-bright) !important;
+    text-shadow: none !important;
+}
+
+.binkterm-key-btn.btn-enter,
+.binkterm-key-btn.btn-action,
+.binkterm-key-btn.btn-confirm-yes,
+.binkterm-key-btn.btn-submode-toggle {
+    border-color: var(--term-green) !important;
+    color: var(--term-green-bright) !important;
+    font-weight: 800 !important;
+}
+
+.binkterm-key-btn.btn-esc,
+.binkterm-key-btn.btn-confirm-no {
+    border-color: var(--term-green-dim) !important;
+    color: var(--term-green-dim) !important;
+}
+
+.binkterm-key-btn.btn-space-combat-giant,
+.binkterm-key-btn.btn-space-combat,
+.binkterm-key-btn.btn-combat-atk,
+.binkterm-key-btn.btn-combat-death {
+    background: var(--term-black-lighter) !important;
+    border-color: var(--term-green-bright) !important;
+    color: var(--term-green-bright) !important;
+    box-shadow: 0 0 8px rgba(51, 255, 51, 0.4) !important;
+    animation: none !important;
+}
+
+.binkterm-key-btn.btn-combat-flee,
+.binkterm-key-btn.btn-combat-range,
+.binkterm-key-btn.btn-combat-melee,
+.binkterm-key-btn.btn-back-key,
+.binkterm-key-btn[class*="btn-lord-"] {
+    background: var(--term-black-light) !important;
+    border-color: var(--term-green-dark) !important;
+    color: var(--term-green) !important;
+}
+
+.binkterm-mobile-modal {
+    background: var(--term-black) !important;
+    border-color: var(--term-green) !important;
+    color: var(--term-green) !important;
+    box-shadow: 0 0 20px rgba(51, 255, 51, 0.3) !important;
+}
+
+.binkterm-profile-option {
+    background: var(--term-black-light) !important;
+    border-color: var(--term-green-dark) !important;
+}
+
+.binkterm-profile-option.is-selected {
+    border-color: var(--term-green-bright) !important;
+    background: var(--term-black-lighter) !important;
+}
+
