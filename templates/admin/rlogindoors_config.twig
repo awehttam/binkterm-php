@@ -528,6 +528,7 @@ function renderDoorsList() {
                             <div class="small text-muted">${escHtml(door.host)}:${escHtml(String(door.port))}</div>
                             <div class="small mt-1">
                                 <span class="badge bg-secondary">${escHtml(door.id)}</span>
+                                ${(door.genre || []).map(g => `<span class="badge bg-light text-dark border">${escHtml(g)}</span>`).join(' ')}
                                 ${cost > 0 ? `<span class="badge bg-info">${cost} ${uiT('ui.admin.rlogindoors_config.credits', 'credits')}</span>` : '<span class="badge bg-success">' + uiT('ui.admin.rlogindoors_config.free', 'Free') + '</span>'}
                                 ${hideFromWeb ? `<span class="badge bg-warning text-dark">${uiT('ui.admin.rlogindoors_config.telnet_only', 'Telnet/SSH only')}</span>` : ''}
                             </div>
