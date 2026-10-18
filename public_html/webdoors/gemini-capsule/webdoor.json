@@ -8,7 +8,8 @@
         "description": "Edit and publish your personal Gemini capsule accessible via the Gemini protocol",
         "entry_point": "index.html",
         "icon": "icon.svg",
-        "screenshots": []
+        "screenshots": [],
+        "genre": ["Communications"]                                                                                            
     },
     "requirements": {
         "min_host_version": "1.8.3",
