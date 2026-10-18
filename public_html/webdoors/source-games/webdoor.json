@@ -7,7 +7,8 @@
     "author": "awehttam",
     "description": "Join community Source engine game servers! Connect to Half-Life 2 Deathmatch, Counter-Strike Source, Team Fortress 2, and other Source games.",
     "entry_point": "index.php",
-    "icon": "icon.svg"
+    "icon": "icon.svg",
+    "genre": ["Door Servers"]
   },
   "requirements": {
     "min_host_version": "1.0",
