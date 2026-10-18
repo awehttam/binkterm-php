@@ -108,8 +108,8 @@
                              onerror="this.src='/favicon.svg'">
                     </div>
                     <div class="flex-grow-1">
-                        <h5 class="card-title mb-1 d-flex flex-wrap align-items-center gap-1">
-                            <span>{{ game.name }}</span>
+                        <h5 class="card-title mb-1">{{ game.name }}</h5>
+                        <div class="door-tags mb-2 d-flex flex-wrap align-items-center gap-1">
                             {% if doors_group_by == 'category' %}
                                 {% for cat in game.effective_categories %}
                                     {% if cat == 'Door Servers' %}
@@ -142,7 +142,7 @@
                                     <span class="badge bg-dark text-white" style="font-size: 0.65rem;">SERVER</span>
                                 {% endif %}
                             {% endif %}
-                        </h5>
+                        </div>
                         <p class="card-text text-muted small mb-2">{{ game.description }}</p>
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
