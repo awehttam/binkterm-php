@@ -166,7 +166,8 @@ document.addEventListener('DOMContentLoaded', function() {
             {key: 'hide_from_web', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web', fallback: 'Hide from Web', helpKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web_help', helpFallback: 'Only offer this door from telnet/SSH, not the web game library.'}
         ],
         getDoors: () => doorsState.availableDoors,
-        onChange: () => { updateJsonStatus(); renderDoorsList(); }
+        onChange: () => { updateJsonStatus(); renderDoorsList(); },
+        onSave: () => saveConfig()
     });
     document.getElementById('configEditor').addEventListener('input', () => {
         updateJsonStatus();

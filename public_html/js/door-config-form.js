@@ -1,19 +1,22 @@
 /**
- * Form view for the admin door config pages (DOS, Native, JS-DOS, WebDoors).
+ * Door list + settings modal for the admin door config pages (DOS, Native,
+ * JS-DOS, WebDoors), styled after the RLogin door list.
  *
  * The JSON textarea on each page stays the single source of truth. This module
- * renders one editable card per door from that JSON and writes changes back
- * into it, so the existing Format / Save / toggle code keeps working untouched.
+ * renders one row per door from that JSON and the door metadata, and edits a
+ * door's settings in a modal that writes back into the textarea (then calls
+ * the page's own save), so the existing Format / Save code keeps working.
  *
  * Usage:
  *   const form = DoorConfigForm.create({
- *       container: 'doorFormContainer',   // element id for the cards
+ *       container: 'doorFormContainer',   // element id for the list
  *       editor: 'configEditor',           // textarea id holding the JSON
  *       indent: 4,
- *       manifestType: 'dos',              // dos|native|jsdos|web; adds an Edit link to the manifest editor
+ *       manifestType: 'dos',              // dos|native|jsdos|web; adds a manifest editor link
  *       fields: [{key: 'enabled', type: 'bool', labelKey: '...', fallback: '...'}],
- *       getDoors: () => [{id: 'LORD', name: 'Legend of the Red Dragon'}],
- *       onChange: () => { updateJsonStatus(); renderDoorsList(); }
+ *       getDoors: () => [{id, name, description, genre, icon_url}],
+ *       onChange: () => { updateJsonStatus(); },
+ *       onSave: () => saveConfig()
  *   });
  *   form.render();
  *
@@ -67,8 +70,7 @@ window.DoorConfigForm = (function () {
         if (field.type === 'textarea') {
             input = `<textarea class="form-control" rows="2" data-field="${esc(field.key)}">${esc(value ?? '')}</textarea>`;
         } else if (field.type === 'int') {
-            const placeholder = field.placeholder !== undefined ? ` placeholder="${esc(field.placeholder)}"` : '';
-            input = `<input type="number" min="0" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}"${placeholder}>`;
+            input = `<input type="number" min="0" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
         } else {
             input = `<input type="text" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
         }
@@ -83,25 +85,76 @@ window.DoorConfigForm = (function () {
 
     function create(opts) {
         const indent = opts.indent || 2;
-        let busy = false;
+        const hasField = key => opts.fields.some(f => f.key === key);
+        let modalEl = null;
+        let modalKey = null;
 
         function containerEl() { return document.getElementById(opts.container); }
         function editorEl() { return document.getElementById(opts.editor); }
 
-        function editLink(key) {
+        function doorMap() {
+            const map = new Map();
+            (opts.getDoors() || []).forEach(door => map.set(door.id, door));
+            return map;
+        }
+
+        function manifestLink(key) {
             if (!opts.manifestType) {
                 return '';
             }
             const href = `/admin/doors/${encodeURIComponent(opts.manifestType)}/${encodeURIComponent(key)}/manifest`;
             const title = esc(t('ui.admin.door_manifest_editor.heading', 'Door Manifest Editor'));
-            return `<a href="${href}" class="btn btn-sm btn-outline-info" title="${title}">
-                <i class="fas fa-file-code"></i> ${esc(t('ui.common.edit', 'Edit'))}
-            </a>`;
+            return `<a href="${href}" class="btn btn-outline-info" title="${title}"><i class="fas fa-file-code"></i></a>`;
+        }
+
+        function renderRow(key, info, entry) {
+            const enabled = !!entry.enabled;
+            const name = entry.display_name || info.name || key;
+            const description = entry.display_description || info.description
+                || t('ui.admin.door_config_form.no_description', 'No description');
+            const icon = info.icon_url
+                ? `<img src="${esc(info.icon_url)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" onerror="this.style.visibility='hidden'">`
+                : '<i class="fas fa-gamepad text-muted" style="width:32px;font-size:1.5rem;"></i>';
+
+            const badges = [`<span class="badge bg-secondary">${esc(key)}</span>`];
+            (info.genre || []).forEach(g => badges.push(`<span class="badge bg-primary">${esc(g)}</span>`));
+            if (hasField('credit_cost')) {
+                const cost = parseInt(entry.credit_cost, 10) || 0;
+                badges.push(cost > 0
+                    ? `<span class="badge bg-info">${cost} ${esc(t('ui.admin.door_config_form.credits', 'credits'))}</span>`
+                    : `<span class="badge bg-success">${esc(t('ui.admin.door_config_form.free', 'Free'))}</span>`);
+            }
+            if (entry.hide_from_web) {
+                badges.push(`<span class="badge bg-warning text-dark">${esc(t('ui.admin.door_config_form.telnet_only', 'Telnet/SSH only'))}</span>`);
+            }
+
+            return `
+                <div class="list-group-item" data-door-key="${esc(encodeURIComponent(key))}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="d-flex gap-2 flex-grow-1">
+                            ${icon}
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="fas ${enabled ? 'fa-check-circle text-success' : 'fa-circle text-secondary'}"></i>
+                                    <strong>${esc(name)}</strong>
+                                </div>
+                                <div class="small text-muted">${esc(description)}</div>
+                                <div class="small mt-1">${badges.join(' ')}</div>
+                            </div>
+                        </div>
+                        <div class="btn-group-vertical btn-group-sm">
+                            <button type="button" class="btn btn-outline-primary edit-door-settings-btn" title="${esc(t('ui.common.edit', 'Edit'))}">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            ${manifestLink(key)}
+                        </div>
+                    </div>
+                </div>`;
         }
 
         function render() {
             const container = containerEl();
-            if (!container || busy) {
+            if (!container) {
                 return;
             }
 
@@ -111,8 +164,7 @@ window.DoorConfigForm = (function () {
                 return;
             }
 
-            const known = new Map();
-            (opts.getDoors() || []).forEach(door => known.set(door.id, door.name || door.id));
+            const known = doorMap();
             const keys = Array.from(new Set([...known.keys(), ...Object.keys(config)])).sort();
 
             if (keys.length === 0) {
@@ -120,76 +172,100 @@ window.DoorConfigForm = (function () {
                 return;
             }
 
-            container.innerHTML = keys.map(key => {
+            container.innerHTML = '<div class="list-group list-group-flush">' + keys.map(key => {
                 const entry = config[key] && typeof config[key] === 'object' ? config[key] : {};
-                const name = known.get(key);
-                const title = name && name !== key ? `${name} (${key})` : key;
-                return `
-                    <div class="card mb-3" data-door-key="${esc(encodeURIComponent(key))}">
-                        <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                            <span class="fw-semibold">${esc(title)}</span>
-                            ${editLink(key)}
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3">
-                                ${opts.fields.map(f => renderField(f, entry[f.key])).join('')}
-                            </div>
-                        </div>
-                    </div>`;
-            }).join('');
+                return renderRow(key, known.get(key) || {}, entry);
+            }).join('') + '</div>';
         }
 
-        function onInput(event) {
-            const input = event.target.closest('[data-field]');
-            const card = event.target.closest('[data-door-key]');
-            if (!input || !card) {
-                return;
+        function ensureModal() {
+            if (modalEl) {
+                return modalEl;
             }
+            modalEl = document.createElement('div');
+            modalEl.className = 'modal fade';
+            modalEl.tabIndex = -1;
+            modalEl.innerHTML = `
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body"><div class="row g-3" data-role="fields"></div></div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${esc(t('ui.common.cancel', 'Cancel'))}</button>
+                            <button type="button" class="btn btn-primary" data-role="save">${esc(t('ui.common.save', 'Save'))}</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modalEl);
+            modalEl.querySelector('[data-role="save"]').addEventListener('click', saveModal);
+            return modalEl;
+        }
 
-            const editor = editorEl();
-            const config = parse(editor.value || '{}');
+        function openModal(key) {
+            const config = parse(editorEl().value || '{}');
             if (config === null) {
                 return;
             }
+            const entry = config[key] && typeof config[key] === 'object' ? config[key] : {};
+            const info = doorMap().get(key) || {};
 
-            const key = decodeURIComponent(card.dataset.doorKey);
-            if (!config[key] || typeof config[key] !== 'object') {
-                config[key] = {};
-            }
+            modalKey = key;
+            const el = ensureModal();
+            el.querySelector('.modal-title').textContent = entry.display_name || info.name || key;
+            el.querySelector('[data-role="fields"]').innerHTML = opts.fields.map(f => renderField(f, entry[f.key])).join('');
+            bootstrap.Modal.getOrCreateInstance(el).show();
+        }
 
-            const field = opts.fields.find(f => f.key === input.dataset.field);
-            if (!field) {
+        function saveModal() {
+            const editor = editorEl();
+            const config = parse(editor.value || '{}');
+            if (config === null || modalKey === null) {
                 return;
             }
 
-            if (field.type === 'bool') {
-                config[key][field.key] = input.checked;
-            } else if (input.value.trim() === '') {
-                delete config[key][field.key];
-            } else if (field.type === 'int') {
-                config[key][field.key] = Math.max(0, parseInt(input.value, 10) || 0);
-            } else {
-                config[key][field.key] = input.value;
+            if (!config[modalKey] || typeof config[modalKey] !== 'object') {
+                config[modalKey] = {};
             }
 
-            editor.value = JSON.stringify(config, null, indent);
-
-            // The page's list re-render calls render() again; skip it here so
-            // the focused input is not rebuilt while typing.
-            busy = true;
-            try {
-                if (opts.onChange) {
-                    opts.onChange();
+            modalEl.querySelectorAll('[data-field]').forEach(input => {
+                const field = opts.fields.find(f => f.key === input.dataset.field);
+                if (!field) {
+                    return;
                 }
-            } finally {
-                busy = false;
+                if (field.type === 'bool') {
+                    config[modalKey][field.key] = input.checked;
+                } else if (input.value.trim() === '') {
+                    delete config[modalKey][field.key];
+                } else if (field.type === 'int') {
+                    config[modalKey][field.key] = Math.max(0, parseInt(input.value, 10) || 0);
+                } else {
+                    config[modalKey][field.key] = input.value;
+                }
+            });
+
+            editor.value = JSON.stringify(config, null, indent);
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            render();
+            if (opts.onChange) {
+                opts.onChange();
+            }
+            if (opts.onSave) {
+                opts.onSave();
             }
         }
 
         const container = containerEl();
         if (container) {
-            container.addEventListener('input', onInput);
-            container.addEventListener('change', onInput);
+            container.addEventListener('click', event => {
+                const btn = event.target.closest('.edit-door-settings-btn');
+                const row = event.target.closest('[data-door-key]');
+                if (btn && row) {
+                    openModal(decodeURIComponent(row.dataset.doorKey));
+                }
+            });
         }
 
         const tab = document.getElementById(opts.tab || 'doorFormTab');

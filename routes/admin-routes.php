@@ -4222,6 +4222,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'id' => $gameId,
                     'name' => $game['name'] ?? $gameId,
                     'path' => $entry['path'],
+                    'description' => $game['description'] ?? '',
+                    'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($game['genre'] ?? []),
+                    'icon_url' => "/webdoors/{$entry['path']}/" . ($game['icon'] ?? 'icon.png'),
                     'config' => is_array($manifest['config'] ?? null) ? $manifest['config'] : null
                 ];
             }
@@ -4313,6 +4316,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'id'   => $entry['id'],
                     'name' => $manifest['name'] ?? $entry['id'],
                     'path' => $entry['path'],
+                    'description' => $manifest['description'] ?? '',
+                    'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($manifest['genre'] ?? ($manifest['game']['genre'] ?? [])),
+                    'icon_url' => "/jsdos-doors/{$entry['path']}/" . ($manifest['icon'] ?? 'icon.png'),
                 ];
             }
 
@@ -4407,6 +4413,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'short_name' => $door['short_name'] ?? $door['name'],
                     'author' => $door['author'] ?? 'Unknown',
                     'description' => $door['description'] ?? '',
+                    'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? []),
+                    'icon_url' => !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null,
                     'config' => $door['config'] ?? []
                 ];
             }
@@ -4471,6 +4479,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'author' => $door['author'] ?? 'Unknown',
                     'description' => $door['description'] ?? '',
                     'platform' => $door['platform'] ?? [],
+                    'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? []),
+                    'icon_url' => !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null,
                     'config' => $door['config'] ?? []
                 ];
             }

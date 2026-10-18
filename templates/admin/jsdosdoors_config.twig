@@ -129,7 +129,8 @@ document.addEventListener('DOMContentLoaded', function() {
             {key: 'display_description', type: 'textarea', labelKey: 'ui.admin.door_manifest_editor.field.runtime_display_description', fallback: 'Display Description Override'}
         ],
         getDoors: () => jsdoorsConfigState.availableDoors,
-        onChange: () => { updateJsonStatus(); renderDoorList(); }
+        onChange: () => { updateJsonStatus(); renderDoorList(); },
+        onSave: () => saveJsdoorsConfig()
     });
     document.getElementById('jsdoorsJsonEditor').addEventListener('input', () => {
         updateJsonStatus();

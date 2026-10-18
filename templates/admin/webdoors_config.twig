@@ -127,7 +127,8 @@ document.addEventListener('DOMContentLoaded', function() {
             {key: 'enabled', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_enabled', fallback: 'Enabled'}
         ],
         getDoors: () => webdoorsConfigState.availableDoors,
-        onChange: () => { updateJsonStatus(); renderDoorList(); }
+        onChange: () => { updateJsonStatus(); renderDoorList(); },
+        onSave: () => saveWebdoorsConfig()
     });
     document.getElementById('webdoorsJsonEditor').addEventListener('input', () => {
         updateJsonStatus();
