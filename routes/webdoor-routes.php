@@ -343,6 +343,7 @@ SimpleRouter::get('/games', function() {
         $game['effective_categories'] = $effCats;
         $game['is_door_server'] = \BinktermPHP\DoorCategoryHelper::isDoorServer($game['id'], $game['name'], $game['genre'] ?? []);
         $game['network'] = \BinktermPHP\DoorCategoryHelper::detectNetwork($game['id'], $game['name'], $game['genre'] ?? []);
+        $game['name'] = \BinktermPHP\DoorCategoryHelper::cleanDoorTitle($game['name']);
 
         // Count for category tabs
         foreach ($effCats as $c) {
@@ -1119,6 +1120,7 @@ SimpleRouter::get('/games/{game}', function($game) {
         }
 
         // This is a DOS door - render with embedded player
+        $door['name'] = \BinktermPHP\DoorCategoryHelper::cleanDoorTitle($door['name'] ?? '');
         $template = new Template();
         $template->renderResponse('dosdoor_play.twig', [
             'door' => $door,
@@ -1144,6 +1146,7 @@ SimpleRouter::get('/games/{game}', function($game) {
             return;
         }
 
+        $nativeDoor['name'] = \BinktermPHP\DoorCategoryHelper::cleanDoorTitle($nativeDoor['name'] ?? '');
         $template = new Template();
         $template->renderResponse('dosdoor_play.twig', [
             'door' => $nativeDoor,
@@ -1169,6 +1172,7 @@ SimpleRouter::get('/games/{game}', function($game) {
             return;
         }
 
+        $rloginDoor['name'] = \BinktermPHP\DoorCategoryHelper::cleanDoorTitle($rloginDoor['name'] ?? '');
         $template = new Template();
         $template->renderResponse('dosdoor_play.twig', [
             'door' => $rloginDoor,
