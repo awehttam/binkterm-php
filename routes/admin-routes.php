@@ -4580,6 +4580,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'short_name' => $door['short_name'] ?? $door['name'],
                     'author' => $door['author'] ?? 'Unknown',
                     'description' => $door['description'] ?? '',
+                    'genre' => $door['genre'] ?? [],
                     'host' => $door['host'] ?? '',
                     'port' => $door['port'] ?? 513,
                     'bbs_type' => $door['bbs_type'] ?? 'plain_rlogin',
