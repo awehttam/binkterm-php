@@ -91,6 +91,11 @@
             </div>
         </div>
     </div>
+    <datalist id="manifestCategoriesList">
+        {% for cat in standard_categories %}
+        <option value="{{ cat }}">
+        {% endfor %}
+    </datalist>
 </div>
 {% endblock %}
 
@@ -126,7 +131,8 @@ document.addEventListener('DOMContentLoaded', function() {
         fields: [
             {key: 'enabled', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_enabled', fallback: 'Enabled'},
             {key: 'display_name', type: 'text', labelKey: 'ui.admin.door_manifest_editor.field.runtime_display_name', fallback: 'Display Name Override', helpKey: 'ui.admin.door_manifest_editor.field.runtime_display_name_help', helpFallback: 'Overrides the manifest name in the game library. Leave blank to use the manifest name.'},
-            {key: 'display_description', type: 'textarea', labelKey: 'ui.admin.door_manifest_editor.field.runtime_display_description', fallback: 'Display Description Override'}
+            {key: 'display_description', type: 'textarea', labelKey: 'ui.admin.door_manifest_editor.field.runtime_display_description', fallback: 'Display Description Override'},
+            {key: 'genre', type: 'tags', labelKey: 'ui.admin.door_manifest_editor.field.game_genre', fallback: 'Genre / Tags', helpKey: 'ui.admin.door_manifest_editor.field.tags_help', helpFallback: 'Comma-separated categories or tags (e.g. JSDOS, Adventure, Sci-Fi).'}
         ],
         getDoors: () => jsdoorsConfigState.availableDoors,
         onChange: () => { updateJsonStatus(); renderDoorList(); },

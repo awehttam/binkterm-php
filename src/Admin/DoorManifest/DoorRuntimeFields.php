@@ -46,6 +46,7 @@ class DoorRuntimeFields
                 $keys += [
                     'display_name' => 'string',
                     'display_description' => 'string',
+                    'genre' => 'array',
                 ];
                 break;
         }
@@ -67,6 +68,8 @@ class DoorRuntimeFields
             'display_name' => ['label_key' => $p . 'runtime_display_name', 'type' => 'text', 'default' => '',
                 'help_key' => $p . 'runtime_display_name_help'],
             'display_description' => ['label_key' => $p . 'runtime_display_description', 'type' => 'textarea', 'default' => ''],
+            'genre' => ['label_key' => $p . 'game_genre', 'type' => 'tags', 'default' => [],
+                'help_key' => $p . 'tags_help'],
             'credit_cost' => ['label_key' => $p . 'credit_cost', 'type' => 'number', 'default' => 0,
                 'help_key' => $p . 'credit_cost_help'],
             'max_time_minutes' => ['label_key' => $p . 'max_time_minutes', 'type' => 'number', 'default' => 30],
@@ -123,6 +126,17 @@ class DoorRuntimeFields
                     throw new \InvalidArgumentException("Invalid value for {$key}");
                 }
                 $existing[$key] = (int)$value;
+            } elseif ($type === 'array') {
+                if (is_string($value)) {
+                    $value = array_values(array_filter(array_map('trim', explode(',', $value))));
+                } elseif (!is_array($value)) {
+                    $value = [];
+                }
+                if (empty($value)) {
+                    unset($existing[$key]);
+                } else {
+                    $existing[$key] = array_values(array_filter(array_map('strval', $value)));
+                }
             } else {
                 $value = trim((string)$value);
                 if ($value === '') {

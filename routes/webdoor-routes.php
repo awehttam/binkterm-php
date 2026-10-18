@@ -319,7 +319,7 @@ SimpleRouter::get('/games', function() {
                 'path'        => $gameId,
                 'icon_url'    => $iconUrl,
                 'type'        => 'jsdosdoor',
-                'genre'       => \BinktermPHP\DoorCategoryHelper::normalizeGenres($manifest['genre'] ?? ($manifest['game']['genre'] ?? [])),
+                'genre'       => \BinktermPHP\DoorCategoryHelper::normalizeGenres($gameConfig['genre'] ?? $manifest['genre'] ?? ($manifest['game']['genre'] ?? [])),
             ];
         }
     }

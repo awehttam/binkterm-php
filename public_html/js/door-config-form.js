@@ -65,12 +65,15 @@ window.DoorConfigForm = (function () {
                 </div>`;
         }
 
-        const colClass = field.type === 'textarea' ? 'col-12' : 'col-md-6';
+        const colClass = (field.type === 'textarea' || field.type === 'tags') ? 'col-12' : 'col-md-6';
         let input;
         if (field.type === 'textarea') {
             input = `<textarea class="form-control" rows="2" data-field="${esc(field.key)}">${esc(value ?? '')}</textarea>`;
         } else if (field.type === 'int') {
             input = `<input type="number" min="0" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
+        } else if (field.type === 'tags') {
+            const tagVal = Array.isArray(value) ? value.join(', ') : (typeof value === 'string' ? value : '');
+            input = `<input type="text" class="form-control" data-field="${esc(field.key)}" data-field-type="tags" value="${esc(tagVal)}" placeholder="e.g. JSDOS, Adventure, Sci-Fi" list="manifestCategoriesList">`;
         } else {
             input = `<input type="text" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
         }
@@ -117,7 +120,8 @@ window.DoorConfigForm = (function () {
                 : '<i class="fas fa-gamepad text-muted" style="width:32px;font-size:1.5rem;"></i>';
 
             const badges = [`<span class="badge bg-secondary">${esc(key)}</span>`];
-            (info.genre || []).forEach(g => badges.push(`<span class="badge bg-primary">${esc(g)}</span>`));
+            const genres = (entry.genre && entry.genre.length > 0) ? entry.genre : (info.genre || []);
+            genres.forEach(g => badges.push(`<span class="badge bg-primary">${esc(g)}</span>`));
             if (hasField('credit_cost')) {
                 const cost = parseInt(entry.credit_cost, 10) || 0;
                 badges.push(cost > 0
@@ -215,7 +219,13 @@ window.DoorConfigForm = (function () {
             modalKey = key;
             const el = ensureModal();
             el.querySelector('.modal-title').textContent = entry.display_name || info.name || key;
-            el.querySelector('[data-role="fields"]').innerHTML = opts.fields.map(f => renderField(f, entry[f.key])).join('');
+            el.querySelector('[data-role="fields"]').innerHTML = opts.fields.map(f => {
+                let val = entry[f.key];
+                if ((val === undefined || val === null) && f.key === 'genre' && info.genre) {
+                    val = info.genre;
+                }
+                return renderField(f, val);
+            }).join('');
             bootstrap.Modal.getOrCreateInstance(el).show();
         }
 
@@ -241,6 +251,13 @@ window.DoorConfigForm = (function () {
                     delete config[modalKey][field.key];
                 } else if (field.type === 'int') {
                     config[modalKey][field.key] = Math.max(0, parseInt(input.value, 10) || 0);
+                } else if (field.type === 'tags') {
+                    const items = input.value.split(',').map(s => s.trim()).filter(s => s !== '');
+                    if (items.length === 0) {
+                        delete config[modalKey][field.key];
+                    } else {
+                        config[modalKey][field.key] = items;
+                    }
                 } else {
                     config[modalKey][field.key] = input.value;
                 }
