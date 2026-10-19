@@ -213,7 +213,7 @@ SimpleRouter::get('/games', function() {
             continue;
         }
         // Check if door has a custom icon in manifest
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        $iconUrl = '/favicon.svg'; // Default icon
         if (!empty($door['icon'])) {
             // Use asset endpoint (manifest declares the actual filename)
             $iconUrl = "/door-assets/{$doorId}/icon";
@@ -245,7 +245,7 @@ SimpleRouter::get('/games', function() {
         if (!empty($door['config']['hide_from_web'])) {
             continue;
         }
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        $iconUrl = '/favicon.svg'; // Default icon
         if (!empty($door['icon'])) {
             $iconUrl = "/door-assets/{$doorId}/icon";
         }
@@ -276,7 +276,7 @@ SimpleRouter::get('/games', function() {
         if (!empty($door['config']['hide_from_web'])) {
             continue;
         }
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        $iconUrl = '/favicon.svg'; // Default icon
         if (!empty($door['icon'])) {
             $iconUrl = "/door-assets/{$doorId}/icon";
         }
