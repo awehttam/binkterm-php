@@ -23,6 +23,7 @@ namespace BinktermPHP;
 class DoorCategoryHelper
 {
     public const UNCATEGORIZED = '(uncategorized)';
+    public const LOCAL = 'Local';
     public const DOOR_SERVERS = 'Door Servers';
     public const NET_DOORPARTY = 'DoorParty';
     public const NET_BBSLINK = 'BBSLink';
@@ -36,6 +37,7 @@ class DoorCategoryHelper
     public static function getStandardCategories(): array
     {
         return [
+            self::LOCAL,
             self::DOOR_SERVERS,
             self::NET_DOORPARTY,
             self::NET_BBSLINK,
