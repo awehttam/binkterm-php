@@ -9,7 +9,7 @@
     "release_year": 2026,
     "description": "Example dosdoor.jsn manifest for a BinktermPHP door",
     "genre": ["RPG", "Adventure", "Fantasy"],
-    "icon": "icon.svg",
+    "icon": null,
     "screenshot": null
   },
   "door": {

@@ -265,7 +265,7 @@ class WebDoorController
         }
         $input = $this->getJsonInput();
 
-        $data = $input['data'] ?? [];
+        $data = $input['data'] ?? ($input['state'] ?? []);
         $metadata = $input['metadata'] ?? [];
 
         $dataJson = json_encode($data);
