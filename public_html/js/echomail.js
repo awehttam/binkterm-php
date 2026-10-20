@@ -18,6 +18,9 @@ let allEchoareas = [];
 let echoareaSearchQuery = '';
 let currentEchoareaData = null;  // area object for the currently viewed echo
 let allEchoareasCache = null;    // lazy full-list cache for unsubscribed area lookups
+let showSubscribedOnly = true;   // quick action filter: show only subscribed areas (persisted to user_settings)
+let activeNetwork = 'all';       // quick network filter ('all', '__local__', or domain name)
+let activeSubArea = 'all';       // quick sub-area filter ('all' or specific area tag)
 let searchResultCounts = null;
 let searchFilterCounts = null;
 let originalFilterCounts = null;
@@ -113,7 +116,7 @@ function getStatsCacheKey() {
     if (currentInterestId) {
         return `interest:${currentInterestId}`;
     }
-    return `echo:${currentEchoarea || '__all__'}`;
+    return `echo:${currentEchoarea || '__all__'}:${activeNetwork}:${showSubscribedOnly ? 'sub1' : 'sub0'}`;
 }
 
 function invalidateStatsCache() {
@@ -167,6 +170,13 @@ function updateMessagesHeaderTitle() {
         return;
     }
 
+    if (activeNetwork && activeNetwork !== 'all') {
+        const netLabel = (activeNetwork === '__local__' || activeNetwork === 'local') ? 'LOCAL' : activeNetwork.toUpperCase();
+        titleEl.text(`Recent Messages (${netLabel})`);
+        updateDocumentTitle();
+        return;
+    }
+
     titleEl.text(uiT('ui.echomail.recent_messages', 'Recent Messages'));
     updateDocumentTitle();
 }
@@ -176,34 +186,69 @@ function updateMessagesHeaderTitle() {
 let USE_DATE_FIELD = ((window.userSettings && window.userSettings.effective_echomail_date_field) || window.echomailDateField) === 'written' ? 'written' : 'received';
 
 $(document).ready(function() {
+    // Quick Actions Click Handlers
+    $('#echo-btn-subscribed').on('click', function() {
+        this.blur();
+        toggleSubscribedFilter();
+    });
+
+    $('#echo-btn-unread').on('click', function() {
+        this.blur();
+        toggleUnreadFilter();
+    });
+
+    $('#echo-subarea-search-input').on('input', filterSubareaButtonsBySearch);
+
     loadEchomailSettings().then(function() {
         const urlParams = new URLSearchParams(window.location.search);
         const searchQuery = urlParams.get('search');
         const networkParam = urlParams.get('network');
         const interestsParam = urlParams.get('interests');
         const messageParam = urlParams.get('message');
+        const netParam = urlParams.get('net');
+        const areaParam = urlParams.get('area');
         requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
 
-        if (searchQuery) {
-            currentSearchNetworks = networkParam ? networkParam.split(',').filter(n => n !== '') : [];
-            currentSearchInterests = interestsParam ? interestsParam.split(',').filter(n => n !== '') : [];
-            refreshEchomailView({ reloadMessages: false });
-            // Populate search input and trigger search
-            $('#searchInput').val(searchQuery);
-            $('#mobileSearchInput').val(searchQuery);
-            searchMessages();
-        } else {
-            // Restore last visited page for the current area
-            const memKey = currentEchoarea || '__all__';
-            if (echoPageMemory[memKey]) {
-                currentPage = echoPageMemory[memKey];
-            }
-            refreshEchomailView({
-                messageCallback: function() {
-                    openRequestedMessage();
+        return $.get('/api/user/echolist-preference')
+            .then(function(pref) {
+                if (pref) {
+                    showSubscribedOnly = (pref.subscribed_only !== undefined) ? pref.subscribed_only : true;
+                    if (pref.unread_only) {
+                        currentFilter = 'unread';
+                        updateFilterTabs();
+                    }
+                    activeNetwork = (netParam || pref.network || 'all').toLowerCase();
+                    activeSubArea = (areaParam || pref.subarea || 'all').toLowerCase();
+                }
+            })
+            .catch(function() {
+                showSubscribedOnly = true;
+                if (netParam) activeNetwork = netParam.toLowerCase();
+                if (areaParam) activeSubArea = areaParam.toLowerCase();
+            })
+            .then(function() {
+                syncQuickActionButtons();
+
+                if (searchQuery) {
+                    currentSearchNetworks = networkParam ? networkParam.split(',').filter(n => n !== '') : [];
+                    currentSearchInterests = interestsParam ? interestsParam.split(',').filter(n => n !== '') : [];
+                    refreshEchomailView({ reloadMessages: false });
+                    $('#topMessageSearchInput').val(searchQuery);
+                    $('#searchInput').val(searchQuery);
+                    $('#mobileSearchInput').val(searchQuery);
+                    searchMessages();
+                } else {
+                    const memKey = currentEchoarea || '__all__';
+                    if (echoPageMemory[memKey]) {
+                        currentPage = echoPageMemory[memKey];
+                    }
+                    refreshEchomailView({
+                        messageCallback: function() {
+                            openRequestedMessage();
+                        }
+                    });
                 }
             });
-        }
     });
 
     // Initialize history state
@@ -381,6 +426,306 @@ function cleanupMessageModalMedia() {
     });
 }
 
+function updateToolbarToggleLinks() {
+    const net = activeNetwork && activeNetwork !== 'all' ? activeNetwork : null;
+    let listUrl = '/echolist';
+    const params = new URLSearchParams();
+    if (net) params.set('net', net);
+    if (activeSubArea && activeSubArea !== 'all') params.set('area', activeSubArea);
+    const qs = params.toString();
+    if (qs) listUrl += '?' + qs;
+
+    const toggleBtn = document.getElementById('echo-btn-view-toggle');
+    if (toggleBtn) toggleBtn.href = listUrl;
+    const headerToggle = document.getElementById('echo-header-toggle-list');
+    if (headerToggle) headerToggle.href = listUrl;
+}
+
+function saveEchomailPreferences() {
+    $.ajax({
+        url: '/api/user/echolist-preference',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            subscribed_only: showSubscribedOnly,
+            unread_only:     (currentFilter === 'unread'),
+            network:         activeNetwork,
+            subarea:         activeSubArea
+        })
+    });
+}
+
+function syncQuickActionButtons() {
+    const subBtn = $('#echo-btn-subscribed');
+    if (subBtn.length) {
+        if (showSubscribedOnly) {
+            subBtn.removeClass('btn-outline-secondary').addClass('btn-primary active');
+        } else {
+            subBtn.removeClass('btn-primary active').addClass('btn-outline-secondary');
+        }
+    }
+
+    const unreadBtn = $('#echo-btn-unread');
+    if (unreadBtn.length) {
+        if (currentFilter === 'unread') {
+            unreadBtn.removeClass('btn-outline-secondary').addClass('btn-primary active');
+        } else {
+            unreadBtn.removeClass('btn-primary active').addClass('btn-outline-secondary');
+        }
+    }
+}
+
+function renderNetworkToolbarButtons() {
+    const netContainer = document.getElementById('echo-network-buttons');
+    if (!netContainer) return;
+
+    let localCount = 0;
+    const domainCounts = {};
+
+    let candidateAreas = allEchoareas;
+    if (showSubscribedOnly) {
+        candidateAreas = candidateAreas.filter(a => !!a.subscribed);
+    }
+
+    candidateAreas.forEach(function(area) {
+        if (area.is_local) {
+            localCount++;
+        } else {
+            const dom = (area.domain || 'unknown').toLowerCase();
+            domainCounts[dom] = (domainCounts[dom] || 0) + 1;
+        }
+    });
+
+    const badgeTotal = document.getElementById('echo-badge-total');
+    if (badgeTotal) {
+        badgeTotal.textContent = candidateAreas.length + ' Areas';
+    }
+    const badgeNets = document.getElementById('echo-badge-networks');
+    if (badgeNets) {
+        badgeNets.textContent = Object.keys(domainCounts).length + (localCount > 0 ? 1 : 0) + ' Nets';
+    }
+
+    const isAllActive = (activeNetwork === 'all');
+    let html = `
+        <button type="button" class="btn btn-sm ${isAllActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn" data-net="all">
+            <i class="fas fa-border-all me-1"></i> ALL
+            <span class="badge ${isAllActive ? 'bg-dark' : 'bg-secondary'} ms-1">${candidateAreas.length}</span>
+        </button>
+    `;
+
+    if (localCount > 0) {
+        const isLocalActive = (activeNetwork === '__local__' || activeNetwork === 'local');
+        html += `
+            <button type="button" class="btn btn-sm ${isLocalActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn" data-net="__local__">
+                <i class="fas fa-home me-1"></i> LOCAL
+                <span class="badge ${isLocalActive ? 'bg-dark' : 'bg-secondary'} ms-1">${localCount}</span>
+            </button>
+        `;
+    }
+
+    const domains = Object.keys(domainCounts).sort();
+    domains.forEach(function(dom) {
+        const count = domainCounts[dom];
+        const label = dom.toUpperCase();
+        const isNetActive = (activeNetwork === dom);
+        html += `
+            <button type="button" class="btn btn-sm ${isNetActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn" data-net="${dom}">
+                <i class="fas fa-comments me-1"></i> ${label}
+                <span class="badge ${isNetActive ? 'bg-dark' : 'bg-secondary'} ms-1">${count}</span>
+            </button>
+        `;
+    });
+
+    netContainer.innerHTML = html;
+
+    $(netContainer).find('.echo-btn').on('click', function() {
+        this.blur();
+        const net = $(this).attr('data-net');
+        selectToolbarNetwork(net);
+    });
+}
+
+function renderSubareaToolbarButtons() {
+    const container = document.getElementById('echo-subarea-buttons');
+    const badgeSubareas = document.getElementById('echo-badge-subareas');
+    if (!container) return;
+
+    let filtered = allEchoareas.slice();
+    if (showSubscribedOnly) {
+        filtered = filtered.filter(a => !!a.subscribed);
+    }
+    if (activeNetwork === '__local__' || activeNetwork === 'local') {
+        filtered = filtered.filter(a => !!a.is_local);
+    } else if (activeNetwork !== 'all') {
+        filtered = filtered.filter(a => (a.domain || '').toLowerCase() === activeNetwork.toLowerCase());
+    }
+
+    if (badgeSubareas) {
+        badgeSubareas.textContent = filtered.length + ' Areas';
+    }
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<span class="text-muted small p-1">${uiT('ui.echolist.no_subareas_match', 'No sub-areas match the current filter.')}</span>`;
+        return;
+    }
+
+    filtered.sort((a, b) => (a.tag || '').localeCompare(b.tag || ''));
+
+    const netName = (activeNetwork === 'all') ? 'AREAS' : (activeNetwork === '__local__' || activeNetwork === 'local' ? 'LOCAL' : activeNetwork.toUpperCase());
+    const allLabel = uiT('ui.echolist.all_areas_label', `ALL ${netName}`, { name: netName });
+    const isAllActive = (!activeSubArea || activeSubArea === 'all');
+
+    let html = `
+        <button type="button" class="btn btn-sm ${isAllActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn echo-subarea-btn" data-subarea="all">
+            <i class="fas fa-layer-group me-1"></i> ${escapeHtml(allLabel)}
+            <span class="badge ${isAllActive ? 'bg-dark' : 'bg-secondary'} ms-1">${filtered.length}</span>
+        </button>
+    `;
+
+    filtered.forEach(function(area) {
+        const areaDomain = (area.domain || '').toString().trim();
+        const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
+        const isSubActive = activeSubArea && (
+            activeSubArea.toLowerCase() === (area.tag || '').toLowerCase() ||
+            activeSubArea.toLowerCase() === fullTag.toLowerCase()
+        );
+
+        let badgeHtml = '';
+        const unread = area.unread_count || 0;
+        const total = area.message_count || 0;
+        if (unread > 0) {
+            badgeHtml = `<span class="badge bg-danger ms-1" title="${unread} unread">${unread}</span>`;
+        } else if (total > 0) {
+            badgeHtml = `<span class="badge ${isSubActive ? 'bg-dark' : 'bg-secondary'} ms-1" title="${total} posts">${total}</span>`;
+        }
+
+        html += `
+            <button type="button" class="btn btn-sm ${isSubActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn echo-subarea-btn" data-subarea="${escapeHtml((area.tag || '').toLowerCase())}" data-fulltag="${escapeHtml(fullTag)}" title="${escapeHtml(area.description || area.tag)}">
+                <i class="fas fa-comments me-1"></i> ${escapeHtml(area.tag)}
+                ${badgeHtml}
+            </button>
+        `;
+    });
+
+    container.innerHTML = html;
+
+    $(container).find('.echo-subarea-btn').on('click', function() {
+        this.blur();
+        const sub = $(this).attr('data-subarea');
+        const full = $(this).attr('data-fulltag');
+        selectToolbarSubArea(sub, full);
+    });
+
+    filterSubareaButtonsBySearch();
+}
+
+function filterSubareaButtonsBySearch() {
+    const input = document.getElementById('echo-subarea-search-input');
+    if (!input) return;
+    const q = input.value.trim().toLowerCase();
+    const container = document.getElementById('echo-subarea-buttons');
+    if (!container) return;
+
+    let visibleCount = 0;
+    $(container).find('.echo-subarea-btn').each(function() {
+        const sub = ($(this).attr('data-subarea') || '').toLowerCase();
+        const title = ($(this).attr('title') || '').toLowerCase();
+        if (sub === 'all' || !q || sub.includes(q) || title.includes(q)) {
+            $(this).show();
+            visibleCount++;
+        } else {
+            $(this).hide();
+        }
+    });
+
+    const badgeSubareas = document.getElementById('echo-badge-subareas');
+    if (badgeSubareas) {
+        badgeSubareas.textContent = visibleCount + ' Areas';
+    }
+}
+
+function selectToolbarNetwork(net) {
+    activeNetwork = (net || 'all').toLowerCase();
+    activeSubArea = 'all';
+
+    // Update active button state
+    $('#echo-network-buttons .echo-btn').each(function() {
+        const btnNet = $(this).attr('data-net');
+        const badge = $(this).find('.badge');
+        if (btnNet === activeNetwork) {
+            $(this).removeClass('btn-outline-secondary').addClass('btn-primary active');
+            badge.removeClass('bg-secondary').addClass('bg-dark');
+        } else {
+            $(this).removeClass('btn-primary active').addClass('btn-outline-secondary');
+            badge.removeClass('bg-dark').addClass('bg-secondary');
+        }
+    });
+
+    renderSubareaToolbarButtons();
+    updateToolbarToggleLinks();
+    saveEchomailPreferences();
+
+    currentEchoarea = null;
+    currentPage = 1;
+    invalidateStatsCache();
+    applyEchoareaFilter();
+    updateEchoInfoBar();
+    loadMessages();
+}
+
+function selectToolbarSubArea(sub, fullTag) {
+    activeSubArea = (sub || 'all').toLowerCase();
+
+    $('#echo-subarea-buttons .echo-subarea-btn').each(function() {
+        const s = ($(this).attr('data-subarea') || '').toLowerCase();
+        const isMatch = (activeSubArea === 'all' && s === 'all') || (activeSubArea !== 'all' && s === activeSubArea);
+        const badge = $(this).find('.badge');
+        if (isMatch) {
+            $(this).removeClass('btn-outline-secondary').addClass('btn-primary active');
+            if (badge.length && !badge.hasClass('bg-danger')) {
+                badge.removeClass('bg-secondary').addClass('bg-dark');
+            }
+        } else {
+            $(this).removeClass('btn-primary active').addClass('btn-outline-secondary');
+            if (badge.length && !badge.hasClass('bg-danger')) {
+                badge.removeClass('bg-dark').addClass('bg-secondary');
+            }
+        }
+    });
+
+    updateToolbarToggleLinks();
+    saveEchomailPreferences();
+
+    if (activeSubArea === 'all') {
+        currentEchoarea = null;
+        currentPage = 1;
+        invalidateStatsCache();
+        updateEchoInfoBar();
+        loadMessages();
+    } else {
+        selectEchoarea(fullTag || sub);
+    }
+}
+
+function toggleSubscribedFilter() {
+    showSubscribedOnly = !showSubscribedOnly;
+    syncQuickActionButtons();
+    saveEchomailPreferences();
+    invalidateStatsCache();
+
+    renderNetworkToolbarButtons();
+    renderSubareaToolbarButtons();
+    applyEchoareaFilter();
+    updateEchoInfoBar();
+    loadMessages();
+}
+
+function toggleUnreadFilter() {
+    setFilter(currentFilter === 'unread' ? 'all' : 'unread');
+    syncQuickActionButtons();
+    saveEchomailPreferences();
+}
+
 function refreshEchomailView(options = {}) {
     const silentMessages = options.silentMessages === true;
     const reloadMessages = options.reloadMessages !== false;
@@ -429,9 +774,13 @@ function refreshEchomailView(options = {}) {
 }
 
 function loadEchoareas(callback) {
-    return $.get('/api/echoareas?subscribed_only=true')
+    return $.get('/api/echoareas')
         .done(function(data) {
             allEchoareas = data.echoareas;
+            renderNetworkToolbarButtons();
+            renderSubareaToolbarButtons();
+            syncQuickActionButtons();
+            updateToolbarToggleLinks();
             applyEchoareaFilter();
             updateEchoInfoBar();
             if (typeof callback === 'function') callback();
@@ -450,7 +799,10 @@ function loadEchoareas(callback) {
 function updateEchoInfoBar() {
     if (!currentEchoarea) {
         // No specific area selected — show a generic "All Messages" bar with compose button
-        $('#echoTitle').text(uiT('ui.common.all_messages', 'All Messages'));
+        const netLabel = (activeNetwork && activeNetwork !== 'all')
+            ? `All ${(activeNetwork === '__local__' || activeNetwork === 'local') ? 'LOCAL' : activeNetwork.toUpperCase()} Messages`
+            : uiT('ui.common.all_messages', 'All Messages');
+        $('#echoTitle').text(netLabel);
         $('#echoDescription').text('');
         $('#echoSubscribeBtn').addClass('d-none');
         $('#echoInfoBar').removeClass('d-none');
@@ -606,6 +958,16 @@ function searchEchoareas(query) {
 
 function applyEchoareaFilter() {
     let filtered = allEchoareas;
+
+    if (showSubscribedOnly) {
+        filtered = filtered.filter(area => !!area.subscribed);
+    }
+
+    if (activeNetwork === '__local__' || activeNetwork === 'local') {
+        filtered = filtered.filter(area => !!area.is_local);
+    } else if (activeNetwork && activeNetwork !== 'all') {
+        filtered = filtered.filter(area => (area.domain || '').toLowerCase() === activeNetwork.toLowerCase());
+    }
 
     if (areaListInterestFilter !== null) {
         filtered = filtered.filter(area =>
@@ -891,6 +1253,21 @@ function selectEchoarea(tag) {
     currentEchoarea = tag;
     currentSearchNetworks = [];
     currentSearchInterests = [];
+
+    // Sync activeSubArea and activeNetwork with selected echoarea
+    if (tag) {
+        const tagParts = tag.split('@');
+        activeSubArea = (tagParts[0] || '').toLowerCase();
+        if (tagParts[1] && activeNetwork === 'all') {
+            activeNetwork = tagParts[1].toLowerCase();
+        }
+    } else {
+        activeSubArea = 'all';
+    }
+    renderNetworkToolbarButtons();
+    renderSubareaToolbarButtons();
+    updateToolbarToggleLinks();
+
     // Restore subscribe button visibility in case we're coming from interest mode
     $('#echoSubscribeBtn').removeClass('d-none');
     updateEchoInfoBar();
@@ -898,7 +1275,10 @@ function selectEchoarea(tag) {
     currentPage = echoPageMemory[memKey] ? echoPageMemory[memKey] : 1;
 
     // Update URL without page reload
-    const url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
+    let url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
+    if (activeNetwork && activeNetwork !== 'all') {
+        url += `?net=${encodeURIComponent(activeNetwork)}`;
+    }
     history.pushState({echoarea: tag}, '', url);
 
     // Update mobile accordion text
@@ -968,6 +1348,15 @@ function loadMessages(callback, silent = false) {
     url += `?page=${currentPage}&sort=${currentSort}&filter=${currentFilter}`;
     if (threadedView) {
         url += '&threaded=true';
+    }
+    if (!currentEchoarea && !currentInterestId) {
+        if (activeNetwork && activeNetwork !== 'all') {
+            url += `&network=${encodeURIComponent(activeNetwork)}`;
+        }
+        if (activeSubArea && activeSubArea !== 'all') {
+            url += `&area=${encodeURIComponent(activeSubArea)}`;
+        }
+        url += `&subscribed_only=${showSubscribedOnly ? 'true' : 'false'}`;
     }
 
     return $.get(url)
@@ -1567,6 +1956,7 @@ function toggleThreading() {
 function setFilter(filter) {
     currentFilter = filter;
     currentPage = 1;
+    syncQuickActionButtons();
     updateFilterTabs();
     updateMessagesHeaderTitle();
     loadMessages();
@@ -2350,16 +2740,24 @@ function getActiveSearchInterestIds() {
 function searchMessages() {
     currentConversationMessageId = null;
     currentConversationSubject = '';
-    // Get query from both desktop and mobile search inputs
-    let query = $('#searchInput').val().trim();
+    // Get query from top, desktop, and mobile search inputs
+    let query = $('#topMessageSearchInput').val() ? $('#topMessageSearchInput').val().trim() : '';
     if (!query) {
-        query = $('#mobileSearchInput').val().trim();
+        query = $('#searchInput').val() ? $('#searchInput').val().trim() : '';
+    }
+    if (!query) {
+        query = $('#mobileSearchInput').val() ? $('#mobileSearchInput').val().trim() : '';
     }
 
     if (query.length < 2) {
         showError(uiT('errors.messages.search.query_too_short', 'Please enter at least 2 characters to search'));
         return;
     }
+
+    // Keep all inputs in sync
+    $('#topMessageSearchInput').val(query);
+    $('#searchInput').val(query);
+    $('#mobileSearchInput').val(query);
 
     showLoading('#messagesContainer');
 
@@ -2574,6 +2972,7 @@ function showClearSearchButton() {
 
 function clearSearch() {
     // Clear search inputs
+    $('#topMessageSearchInput').val('');
     $('#searchInput').val('');
     $('#mobileSearchInput').val('');
 
@@ -2830,6 +3229,15 @@ function loadStats() {
         url = '/api/messages/echomail/stats';
         if (currentEchoarea) {
             url += '/' + encodeURIComponent(currentEchoarea);
+        } else {
+            const params = [];
+            if (activeNetwork && activeNetwork !== 'all') {
+                params.push(`network=${encodeURIComponent(activeNetwork)}`);
+            }
+            params.push(`subscribed_only=${showSubscribedOnly ? 'true' : 'false'}`);
+            if (params.length > 0) {
+                url += '?' + params.join('&');
+            }
         }
     }
 

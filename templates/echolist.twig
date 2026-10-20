@@ -2,6 +2,11 @@
 
 {% block title %}{{ t('ui.echolist.page_title') }} - {{ parent() }}{% endblock %}
 
+{% block stylesheets %}
+{{ parent() }}
+<link rel="stylesheet" href="/css/echo-filter.css">
+{% endblock %}
+
 {% block content %}
 <style>
 /* Minimal scoped styles for echolist page */
@@ -112,66 +117,76 @@
         </h2>
     </div>
 
-    <div class="row mb-3 g-3">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-filter me-2"></i>{{ t('ui.echolist.filter_heading') }}</h6>
-                </div>
-                <div class="card-body">
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="subscribedOnlyCheck" onchange="toggleSubscribedFilter()">
-                        <label class="form-check-label" for="subscribedOnlyCheck">
-                            {{ t('ui.echolist.show_subscribed_only') }}
-                        </label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="unreadOnlyCheck" onchange="toggleUnreadFilter()">
-                        <label class="form-check-label" for="unreadOnlyCheck">
-                            {{ t('ui.echolist.show_unread_only') }}
-                        </label>
-                    </div>
-                    <input type="text" class="form-control mb-2" id="areaSearch" placeholder="{{ t('ui.echolist.area_filter_placeholder') }}" onkeyup="searchEchoAreas(this.value)">
-                    <div class="dropdown" id="networkPickerWrap">
-                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate"
-                                type="button" id="networkPickerBtn"
-                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                            <span id="networkPickerLabel">{{ t('ui.echolist.all_networks') }}</span>
-                        </button>
-                        <ul class="dropdown-menu p-2" id="networkDropdown" style="min-width:220px;max-height:260px;overflow-y:auto;">
-                            <li><span class="dropdown-item-text text-muted small" id="networkDropdownEmpty">{{ t('ui.echolist.loading') }}</span></li>
-                        </ul>
-                    </div>
-                    {% if interests_enabled %}
-                    <div class="dropdown mt-2" id="interestPickerWrap">
-                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate"
-                                type="button" id="interestPickerBtn"
-                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                            <span id="interestPickerLabel">{{ t('ui.echolist.all_interests') }}</span>
-                        </button>
-                        <ul class="dropdown-menu p-2" id="interestDropdown" style="min-width:220px;max-height:260px;overflow-y:auto;">
-                            <li><span class="dropdown-item-text text-muted small">{{ t('ui.echolist.loading') }}</span></li>
-                        </ul>
-                    </div>
-                    {% endif %}
-                </div>
+    <!-- Hidden state elements preserved for filtering & preferences -->
+    <input type="checkbox" id="subscribedOnlyCheck" class="d-none">
+    <input type="checkbox" id="unreadOnlyCheck" class="d-none">
+    <input type="text" id="areaSearch" class="d-none">
+
+    <!-- Quick Filter & Action Toolbar -->
+    <div class="card mb-3" id="echolist-top-filter-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="fas fa-search me-2"></i>{{ t('ui.echolist.search_heading') }}</h6>
+            <div class="echo-view-switcher btn-group btn-group-sm">
+                <button type="button" class="btn btn-primary active" title="{{ t('ui.echolist.view_area_list') }}">
+                    <i class="fas fa-list me-1"></i> {{ t('ui.echolist.view_area_list') }}
+                </button>
+                <a href="/echomail" class="btn btn-outline-secondary" id="echo-header-toggle-messages" title="{{ t('ui.echolist.view_messages') }}">
+                    <i class="fas fa-envelope-open-text me-1"></i> {{ t('ui.echolist.view_messages') }}
+                </a>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-search me-2"></i>{{ t('ui.echolist.search_heading') }}</h6>
+        <div class="card-body">
+            <form onsubmit="searchMessages(); return false;">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="messageSearch" placeholder="{{ t('ui.echolist.search_placeholder') }}">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
                 </div>
-                <div class="card-body">
-                    <form onsubmit="searchMessages(); return false;">
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="messageSearch" placeholder="{{ t('ui.echolist.search_placeholder') }}">
-                            <button class="btn btn-primary" type="submit">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                        <small class="text-muted d-block mt-1">{{ t('ui.echolist.search_help') }}</small>
-                    </form>
+                <small class="text-muted d-block mt-1">{{ t('ui.echolist.search_help') }}</small>
+            </form>
+
+            <div id="echo-button-toolbar" class="echo-button-toolbar">
+                <div class="echo-section-title">
+                    <span><i class="fas fa-network-wired me-1"></i> {{ t('ui.echolist.quick_network_filters') }}</span>
+                    <span class="badge bg-secondary" id="echo-badge-total">-</span>
+                </div>
+                <div class="echo-btn-group mb-3" id="echo-network-buttons">
+                    <button type="button" class="btn btn-sm btn-primary active echo-btn" data-net="all">
+                        <i class="fas fa-border-all me-1"></i> ALL
+                    </button>
+                </div>
+
+                <div class="echo-section-title" id="echo-subarea-section-title">
+                    <span><i class="fas fa-layer-group me-1"></i> {{ t('ui.echolist.quick_subarea_filters') }}</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="text" class="form-control form-control-sm echo-subarea-search" id="echo-subarea-search-input" placeholder="{{ t('ui.echolist.filter_subareas_placeholder') }}" style="height: 24px; font-size: 0.72rem; padding: 2px 6px; width: 130px;">
+                        <span class="badge bg-secondary" id="echo-badge-subareas">-</span>
+                    </div>
+                </div>
+                <div class="echo-btn-group echo-subarea-group mb-3" id="echo-subarea-buttons">
+                    <span class="text-muted small p-1">{{ t('ui.echolist.loading') }}</span>
+                </div>
+
+                <div class="echo-section-title">
+                    <span><i class="fas fa-bolt me-1"></i> {{ t('ui.echolist.quick_actions') }}</span>
+                </div>
+                <div class="echo-btn-group" id="echo-action-buttons">
+                    <button type="button" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-subscribed" title="{{ t('ui.echolist.show_subscribed_only') }}">
+                        <i class="fa-solid fa-star me-1 text-warning"></i> {{ t('ui.interests.subscribed') }}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-unread" title="{{ t('ui.echolist.show_unread_only') }}">
+                        <i class="fas fa-envelope me-1 text-info"></i> {{ t('ui.common.unread') }}
+                    </button>
+                    <a href="/echomail" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-view-toggle" title="{{ t('ui.echolist.view_messages') }}">
+                        <i class="fas fa-envelope-open-text me-1 text-primary"></i> {{ t('ui.echolist.view_messages') }}
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-newpost" title="{{ t('ui.echolist.new_post') }}" onclick="composeMessage('echomail')">
+                        <i class="fas fa-plus me-1 text-success"></i> {{ t('ui.echolist.new_post') }}
+                    </button>
+                    <a href="/subscriptions" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" title="{{ t('ui.echomail.manage_subscriptions') }}">
+                        <i class="fa-solid fa-wrench me-1"></i> {{ t('ui.common.manage') }}
+                    </a>
                 </div>
             </div>
         </div>
@@ -234,12 +249,36 @@ let allEchoAreas = [];
 let searchQuery = '';
 let areaSelectMode = false;
 let selectedAreas = new Set();
+let activeNetwork = 'all';
+let activeSubArea = 'all';
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
         return window.t(key, params, fallback);
     }
     return fallback;
+}
+
+function updateToolbarToggleLinks() {
+    const net = activeNetwork && activeNetwork !== 'all' ? activeNetwork : null;
+    let msgUrl = '/echomail';
+    if (activeSubArea && activeSubArea !== 'all') {
+        const found = allEchoAreas.find(a => (a.tag || '').toLowerCase() === activeSubArea.toLowerCase());
+        if (found) {
+            const areaDom = (found.domain || '').toString().trim();
+            const fullTag = areaDom ? `${found.tag}@${areaDom}` : found.tag;
+            msgUrl = `/echomail/${encodeURIComponent(fullTag)}${net ? '?net=' + encodeURIComponent(net) : ''}`;
+        } else {
+            msgUrl = `/echomail/${encodeURIComponent(activeSubArea)}${net ? '?net=' + encodeURIComponent(net) : ''}`;
+        }
+    } else if (net) {
+        msgUrl = `/echomail?net=${encodeURIComponent(net)}`;
+    }
+
+    const toggleBtn = document.getElementById('echo-btn-view-toggle');
+    if (toggleBtn) toggleBtn.href = msgUrl;
+    const headerToggle = document.getElementById('echo-header-toggle-messages');
+    if (headerToggle) headerToggle.href = msgUrl;
 }
 
 function saveEcholistPreferences() {
@@ -250,22 +289,305 @@ function saveEcholistPreferences() {
         data: JSON.stringify({
             subscribed_only: $('#subscribedOnlyCheck').is(':checked'),
             unread_only:     $('#unreadOnlyCheck').is(':checked'),
+            network:         activeNetwork,
+            subarea:         activeSubArea
         })
     });
 }
 
+function syncQuickActionButtons() {
+    const isSubscribed = $('#subscribedOnlyCheck').is(':checked');
+    const isUnread = $('#unreadOnlyCheck').is(':checked');
+
+    const subBtn = $('#echo-btn-subscribed');
+    if (subBtn.length) {
+        if (isSubscribed) {
+            subBtn.removeClass('btn-outline-secondary').addClass('btn-primary active');
+        } else {
+            subBtn.removeClass('btn-primary active').addClass('btn-outline-secondary');
+        }
+    }
+
+    const unreadBtn = $('#echo-btn-unread');
+    if (unreadBtn.length) {
+        if (isUnread) {
+            unreadBtn.removeClass('btn-outline-secondary').addClass('btn-primary active');
+        } else {
+            unreadBtn.removeClass('btn-primary active').addClass('btn-outline-secondary');
+        }
+    }
+}
+
+function renderNetworkToolbarButtons() {
+    const netContainer = document.getElementById('echo-network-buttons');
+    if (!netContainer) return;
+
+    let localCount = 0;
+    const domainCounts = {};
+
+    allEchoAreas.forEach(function(area) {
+        if (area.is_local) {
+            localCount++;
+        } else {
+            const dom = (area.domain || 'unknown').toLowerCase();
+            domainCounts[dom] = (domainCounts[dom] || 0) + 1;
+        }
+    });
+
+    const badgeTotal = document.getElementById('echo-badge-total');
+    if (badgeTotal) {
+        badgeTotal.textContent = allEchoAreas.length + ' Areas';
+    }
+
+    const isAllActive = (activeNetwork === 'all');
+    let html = `
+        <button type="button" class="btn btn-sm ${isAllActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn" data-net="all">
+            <i class="fas fa-border-all me-1"></i> ALL
+            <span class="badge ${isAllActive ? 'bg-dark' : 'bg-secondary'} ms-1">${allEchoAreas.length}</span>
+        </button>
+    `;
+
+    if (localCount > 0) {
+        const isLocalActive = (activeNetwork === '__local__' || activeNetwork === 'local');
+        html += `
+            <button type="button" class="btn btn-sm ${isLocalActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn" data-net="__local__">
+                <i class="fas fa-home me-1"></i> LOCAL
+                <span class="badge ${isLocalActive ? 'bg-dark' : 'bg-secondary'} ms-1">${localCount}</span>
+            </button>
+        `;
+    }
+
+    const domains = Object.keys(domainCounts).sort();
+    domains.forEach(function(dom) {
+        const count = domainCounts[dom];
+        const label = dom.toUpperCase();
+        const isNetActive = (activeNetwork === dom);
+        html += `
+            <button type="button" class="btn btn-sm ${isNetActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn" data-net="${dom}">
+                <i class="fas fa-comments me-1"></i> ${label}
+                <span class="badge ${isNetActive ? 'bg-dark' : 'bg-secondary'} ms-1">${count}</span>
+            </button>
+        `;
+    });
+
+    netContainer.innerHTML = html;
+
+    $(netContainer).find('.echo-btn').on('click', function() {
+        this.blur();
+        const net = $(this).attr('data-net');
+        selectToolbarNetwork(net);
+    });
+}
+
+function renderSubareaToolbarButtons() {
+    const container = document.getElementById('echo-subarea-buttons');
+    const badgeSubareas = document.getElementById('echo-badge-subareas');
+    if (!container) return;
+
+    let filtered = allEchoAreas.slice();
+    if (activeNetwork === '__local__' || activeNetwork === 'local') {
+        filtered = filtered.filter(a => !!a.is_local);
+    } else if (activeNetwork !== 'all') {
+        filtered = filtered.filter(a => (a.domain || '').toLowerCase() === activeNetwork.toLowerCase());
+    }
+
+    if ($('#unreadOnlyCheck').is(':checked')) {
+        filtered = filtered.filter(a => (a.unread_count || 0) > 0);
+    }
+
+    if (badgeSubareas) {
+        badgeSubareas.textContent = filtered.length + ' Areas';
+    }
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<span class="text-muted small p-1">${uiT('ui.echolist.no_subareas_match', 'No sub-areas match the current filter.')}</span>`;
+        return;
+    }
+
+    filtered.sort((a, b) => (a.tag || '').localeCompare(b.tag || ''));
+
+    const netName = (activeNetwork === 'all') ? 'AREAS' : (activeNetwork === '__local__' || activeNetwork === 'local' ? 'LOCAL' : activeNetwork.toUpperCase());
+    const allLabel = uiT('ui.echolist.all_areas_label', `ALL ${netName}`, { name: netName });
+    const isAllActive = (!activeSubArea || activeSubArea === 'all');
+
+    let html = `
+        <button type="button" class="btn btn-sm ${isAllActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn echo-subarea-btn" data-subarea="all">
+            <i class="fas fa-layer-group me-1"></i> ${escapeHtml(allLabel)}
+            <span class="badge ${isAllActive ? 'bg-dark' : 'bg-secondary'} ms-1">${filtered.length}</span>
+        </button>
+    `;
+
+    filtered.forEach(function(area) {
+        const areaDomain = (area.domain || '').toString().trim();
+        const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
+        const isSubActive = activeSubArea && (
+            activeSubArea.toLowerCase() === (area.tag || '').toLowerCase() ||
+            activeSubArea.toLowerCase() === fullTag.toLowerCase()
+        );
+
+        let badgeHtml = '';
+        const unread = area.unread_count || 0;
+        const total = area.message_count || 0;
+        if (unread > 0) {
+            badgeHtml = `<span class="badge bg-danger ms-1" title="${unread} unread">${unread}</span>`;
+        } else if (total > 0) {
+            badgeHtml = `<span class="badge ${isSubActive ? 'bg-dark' : 'bg-secondary'} ms-1" title="${total} posts">${total}</span>`;
+        }
+
+        html += `
+            <button type="button" class="btn btn-sm ${isSubActive ? 'btn-primary active' : 'btn-outline-secondary'} echo-btn echo-subarea-btn" data-subarea="${escapeHtml((area.tag || '').toLowerCase())}" title="${escapeHtml(area.description || area.tag)}">
+                <i class="fas fa-comments me-1"></i> ${escapeHtml(area.tag)}
+                ${badgeHtml}
+            </button>
+        `;
+    });
+
+    container.innerHTML = html;
+
+    $(container).find('.echo-subarea-btn').on('click', function() {
+        this.blur();
+        const sub = $(this).attr('data-subarea');
+        selectToolbarSubArea(sub);
+    });
+
+    filterSubareaButtonsBySearch();
+}
+
+function filterSubareaButtonsBySearch() {
+    const input = document.getElementById('echo-subarea-search-input');
+    if (!input) return;
+    const q = input.value.trim().toLowerCase();
+    const container = document.getElementById('echo-subarea-buttons');
+    if (!container) return;
+
+    let visibleCount = 0;
+    $(container).find('.echo-subarea-btn').each(function() {
+        const sub = ($(this).attr('data-subarea') || '').toLowerCase();
+        const title = ($(this).attr('title') || '').toLowerCase();
+        if (sub === 'all' || !q || sub.includes(q) || title.includes(q)) {
+            $(this).show();
+            visibleCount++;
+        } else {
+            $(this).hide();
+        }
+    });
+
+    const badgeSubareas = document.getElementById('echo-badge-subareas');
+    if (badgeSubareas) {
+        badgeSubareas.textContent = visibleCount + ' Areas';
+    }
+}
+
+function selectToolbarNetwork(net) {
+    activeNetwork = (net || 'all').toLowerCase();
+    activeSubArea = 'all';
+
+    // Update active state on network buttons
+    $('#echo-network-buttons .echo-btn').each(function() {
+        const btnNet = $(this).attr('data-net');
+        const badge = $(this).find('.badge');
+        if (btnNet === activeNetwork) {
+            $(this).removeClass('btn-outline-secondary').addClass('btn-primary active');
+            badge.removeClass('bg-secondary').addClass('bg-dark');
+        } else {
+            $(this).removeClass('btn-primary active').addClass('btn-outline-secondary');
+            badge.removeClass('bg-dark').addClass('bg-secondary');
+        }
+    });
+
+    // Sync Binkterm core network dropdown checkboxes
+    $('#networkDropdown .network-cb').each(function() {
+        if (activeNetwork === 'all') {
+            $(this).prop('checked', false);
+        } else {
+            $(this).prop('checked', $(this).val().toLowerCase() === activeNetwork);
+        }
+    });
+    updateNetworkPickerLabel();
+
+    renderSubareaToolbarButtons();
+    updateToolbarToggleLinks();
+    saveEcholistPreferences();
+
+    $('#areaSearch').val('');
+    searchEchoAreas('');
+}
+
+function selectToolbarSubArea(sub) {
+    activeSubArea = (sub || 'all').toLowerCase();
+
+    $('#echo-subarea-buttons .echo-subarea-btn').each(function() {
+        const s = ($(this).attr('data-subarea') || '').toLowerCase();
+        const isMatch = (activeSubArea === 'all' && s === 'all') || (activeSubArea !== 'all' && s === activeSubArea);
+        const badge = $(this).find('.badge');
+        if (isMatch) {
+            $(this).removeClass('btn-outline-secondary').addClass('btn-primary active');
+            if (badge.length && !badge.hasClass('bg-danger')) {
+                badge.removeClass('bg-secondary').addClass('bg-dark');
+            }
+        } else {
+            $(this).removeClass('btn-primary active').addClass('btn-outline-secondary');
+            if (badge.length && !badge.hasClass('bg-danger')) {
+                badge.removeClass('bg-dark').addClass('bg-secondary');
+            }
+        }
+    });
+
+    updateToolbarToggleLinks();
+    saveEcholistPreferences();
+
+    const areaSearchInput = $('#areaSearch');
+    if (activeSubArea === 'all') {
+        areaSearchInput.val('');
+        searchEchoAreas('');
+    } else {
+        areaSearchInput.val(activeSubArea);
+        searchEchoAreas(activeSubArea);
+    }
+}
+
 $(document).ready(function() {
+    // Sub-area search input listener
+    $('#echo-subarea-search-input').on('input', filterSubareaButtonsBySearch);
+
+    // Quick Actions Click Handlers
+    $('#echo-btn-subscribed').on('click', function() {
+        this.blur();
+        const nextState = !$('#subscribedOnlyCheck').is(':checked');
+        $('#subscribedOnlyCheck').prop('checked', nextState);
+        toggleSubscribedFilter();
+    });
+
+    $('#echo-btn-unread').on('click', function() {
+        this.blur();
+        const nextState = !$('#unreadOnlyCheck').is(':checked');
+        $('#unreadOnlyCheck').prop('checked', nextState);
+        toggleUnreadFilter();
+    });
+
     // Load saved preferences from database
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadInterestFilter();
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlNet = urlParams.get('net');
+        const urlArea = urlParams.get('area');
+
         $.get('/api/user/echolist-preference')
             .done(function(data) {
-                if (data.subscribed_only) $('#subscribedOnlyCheck').prop('checked', true);
-                if (data.unread_only)     $('#unreadOnlyCheck').prop('checked', true);
+                const subOnly = (data.subscribed_only !== undefined) ? data.subscribed_only : true;
+                $('#subscribedOnlyCheck').prop('checked', !!subOnly);
+                if (data.unread_only) $('#unreadOnlyCheck').prop('checked', true);
+
+                activeNetwork = (urlNet || data.network || 'all').toLowerCase();
+                activeSubArea = (urlArea || data.subarea || 'all').toLowerCase();
+
+                syncQuickActionButtons();
                 loadEchoAreas();
                 loadStatistics();
             })
             .fail(function() {
+                $('#subscribedOnlyCheck').prop('checked', true);
+                syncQuickActionButtons();
                 loadEchoAreas();
                 loadStatistics();
             });
@@ -338,6 +660,12 @@ function loadEchoAreas() {
     $.get(url)
         .done(function(data) {
             allEchoAreas = data.echoareas || [];
+
+            renderNetworkToolbarButtons();
+            renderSubareaToolbarButtons();
+            syncQuickActionButtons();
+            updateToolbarToggleLinks();
+
             populateNetworkFilter();
             if (document.getElementById('interestDropdown')) populateInterestFilter();
             searchEchoAreas(searchQuery);

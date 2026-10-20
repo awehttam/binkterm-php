@@ -12,7 +12,86 @@
 {% endif %}
 {% block title %}{{ t('ui.echomail.title', {}, locale, ['common']) }}{% if display_echoarea %} - {{ display_echoarea }}{% endif %} - {{ parent() }}{% endblock %}
 
+{% block stylesheets %}
+{{ parent() }}
+<link rel="stylesheet" href="/css/echo-filter.css">
+{% endblock %}
+
 {% block content %}
+<!-- Quick Filter & Action Toolbar -->
+<div class="card mb-3" id="echomail-top-filter-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="fas fa-search me-2"></i>{{ t('ui.echolist.search_heading', {}, locale, ['common']) }}
+        </h6>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary" id="echo-badge-total">-</span>
+            <div class="echo-view-switcher btn-group btn-group-sm">
+                <a href="/echolist" class="btn btn-outline-secondary" id="echo-header-toggle-list" title="{{ t('ui.echolist.view_area_list', {}, locale, ['common']) }}">
+                    <i class="fas fa-list me-1"></i> {{ t('ui.echolist.view_area_list', {}, locale, ['common']) }}
+                </a>
+                <button type="button" class="btn btn-primary active" title="{{ t('ui.echolist.view_messages', {}, locale, ['common']) }}">
+                    <i class="fas fa-envelope-open-text me-1"></i> {{ t('ui.echolist.view_messages', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <form id="topMessageSearchForm" onsubmit="searchMessages(); return false;" class="mb-2">
+            <div class="input-group">
+                <input type="text" class="form-control" id="topMessageSearchInput" placeholder="{{ t('ui.echolist.search_placeholder', {}, locale, ['common']) }}">
+                <button class="btn btn-primary" type="submit" id="topMessageSearchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            <small class="text-muted d-block mt-1">{{ t('ui.echolist.search_help', {}, locale, ['common']) }}</small>
+        </form>
+
+        <div id="echo-button-toolbar" class="echo-button-toolbar">
+            <div class="echo-section-title">
+                <span><i class="fas fa-network-wired me-1"></i> {{ t('ui.echolist.quick_network_filters', {}, locale, ['common']) }}</span>
+                <span class="badge bg-secondary" id="echo-badge-networks">-</span>
+            </div>
+            <div class="echo-btn-group mb-3" id="echo-network-buttons">
+                <button type="button" class="btn btn-sm btn-primary active echo-btn" data-net="all">
+                    <i class="fas fa-border-all me-1"></i> ALL
+                </button>
+            </div>
+
+            <div class="echo-section-title" id="echo-subarea-section-title">
+                <span><i class="fas fa-layer-group me-1"></i> {{ t('ui.echolist.quick_subarea_filters', {}, locale, ['common']) }}</span>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="text" class="form-control form-control-sm echo-subarea-search" id="echo-subarea-search-input" placeholder="{{ t('ui.echolist.filter_subareas_placeholder', {}, locale, ['common']) }}" style="height: 24px; font-size: 0.72rem; padding: 2px 6px; width: 130px;">
+                    <span class="badge bg-secondary" id="echo-badge-subareas">-</span>
+                </div>
+            </div>
+            <div class="echo-btn-group echo-subarea-group mb-3" id="echo-subarea-buttons">
+                <span class="text-muted small p-1">{{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}</span>
+            </div>
+
+            <div class="echo-section-title">
+                <span><i class="fas fa-bolt me-1"></i> {{ t('ui.echolist.quick_actions', {}, locale, ['common']) }}</span>
+            </div>
+            <div class="echo-btn-group" id="echo-action-buttons">
+                <button type="button" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-subscribed" title="{{ t('ui.echolist.show_subscribed_only', {}, locale, ['common']) }}">
+                    <i class="fa-solid fa-star me-1 text-warning"></i> {{ t('ui.interests.subscribed', {}, locale, ['common']) }}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-unread" title="{{ t('ui.echolist.show_unread_only', {}, locale, ['common']) }}">
+                    <i class="fas fa-envelope me-1 text-info"></i> {{ t('ui.common.unread', {}, locale, ['common']) }}
+                </button>
+                <a href="/echolist" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-view-toggle" title="{{ t('ui.echolist.view_area_list', {}, locale, ['common']) }}">
+                    <i class="fas fa-list me-1 text-primary"></i> {{ t('ui.echolist.view_area_list', {}, locale, ['common']) }}
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" id="echo-btn-newpost" title="{{ t('ui.echomail.post_message', {}, locale, ['common']) }}" onclick="composeMessage('echomail')">
+                    <i class="fas fa-plus me-1 text-success"></i> {{ t('ui.echolist.new_post', {}, locale, ['common']) }}
+                </button>
+                <a href="/subscriptions" class="btn btn-sm btn-outline-secondary echo-btn echo-action-btn" title="{{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}">
+                    <i class="fa-solid fa-wrench me-1"></i> {{ t('ui.common.manage', {}, locale, ['common']) }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Echo area info bar: description + subscribe toggle + post -->
 <div id="echoInfoBar" class="d-none mb-3">
     <div class="d-flex flex-column flex-md-row align-items-start justify-content-between gap-2 gap-md-3 px-3 py-2 border rounded">

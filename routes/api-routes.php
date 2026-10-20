@@ -6237,8 +6237,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
         $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
 
-        // Get messages from subscribed echoareas only
-        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded, $sort);
+        $network = isset($_GET['network']) && $_GET['network'] !== '' ? trim($_GET['network']) : null;
+        $areaTag = isset($_GET['area']) && $_GET['area'] !== '' ? trim($_GET['area']) : null;
+        $subscribedOnly = !isset($_GET['subscribed_only']) || $_GET['subscribed_only'] === 'true' || $_GET['subscribed_only'] === '1';
+
+        // Get messages from subscribed or all echoareas
+        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded, $sort, $network, $areaTag, $subscribedOnly);
         $result = apiLocalizeErrorPayload($result, $user);
         echo json_encode($result);
     });
@@ -6494,9 +6498,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $network = isset($_GET['network']) && $_GET['network'] !== '' ? trim($_GET['network']) : null;
+        $subscribedOnly = !isset($_GET['subscribed_only']) || $_GET['subscribed_only'] === 'true' || $_GET['subscribed_only'] === '1';
         $handler = new MessageHandler();
 
-        echo json_encode($handler->getEchomailStats($userId));
+        echo json_encode($handler->getEchomailStats($userId, null, null, $network, $subscribedOnly));
     });
 
     SimpleRouter::get('/messages/echomail/stats/{echoarea}', function($echoarea) {
@@ -8820,7 +8826,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
         $stmt = $db->prepare("
-            SELECT echolist_subscribed_only, echolist_unread_only
+            SELECT echolist_subscribed_only, echolist_unread_only, echomail_network, echomail_subarea
             FROM user_settings
             WHERE user_id = ?
         ");
@@ -8828,8 +8834,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $pref = $stmt->fetch();
 
         echo json_encode([
-            'subscribed_only' => $pref ? (bool)$pref['echolist_subscribed_only'] : false,
+            'subscribed_only' => $pref ? ($pref['echolist_subscribed_only'] !== false && $pref['echolist_subscribed_only'] !== 'f') : true,
             'unread_only'     => $pref ? (bool)$pref['echolist_unread_only']     : false,
+            'network'         => $pref['echomail_network'] ?? 'all',
+            'subarea'         => $pref['echomail_subarea'] ?? 'all',
         ]);
     });
 
@@ -8839,23 +8847,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true);
-        $subscribedOnly = !empty($input['subscribed_only']);
+        $subscribedOnly = isset($input['subscribed_only']) ? (bool)$input['subscribed_only'] : true;
         $unreadOnly     = !empty($input['unread_only']);
+        $network        = isset($input['network']) ? trim($input['network']) : null;
+        $subarea        = isset($input['subarea']) ? trim($input['subarea']) : null;
 
         $db = Database::getInstance()->getPdo();
 
         $stmt = $db->prepare("
-            INSERT INTO user_settings (user_id, echolist_subscribed_only, echolist_unread_only)
-            VALUES (?, ?, ?)
+            INSERT INTO user_settings (user_id, echolist_subscribed_only, echolist_unread_only, echomail_network, echomail_subarea)
+            VALUES (?, ?, ?, COALESCE(?, 'all'), COALESCE(?, 'all'))
             ON CONFLICT (user_id)
             DO UPDATE SET
                 echolist_subscribed_only = EXCLUDED.echolist_subscribed_only,
-                echolist_unread_only     = EXCLUDED.echolist_unread_only
+                echolist_unread_only     = EXCLUDED.echolist_unread_only,
+                echomail_network         = COALESCE(EXCLUDED.echomail_network, user_settings.echomail_network),
+                echomail_subarea         = COALESCE(EXCLUDED.echomail_subarea, user_settings.echomail_subarea)
         ");
         $stmt->execute([
             $user['user_id'],
             $subscribedOnly ? 'true' : 'false',
             $unreadOnly     ? 'true' : 'false',
+            $network,
+            $subarea,
         ]);
 
         echo json_encode(['success' => true]);
