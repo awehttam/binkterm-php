@@ -1768,6 +1768,8 @@ return [
     'ui.admin.rlogindoors_config.telnet_only' => 'Solo telnet/SSH',
     'ui.admin.rlogindoors_config.show_on_web' => 'Mostra sul web',
     'ui.admin.rlogindoors_config.hide_from_web' => 'Nascondi dal web (solo telnet/SSH)',
+    'ui.admin.rlogindoors_config.emulate_modem_speed' => 'Emula velocità modem',
+    'ui.admin.rlogindoors_config.emulate_modem_speed_help' => 'Rallenta l\'output per simulare la velocità di una classica connessione modem.',
     'ui.admin.rlogindoors_config.load_config_failed' => 'Failed to load config',
     'ui.admin.rlogindoors_config.load_config_error_prefix' => 'Error loading config: ',
     'ui.admin.rlogindoors_config.load_doors_failed' => 'Failed to load doors',

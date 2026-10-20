@@ -375,6 +375,7 @@ class RLoginDoorManager
             'allow_anonymous' => !empty($fields['allow_anonymous']) ? 'true' : 'false',
             'guest_max_sessions' => isset($fields['guest_max_sessions']) && $fields['guest_max_sessions'] !== '' ? (int)$fields['guest_max_sessions'] : 2,
             'hide_from_web' => !empty($fields['hide_from_web']) ? 'true' : 'false',
+            'emulate_modem_speed' => !empty($fields['emulate_modem_speed']) ? 'true' : 'false',
         ];
     }
 
@@ -420,6 +421,7 @@ class RLoginDoorManager
 
             // Requirements
             'admin_only' => $row['admin_only'] === true || $row['admin_only'] === 't' || $row['admin_only'] === '1',
+            'emulate_modem_speed' => $row['emulate_modem_speed'] === true || $row['emulate_modem_speed'] === 't' || $row['emulate_modem_speed'] === '1',
 
             // Runtime config
             'config' => [
@@ -430,6 +432,7 @@ class RLoginDoorManager
                 'allow_anonymous' => $row['allow_anonymous'] === true || $row['allow_anonymous'] === 't' || $row['allow_anonymous'] === '1',
                 'guest_max_sessions' => (int)$row['guest_max_sessions'],
                 'hide_from_web' => $row['hide_from_web'] === true || $row['hide_from_web'] === 't' || $row['hide_from_web'] === '1',
+                'emulate_modem_speed' => $row['emulate_modem_speed'] === true || $row['emulate_modem_speed'] === 't' || $row['emulate_modem_speed'] === '1',
             ],
         ];
     }

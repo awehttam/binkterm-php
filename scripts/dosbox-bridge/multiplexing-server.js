@@ -1079,7 +1079,11 @@ class SessionManager {
                 }
 
                 if (session.ws && session.ws.readyState === WebSocket.OPEN) {
-                    session.ws.send(utf8Data);
+                    if (session.emulator && session.emulator.emulateModemSpeed) {
+                        this.queueThrottledOutput(session, utf8Data);
+                    } else {
+                        session.ws.send(utf8Data);
+                    }
                 } else {
                     session.slog.log(
                         `[${emulatorName}->WS] WebSocket not ready; buffered ${data.length} bytes for replay`
@@ -1089,6 +1093,66 @@ class SessionManager {
                 session.slog.error(`[${emulatorName}] Encoding error:`, err.message);
             }
         });
+    }
+
+    /**
+     * Queue and pace output chunks to WebSocket to simulate authentic dialup modem baud rates.
+     */
+    queueThrottledOutput(session, utf8Data) {
+        if (!session.throttleQueue) {
+            session.throttleQueue = [];
+            session.throttleTimer = null;
+        }
+
+        const baud = (session.emulator && session.emulator.terminalSpeed) || 38400;
+        // 1 byte = 1 start bit + 8 data bits + 1 stop bit = 10 bits
+        const cps = Math.max(30, baud / 10.0);
+        // Target ~35 chunks per second for smooth visual streaming
+        const chunkSize = Math.max(16, Math.min(128, Math.round(cps / 35.0)));
+
+        for (let i = 0; i < utf8Data.length; i += chunkSize) {
+            session.throttleQueue.push(utf8Data.slice(i, i + chunkSize));
+        }
+
+        if (!session.throttleTimer) {
+            this.scheduleNextThrottleChunk(session, cps);
+        }
+    }
+
+    scheduleNextThrottleChunk(session, cps) {
+        if (!session.throttleQueue || session.throttleQueue.length === 0) {
+            session.throttleTimer = null;
+            return;
+        }
+
+        const chunk = session.throttleQueue.shift();
+        if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+            session.ws.send(chunk);
+        }
+
+        // Delay in ms based on bytes sent in this chunk
+        const byteCount = Buffer.byteLength(chunk, 'utf8');
+        const delayMs = Math.max(5, Math.round((byteCount / cps) * 1000));
+
+        session.throttleTimer = setTimeout(() => {
+            this.scheduleNextThrottleChunk(session, cps);
+        }, delayMs);
+    }
+
+    flushThrottledOutput(session) {
+        if (session.throttleTimer) {
+            clearTimeout(session.throttleTimer);
+            session.throttleTimer = null;
+        }
+        if (session.throttleQueue && session.throttleQueue.length > 0) {
+            if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+                while (session.throttleQueue.length > 0) {
+                    session.ws.send(session.throttleQueue.shift());
+                }
+            } else {
+                session.throttleQueue = [];
+            }
+        }
     }
 
     setupDosBoxHandlers(session) {
@@ -1155,6 +1219,11 @@ class SessionManager {
         ws.on('message', (data) => {
             ws.isAlive = true;
             session.bytesToEmulator += data.length;
+
+            // When user sends input, flush any queued throttled output immediately to prevent typing lag
+            if (session.throttleQueue && session.throttleQueue.length > 0) {
+                this.flushThrottledOutput(session);
+            }
 
             try {
                 const dataStr = data.toString('utf8');
@@ -1305,7 +1374,7 @@ class SessionManager {
 
         session.slog.log(`[SESSION] Removing`);
 
-        // Clear disconnect and heartbeat timers
+        // Clear disconnect, heartbeat, and throttle timers
         if (session.disconnectTimer) {
             clearTimeout(session.disconnectTimer);
             session.disconnectTimer = null;
@@ -1314,6 +1383,11 @@ class SessionManager {
             clearInterval(session.heartbeatInterval);
             session.heartbeatInterval = null;
         }
+        if (session.throttleTimer) {
+            clearTimeout(session.throttleTimer);
+            session.throttleTimer = null;
+        }
+        session.throttleQueue = [];
 
         // Close emulator TCP connection (simulates carrier loss)
         if (session.emulator) {
