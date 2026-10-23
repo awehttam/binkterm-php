@@ -30,6 +30,24 @@ function webdoorApiError(string $errorCode, string $message, int $status = 400):
 }
 
 /**
+ * Resolve the icon used for doors that do not declare their own.
+ *
+ * Uses /images/dos-door-icon.png when a sysop has installed it in the web root,
+ * otherwise falls back to /favicon.svg so the browser never requests a missing file.
+ *
+ * @return string Public URL of the default door icon
+ */
+function getDefaultDoorIconUrl(): string
+{
+    static $url = null;
+    if ($url === null) {
+        $custom = __DIR__ . '/../public_html/images/dos-door-icon.png';
+        $url = is_file($custom) ? '/images/dos-door-icon.png' : '/favicon.svg';
+    }
+    return $url;
+}
+
+/**
  * Helper function to get available WebDoor features
  */
 function getAvailableWebDoorFeatures(): array {
@@ -213,7 +231,7 @@ SimpleRouter::get('/games', function() {
             continue;
         }
         // Check if door has a custom icon in manifest
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        $iconUrl = getDefaultDoorIconUrl(); // Default icon
         if (!empty($door['icon'])) {
             // Use asset endpoint (manifest declares the actual filename)
             $iconUrl = "/door-assets/{$doorId}/icon";
@@ -245,7 +263,7 @@ SimpleRouter::get('/games', function() {
         if (!empty($door['config']['hide_from_web'])) {
             continue;
         }
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        $iconUrl = getDefaultDoorIconUrl(); // Default icon
         if (!empty($door['icon'])) {
             $iconUrl = "/door-assets/{$doorId}/icon";
         }
@@ -276,7 +294,7 @@ SimpleRouter::get('/games', function() {
         if (!empty($door['config']['hide_from_web'])) {
             continue;
         }
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        $iconUrl = getDefaultDoorIconUrl(); // Default icon
         if (!empty($door['icon'])) {
             $iconUrl = "/door-assets/{$doorId}/icon";
         }
