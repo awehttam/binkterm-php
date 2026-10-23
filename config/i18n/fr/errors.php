@@ -484,6 +484,8 @@ return [
     'errors.door.session_unauthorized' => 'Non autorisé',
     'errors.door.session_end_failed' => 'Échec de la fermeture de la session',
     'errors.door.session_get_failed' => 'Échec de la récupération de la session',
+    'errors.door.leaderboard_not_supported' => 'Classement indisponible pour cette porte',
+    'errors.door.leaderboard_failed' => 'Échec du chargement du classement',
     'errors.door.asset.invalid_type' => 'Type de ressource invalide',
     'errors.door.asset.door_not_found' => 'Porte introuvable',
     'errors.door.asset.not_defined' => 'Ressource non définie dans le manifeste',

@@ -42,6 +42,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Auto Feed Poster](#auto-feed-poster)
 - [Import BBS List](#import-bbs-list)
 - [RLogin Synchronet Service Client](#rlogin-synchronet-service-client)
+- [Door Data Sync](#door-data-sync)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -1328,3 +1329,12 @@ Reads connection details from `config/rlogin_synchronet_service.json` (copy `con
 `rlogin_host`/`rlogin_port` are only used by the **Import from Synchronet** admin feature (see [RLoginDoors.md](RLoginDoors.md)), not by this script itself.
 
 On success it prints `{"remote_username":"..."}` to stdout and exits `0`. On failure it prints an error to stderr and exits `1`, which aborts the door launch.
+
+## Door Data Sync
+Copies a DOS door's player scores into the `/games` Top Scores leaderboard, using the parser named by `data_parser` in the door's `dosdoor.jsn`:
+
+```bash
+php scripts/door_data_sync.php LORD
+```
+
+Players are matched to BBS users by the real name stored in the game record (against username or real name); unmatched or ambiguous players are skipped. A row is added only when a player's score has changed. The bridge runs this automatically when a door exits; set `DOSDOOR_PHP_PATH` in `.env` if `php` is not on the bridge's PATH. See `docs/DOSDoors.md`.

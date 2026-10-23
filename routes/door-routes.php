@@ -592,6 +592,42 @@ SimpleRouter::get('/api/door/session', function() {
     }
 });
 
+// Get a DOS door's player leaderboard parsed from the game's data files
+// GET /api/door/leaderboard?door=LORD&limit=25
+SimpleRouter::get('/api/door/leaderboard', function() {
+    header('Content-Type: application/json');
+
+    RouteHelper::requireAuth();
+    $doorId = (string)($_GET['door'] ?? '');
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
+
+    $service = new \BinktermPHP\DoorData\DoorDataService();
+    if (!$service->isSupported($doorId)) {
+        doorApiError('errors.door.leaderboard_not_supported', 'Leaderboard not available for this door', 404);
+        return;
+    }
+
+    try {
+        $players = array_slice($service->getPlayers($doorId), 0, $limit);
+        $entries = [];
+        foreach ($players as $rank => $player) {
+            // real_name is deliberately omitted; it can hold the BBS user's real name
+            $entries[] = [
+                'rank' => $rank + 1,
+                'handle' => $player['handle'],
+                'score' => $player['score'],
+                'score_label' => $player['score_label'],
+                'last_played' => $player['last_played'],
+                'stats' => $player['stats'],
+            ];
+        }
+        echo json_encode(['success' => true, 'door' => $doorId, 'players' => $entries]);
+    } catch (\BinktermPHP\DoorData\DoorDataParseException $e) {
+        getDoorLogger()->warning("DOSDOOR: [Leaderboard] $doorId: " . $e->getMessage());
+        doorApiError('errors.door.leaderboard_failed', 'Failed to load leaderboard', 500);
+    }
+});
+
 // Public guest doors listing page
 // GET /guest-doors — lists all anonymous-accessible native doors
 SimpleRouter::get('/guest-doors', function() {

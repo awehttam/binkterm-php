@@ -678,6 +678,26 @@ If you need longer sessions, you can register Doorway with the original sharewar
   - Set to `false` only if you've verified the door works with internal comm routines
 - **Memory impact**: FOSSIL driver uses ~30-50KB RAM per session
 
+### Game Data Parsers (Leaderboards)
+
+A door can expose its players to the BBS by naming a registered parser in its manifest:
+
+```json
+{
+  "data_parser": "lord",
+  "data_dir": "."
+}
+```
+
+- `data_parser`: id of a parser registered in `src/DoorData/DoorDataParserRegistry.php`. Built in: `lord` (Legend of the Red Dragon, reads `PLAYER.DAT`).
+- `data_dir`: directory holding the game's data files, relative to the door directory. Defaults to `.`. It must resolve inside `dosbox-bridge/dos/DOORS/`.
+
+`GET /api/door/leaderboard?door=<DOORID>&limit=<1-100>` (login required) returns players ranked by the parser's score. Real names are not included in the response. Each entry has `rank`, `handle`, `score`, `score_label`, `last_played` and a game-specific `stats` object.
+
+When a door with a `data_parser` exits, the bridge runs `scripts/door_data_sync.php`, which copies each player's score into the `/games` Top Scores leaderboard. Players are matched to BBS users by the real name stored in the game record (against username or real name); unmatched players are skipped. A row is added only when a player's score changed since their last row. Restart the bridge after upgrading, and set `DOSDOOR_PHP_PATH` in `.env` if `php` is not on the bridge's PATH.
+
+To support another game, see `docs/proposals/DoorGameDataParsers.md`.
+
 ### Macro Replacements in launch_command
 
 | Placeholder | Replaced with |

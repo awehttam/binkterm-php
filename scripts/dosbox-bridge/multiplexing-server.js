@@ -1302,6 +1302,8 @@ class SessionManager {
         // Mark that DOSBox has exited (so WebSocket handler knows to clean up immediately)
         session.dosboxExited = true;
 
+        this.syncDoorData(session);
+
         // Allow a brief grace period (800ms) before closing WebSocket so the browser terminal
         // receives any trailing buffered screen output (e.g., game-over screens, character demise details)
         setTimeout(() => {
@@ -1311,6 +1313,35 @@ class SessionManager {
                 this.removeSession(session);
             }
         }, 800);
+    }
+
+    /**
+     * Run scripts/door_data_sync.php for doors whose manifest names a data_parser,
+     * so game scores reach the /games leaderboard after the player leaves.
+     * Fire-and-forget; failures are logged by the script itself.
+     */
+    syncDoorData(session) {
+        try {
+            const doorId = session.sessionData && session.sessionData.door_id;
+            if (!doorId || !/^[A-Za-z0-9_-]+$/.test(doorId)) {
+                return;
+            }
+            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', doorId.toUpperCase(), 'dosdoor.jsn');
+            if (!fs.existsSync(manifestPath) || !JSON.parse(fs.readFileSync(manifestPath, 'utf8')).data_parser) {
+                return;
+            }
+            const phpBin = process.env.DOSDOOR_PHP_PATH || 'php';
+            const child = spawn(phpBin, [path.join(BASE_PATH, 'scripts', 'door_data_sync.php'), doorId], {
+                cwd: BASE_PATH,
+                detached: true,
+                stdio: 'ignore'
+            });
+            child.on('error', (err) => session.slog.error(`[DATASYNC] Failed to run ${phpBin}:`, err.message));
+            child.unref();
+            session.slog.log(`[DATASYNC] Started door data sync for ${doorId}`);
+        } catch (err) {
+            session.slog.error(`[DATASYNC] Error:`, err.message);
+        }
     }
 
     handleDosBoxDisconnect(session) {

@@ -627,6 +627,8 @@ return [
     'errors.door.session_unauthorized' => 'Неавторизованный доступ',
     'errors.door.session_end_failed' => 'Не удалось завершить сессию',
     'errors.door.session_get_failed' => 'Не удалось получить сессию',
+    'errors.door.leaderboard_not_supported' => 'Таблица лидеров недоступна для этой игры',
+    'errors.door.leaderboard_failed' => 'Не удалось загрузить таблицу лидеров',
     'errors.door.asset.invalid_type' => 'Недопустимый тип ресурса',
     'errors.door.asset.door_not_found' => 'Дверь не найдена',
     'errors.door.asset.not_defined' => 'Ресурс не определён в манифесте',

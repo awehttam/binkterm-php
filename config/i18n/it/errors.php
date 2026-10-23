@@ -626,6 +626,8 @@ return [
     'errors.door.session_unauthorized' => 'Non autorizzato',
     'errors.door.session_end_failed' => 'Impossibile terminare la sessione',
     'errors.door.session_get_failed' => 'Impossibile ottenere la sessione',
+    'errors.door.leaderboard_not_supported' => 'Classifica non disponibile per questa porta',
+    'errors.door.leaderboard_failed' => 'Impossibile caricare la classifica',
     'errors.door.asset.invalid_type' => 'Tipo asset non valido',
     'errors.door.asset.door_not_found' => 'Door non trovata',
     'errors.door.asset.not_defined' => 'Asset non definito nel manifest',
