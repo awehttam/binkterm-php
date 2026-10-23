@@ -1391,6 +1391,55 @@ SimpleRouter::delete('/api/webdoor/storage/{slot}', function($slot) {
     echo json_encode($result);
 });
 
+// POST /api/webdoor/save - Compatibility alias for WebDoor games
+SimpleRouter::post('/api/webdoor/save', function() {
+    header('Content-Type: application/json');
+    if (GameConfig::isGameSystemEnabled() == false) {
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
+        exit;
+    }
+
+    $controller = new WebDoorController();
+    $result = $controller->saveGame(0);
+
+    echo json_encode($result);
+});
+
+// GET /api/webdoor/load - Compatibility alias for WebDoor games
+SimpleRouter::get('/api/webdoor/load', function() {
+    header('Content-Type: application/json');
+    if (GameConfig::isGameSystemEnabled() == false) {
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
+        exit;
+    }
+
+    $controller = new WebDoorController();
+    $result = $controller->loadSave(0);
+
+    if ($result === null) {
+        webdoorApiError('errors.webdoor.save_not_found', 'Save not found', 404);
+        return;
+    }
+
+    // Return in format expected by legacy webdoors ({ state: ... }) as well as slot/data
+    $result['state'] = $result['data'];
+    echo json_encode($result);
+});
+
+// POST /api/webdoor/delete - Compatibility alias for WebDoor games
+SimpleRouter::post('/api/webdoor/delete', function() {
+    header('Content-Type: application/json');
+    if (GameConfig::isGameSystemEnabled() == false) {
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
+        exit;
+    }
+
+    $controller = new WebDoorController();
+    $result = $controller->deleteSave(0);
+
+    echo json_encode($result);
+});
+
 // GET /api/webdoor/leaderboard/{board} - Get leaderboard
 SimpleRouter::get('/api/webdoor/leaderboard/{board}', function($board) {
     header('Content-Type: application/json');

@@ -9,7 +9,7 @@
     "release_year": 2026,
     "description": "2 Played on a 3 by 3 Grid of token wheels, this door pays out on vertical, horizontal and diagonal lines. Multiple lines are also payed out. ",
     "genre": ["Casino"],
-    "icon": "icon.svg",
+    "icon": null,
     "screenshot": null
   },
   "door": {
