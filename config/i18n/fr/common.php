@@ -1533,6 +1533,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.rlogindoors_config.telnet_only' => 'Telnet/SSH uniquement',
     'ui.admin.rlogindoors_config.show_on_web' => 'Afficher sur le web',
     'ui.admin.rlogindoors_config.hide_from_web' => 'Masquer du web (telnet/SSH uniquement)',
+    'ui.admin.rlogindoors_config.emulate_modem_speed' => 'Émuler la vitesse du modem',
+    'ui.admin.rlogindoors_config.emulate_modem_speed_help' => 'Réguler le débit de sortie pour simuler une connexion modem classique.',
     'ui.admin.rlogindoors_config.load_config_failed' => 'Failed to load config',
     'ui.admin.rlogindoors_config.load_config_error_prefix' => 'Error loading config: ',
     'ui.admin.rlogindoors_config.load_doors_failed' => 'Failed to load doors',

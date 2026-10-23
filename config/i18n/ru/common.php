@@ -1806,6 +1806,8 @@ return [
     'ui.admin.rlogindoors_config.telnet_only' => 'Только telnet/SSH',
     'ui.admin.rlogindoors_config.show_on_web' => 'Показать в веб',
     'ui.admin.rlogindoors_config.hide_from_web' => 'Скрыть из веб (только telnet/SSH)',
+    'ui.admin.rlogindoors_config.emulate_modem_speed' => 'Эмулировать скорость модема',
+    'ui.admin.rlogindoors_config.emulate_modem_speed_help' => 'Замедлять вывод для симуляции классического модемного соединения.',
     'ui.admin.rlogindoors_config.load_config_failed' => 'Failed to load config',
     'ui.admin.rlogindoors_config.load_config_error_prefix' => 'Error loading config: ',
     'ui.admin.rlogindoors_config.load_doors_failed' => 'Failed to load doors',

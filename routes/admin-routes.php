@@ -152,6 +152,7 @@ if (!function_exists('rloginDoorFieldsFromRequest')) {
             'allow_anonymous' => !empty($post['allow_anonymous']),
             'guest_max_sessions' => $post['guest_max_sessions'] ?? '',
             'hide_from_web' => !empty($post['hide_from_web']),
+            'emulate_modem_speed' => !empty($post['emulate_modem_speed']),
         ];
     }
 }

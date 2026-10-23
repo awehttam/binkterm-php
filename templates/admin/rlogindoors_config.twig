@@ -236,6 +236,13 @@
                                 <label class="form-check-label" for="fieldHideFromWeb">{{ t('ui.admin.rlogindoors_config.hide_from_web', {}, locale, ['common']) }}</label>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" name="emulate_modem_speed" id="fieldEmulateModemSpeed">
+                                <label class="form-check-label" for="fieldEmulateModemSpeed">{{ t('ui.admin.rlogindoors_config.emulate_modem_speed', {}, locale, ['common']) }}</label>
+                                <div class="form-text">{{ t('ui.admin.rlogindoors_config.emulate_modem_speed_help', {}, locale, ['common']) }}</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-8">
@@ -706,6 +713,7 @@ function openEditModal(doorId) {
             form.elements['allow_anonymous'].checked = !!cfg.allow_anonymous;
             form.elements['guest_max_sessions'].value = cfg.guest_max_sessions || 2;
             form.elements['hide_from_web'].checked = !!cfg.hide_from_web;
+            form.elements['emulate_modem_speed'].checked = !!(door.emulate_modem_speed || cfg.emulate_modem_speed);
 
             if (door.icon_url) {
                 document.getElementById('removeIconWrap').style.display = '';

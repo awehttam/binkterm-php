@@ -989,6 +989,8 @@ class RloginAdapter extends EmulatorAdapter {
         // was created.
         const terminalType = doorCfg.terminal_type || userData.rlogin_terminal_type || 'xterm-256color';
         const terminalSpeed = parseInt(doorCfg.terminal_speed, 10) || 38400;
+        this.emulateModemSpeed = doorCfg.emulate_modem_speed === true || doorCfg.emulate_modem_speed === 't' || doorCfg.emulate_modem_speed === 1 || doorCfg.emulate_modem_speed === '1';
+        this.terminalSpeed = terminalSpeed;
         const termString = `${terminalType}/${terminalSpeed}`;
 
         slog.log(`[${this.getName()}] Connecting to ${host}:${port} as client='${clientUsername}' server='${serverUsername}' term='${termString}'`);
