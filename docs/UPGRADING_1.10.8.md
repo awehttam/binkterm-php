@@ -13,13 +13,13 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD), and publish its player scores on the BBS.
+BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS.
 
 ## Web Doors
 
 ### Leaderboards Read From DOS Door Game Data
 
-A DOS door can now name a data parser in its `dosdoor.jsn` manifest. The parser reads the game's own player files and returns each player's handle, score and game-specific statistics. A parser for LORD (`PLAYER.DAT`) is included, and the bundled LORD door is already configured to use it:
+A DOS door can now name a data parser in its `dosdoor.jsn` manifest. The parser reads the game's own player files and returns each player's handle, score and game-specific statistics. Parsers for LORD (`PLAYER.DAT`, parser id `lord`) and The Wire (`WIRE.DAT`, parser id `thewire`) are included. The bundled LORD door is already configured to use its parser:
 
 ```json
 {

@@ -3,6 +3,7 @@
 namespace BinktermPHP\DoorData;
 
 use BinktermPHP\DoorData\Parsers\LordParser;
+use BinktermPHP\DoorData\Parsers\TheWireParser;
 
 /**
  * Maps parser ids (as named in dosdoor.jsn "data_parser") to parser classes.
@@ -71,6 +72,7 @@ class DoorDataParserRegistry
         }
         self::$builtinsLoaded = true;
         self::add(LordParser::class);
+        self::add(TheWireParser::class);
     }
 
     private static function add(string $class): void

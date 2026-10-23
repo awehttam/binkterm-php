@@ -6,6 +6,7 @@ use BinktermPHP\DoorData\BinaryRecordReader;
 use BinktermPHP\DoorData\DoorDataParseException;
 use BinktermPHP\DoorData\DoorDataParserRegistry;
 use BinktermPHP\DoorData\Parsers\LordParser;
+use BinktermPHP\DoorData\Parsers\TheWireParser;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -64,6 +65,52 @@ class DoorDataParserTest extends TestCase
         (new LordParser())->parseBuffer(new BinaryRecordReader(str_repeat("\0", 237)));
     }
 
+    /**
+     * Build a 347-byte The Wire record with fictitious data.
+     */
+    private function wireRecord(string $handle, string $bbsName, int $cred, int $level = 1): string
+    {
+        $rec = str_repeat("\0", 347);
+        $put = static function (string &$rec, int $off, string $bytes): void {
+            $rec = substr_replace($rec, $bytes, $off, strlen($bytes));
+        };
+        $put($rec, 0, chr(strlen($handle)) . $handle);
+        $put($rec, 66, pack('V', $cred) . pack('V', $cred));
+        $put($rec, 74, pack('v', $level));
+        $put($rec, 92, chr(strlen($bbsName)) . $bbsName);
+        return $rec;
+    }
+
+    public function testTheWireParsesRecords(): void
+    {
+        $buf = $this->wireRecord('ALPHA', 'alpha', 450) . $this->wireRecord('BETA', 'Beta_Two', 1200, 3);
+        $players = (new TheWireParser())->parseBuffer(new BinaryRecordReader($buf));
+
+        $this->assertCount(2, $players);
+        $this->assertSame('ALPHA', $players[0]['handle']);
+        $this->assertSame('alpha', $players[0]['real_name']);
+        $this->assertSame(450, $players[0]['score']);
+        $this->assertSame('Street Cred', $players[0]['score_label']);
+        $this->assertFalse($players[0]['deleted']);
+        $this->assertSame(3, $players[1]['stats']['level']);
+        $this->assertSame(1200, $players[1]['score']);
+    }
+
+    public function testTheWireUnfinishedAccountIsDeleted(): void
+    {
+        $buf = $this->wireRecord('', '', 0) . $this->wireRecord('GAMMA', '', 0);
+        $players = (new TheWireParser())->parseBuffer(new BinaryRecordReader($buf));
+        $this->assertTrue($players[0]['deleted']);
+        $this->assertTrue($players[1]['deleted']);
+        $this->assertNull($players[1]['real_name']);
+    }
+
+    public function testTheWireRejectsPartialRecord(): void
+    {
+        $this->expectException(DoorDataParseException::class);
+        (new TheWireParser())->parseBuffer(new BinaryRecordReader(str_repeat("\0", 348)));
+    }
+
     public function testReaderBoundsChecked(): void
     {
         $this->expectException(DoorDataParseException::class);
@@ -89,6 +136,7 @@ class DoorDataParserTest extends TestCase
     {
         DoorDataParserRegistry::reset();
         $this->assertContains('lord', DoorDataParserRegistry::ids());
+        $this->assertContains('thewire', DoorDataParserRegistry::ids());
         $this->assertInstanceOf(LordParser::class, DoorDataParserRegistry::get('LORD'));
         $this->assertNull(DoorDataParserRegistry::get('nope'));
 

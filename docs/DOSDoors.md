@@ -689,7 +689,7 @@ A door can expose its players to the BBS by naming a registered parser in its ma
 }
 ```
 
-- `data_parser`: id of a parser registered in `src/DoorData/DoorDataParserRegistry.php`. Built in: `lord` (Legend of the Red Dragon, reads `PLAYER.DAT`).
+- `data_parser`: id of a parser registered in `src/DoorData/DoorDataParserRegistry.php`. Built in: `lord` (Legend of the Red Dragon, reads `PLAYER.DAT`) and `thewire` (The Wire, reads `WIRE.DAT`).
 - `data_dir`: directory holding the game's data files, relative to the door directory. Defaults to `.`. It must resolve inside `dosbox-bridge/dos/DOORS/`.
 
 `GET /api/door/leaderboard?door=<DOORID>&limit=<1-100>` (login required) returns players ranked by the parser's score. Real names are not included in the response. Each entry has `rank`, `handle`, `score`, `score_label`, `last_played` and a game-specific `stats` object.

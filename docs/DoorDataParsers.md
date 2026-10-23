@@ -47,6 +47,7 @@ A parser only turns bytes into arrays. Finding the files, validating paths, rank
 | `src/DoorData/DoorDataParseException.php` | Thrown for missing, unreadable or malformed data |
 | `src/DoorData/DoorLeaderboardSync.php` | Matches players to BBS users and writes `webdoor_leaderboards` rows |
 | `src/DoorData/Parsers/LordParser.php` | Legend of the Red Dragon parser |
+| `src/DoorData/Parsers/TheWireParser.php` | The Wire parser |
 | `scripts/door_data_sync.php` | CLI entry point for the sync; started by the bridge on door exit |
 | `tests/Unit/DoorDataParserTest.php` | Reader, registry and LORD tests |
 
@@ -241,3 +242,13 @@ Because `/games` ranks by the best score per user in the current month, a parser
 - A blank handle marks a deleted slot.
 - `time` and `last_alive_time` are in-game day numbers, not dates, so `last_played` is null and the value is exposed as `stats.last_day`.
 - Flags such as `dead` use the value 5 for true.
+
+## Reference Implementation: The Wire
+
+`TheWireParser` (`thewire`) reads `WIRE.DAT`: 347-byte records. No structure file was available, so the layout was derived from hexdumps and checked against the in-game leaderboard, which is the differential-analysis route described under [Find the Record Layout](#1-find-the-record-layout). Notes:
+
+- The handle is a `string[30]` at offset 0, uppercase. The BBS username is a `string[22]` at offset 92 in its original case, and is used for user matching.
+- The score is Street Cred, a 32-bit value at offset 66. A second 32-bit value at offset 70 equals it in every sample; it is exposed as `stats.street_cred_2` because it is not known which of the two the game shows if they diverge.
+- Offset 74 is a 16-bit value, 1 for every player seen, exposed as `stats.level`. That it is a level is an assumption.
+- A record with no handle or no BBS name is an unfinished account and is hidden as deleted.
+- The title shown in the game (for example Script Kiddie) is not stored as text and is not returned.
