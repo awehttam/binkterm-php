@@ -58,6 +58,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Door Category Tabs and Door Display Settings](#door-category-tabs-and-door-display-settings)
   - [Door Admin Pages: Settings List and Runtime Settings in the Manifest Editor](#door-admin-pages-settings-list-and-runtime-settings-in-the-manifest-editor)
   - [RLogin Doors: Emulate Modem Speed](#rlogin-doors-emulate-modem-speed)
+  - [Optional Custom Default Door Icon](#optional-custom-default-door-icon)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
@@ -156,12 +157,17 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Door category tabs and door display settings:** the door games page can now group doors by category (genre) instead of by runtime type, with filter tabs and live counts, and the door editors have a category dropdown. A new **Doors** tab under **Admin -> Appearance & Content** controls the grouping, whether DoorParty, BBSLink and A-Net keep their own tabs, and whether the Top Scores leaderboard is shown.
 - **Door admin pages: settings list and runtime settings in the manifest editor:** the DOS, Native, JS-DOS and Web door pages under **Admin** now open on a **Settings** tab that lists each door, with the raw JSON file moved to a **JSON** tab. The Door Manifest Editor also gained a **Runtime Settings** card, so a door's manifest and its enabled state, credit cost and limits are saved together with one Save.
 - **RLogin doors: emulate modem speed:** each RLogin door has a new **Emulate Modem Speed** option that slows the door's output to the door's terminal speed, so text and ANSI art draw at dialup pace in the browser, Telnet and SSH.
+- **Optional custom default door icon:** doors that do not declare their own icon are shown with `/favicon.svg`. Place a PNG at `public_html/images/dos-door-icon.png` to use your own instead.
 
 ### MeshCore
 
 - **Radio settings link on the dashboard:** the PacketBBS Nodes card on the main dashboard now includes a "My MeshCore radios" link that opens the MeshCore tab of your user settings, where you manage your radios.
 
-### Networks
+#### Optional Custom Default Door Icon
+
+Doors that do not declare their own icon are shown on `/games` with a default icon, which is `/favicon.svg`. To use your own, place a PNG file at `public_html/images/dos-door-icon.png`, creating the `images` directory if needed. It is used automatically when present. Doors that declare an icon in their manifest are not affected.
+
+## Networks
 
 - **SysopNet added to the networks list:** SysopNet (zone 23, hub 23:1/1), an FTN for sysops run by sysops, is now registered automatically on upgrade, so it appears in **Admin -> Networks** without being created by hand.
 - **Networks listed alphabetically:** the network list in **Admin -> Networks** and the network dropdown when editing an uplink are now sorted purely by name.
