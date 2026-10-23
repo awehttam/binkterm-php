@@ -682,7 +682,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $user = RouteHelper::requireAdmin();
 
         $template = new Template();
-        $template->renderResponse('admin/jsdosdoors_config.twig');
+        $template->renderResponse('admin/jsdosdoors_config.twig', [
+            'standard_categories' => \BinktermPHP\DoorCategoryHelper::getStandardCategories(),
+        ]);
     });
 
     // RLogin Doors config page
@@ -5184,29 +5186,36 @@ PROMPT;
                 $fields = [];
                 if (!empty($game['name']) && is_string($game['name'])) {
                     $fields['game.name'] = substr(trim($game['name']), 0, 128);
+                    $fields['name'] = $fields['game.name'];
                 }
                 if (!empty($game['short_name']) && is_string($game['short_name'])) {
                     $fields['game.short_name'] = substr(trim($game['short_name']), 0, 32);
+                    $fields['short_name'] = $fields['game.short_name'];
                 }
                 if (!empty($game['description']) && is_string($game['description'])) {
                     $fields['game.description'] = substr(trim($game['description']), 0, 1024);
+                    $fields['description'] = $fields['game.description'];
                 }
                 if (!empty($game['author']) && is_string($game['author'])) {
                     $fields['game.author'] = substr(trim($game['author']), 0, 128);
+                    $fields['author'] = $fields['game.author'];
                 }
                 if (!empty($game['version']) && is_string($game['version'])) {
                     $fields['game.version'] = substr(trim($game['version']), 0, 32);
+                    $fields['version'] = $fields['game.version'];
                 }
                 if (!empty($game['release_year']) && is_numeric($game['release_year'])) {
                     $year = (int)$game['release_year'];
                     if ($year >= 1975 && $year <= (int)date('Y') + 1) {
                         $fields['game.release_year'] = $year;
+                        $fields['release_year'] = $year;
                     }
                 }
                 if (!empty($game['genre']) && is_array($game['genre'])) {
                     $genre = array_filter(array_map(fn($g) => is_string($g) ? substr(trim($g), 0, 64) : null, $game['genre']));
                     if (!empty($genre)) {
                         $fields['game.genre'] = array_values($genre);
+                        $fields['genre'] = array_values($genre);
                     }
                 }
 
