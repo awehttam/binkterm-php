@@ -65,12 +65,38 @@ window.DoorConfigForm = (function () {
                 </div>`;
         }
 
-        const colClass = field.type === 'textarea' ? 'col-12' : 'col-md-6';
+        const colClass = (field.type === 'textarea' || field.type === 'tags') ? 'col-12' : 'col-md-6';
         let input;
         if (field.type === 'textarea') {
             input = `<textarea class="form-control" rows="2" data-field="${esc(field.key)}">${esc(value ?? '')}</textarea>`;
         } else if (field.type === 'int') {
             input = `<input type="number" min="0" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
+        } else if (field.type === 'tags') {
+            const tagVal = Array.isArray(value) ? value.join(', ') : (typeof value === 'string' ? value : '');
+            let optionsHtml = '';
+            const datalist = document.getElementById('manifestCategoriesList');
+            if (datalist && datalist.options.length > 0) {
+                Array.from(datalist.options).forEach(opt => {
+                    optionsHtml += `<option value="${esc(opt.value)}">${esc(opt.value)}</option>`;
+                });
+            } else {
+                const defaults = [
+                    'JSDOS', 'Adventure', 'RPG', 'Strategy', 'Classic', 'Multiplayer',
+                    'Arcade', 'Action', 'Sci-Fi', 'Fantasy', 'Simulation', 'Comedy',
+                    'Space', 'Casino', 'Trivia', 'Board Games', 'Door Servers'
+                ];
+                defaults.forEach(cat => {
+                    optionsHtml += `<option value="${esc(cat)}">${esc(cat)}</option>`;
+                });
+            }
+            input = `
+                <div class="input-group">
+                    <input type="text" class="form-control" data-field="${esc(field.key)}" data-field-type="tags" value="${esc(tagVal)}" placeholder="e.g. JSDOS, Adventure, Sci-Fi" list="manifestCategoriesList">
+                    <select class="form-select door-tag-select" style="max-width: 170px;">
+                        <option value="">${esc(t('ui.admin.door_manifest_editor.add_category_placeholder', 'Add category...'))}</option>
+                        ${optionsHtml}
+                    </select>
+                </div>`;
         } else {
             input = `<input type="text" class="form-control" data-field="${esc(field.key)}" value="${esc(value ?? '')}">`;
         }
@@ -117,7 +143,8 @@ window.DoorConfigForm = (function () {
                 : '<i class="fas fa-gamepad text-muted" style="width:32px;font-size:1.5rem;"></i>';
 
             const badges = [`<span class="badge bg-secondary">${esc(key)}</span>`];
-            (info.genre || []).forEach(g => badges.push(`<span class="badge bg-primary">${esc(g)}</span>`));
+            const genres = (entry.genre && entry.genre.length > 0) ? entry.genre : (info.genre || []);
+            genres.forEach(g => badges.push(`<span class="badge bg-primary">${esc(g)}</span>`));
             if (hasField('credit_cost')) {
                 const cost = parseInt(entry.credit_cost, 10) || 0;
                 badges.push(cost > 0
@@ -201,6 +228,22 @@ window.DoorConfigForm = (function () {
                 </div>`;
             document.body.appendChild(modalEl);
             modalEl.querySelector('[data-role="save"]').addEventListener('click', saveModal);
+            modalEl.addEventListener('change', event => {
+                const select = event.target.closest('.door-tag-select');
+                if (!select || !select.value) {
+                    return;
+                }
+                const input = select.closest('.input-group')?.querySelector('input[data-field-type="tags"]');
+                if (input) {
+                    const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+                    if (!current.some(c => c.toLowerCase() === select.value.toLowerCase())) {
+                        current.push(select.value);
+                        input.value = current.join(', ');
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                }
+                select.value = '';
+            });
             return modalEl;
         }
 
@@ -215,7 +258,13 @@ window.DoorConfigForm = (function () {
             modalKey = key;
             const el = ensureModal();
             el.querySelector('.modal-title').textContent = entry.display_name || info.name || key;
-            el.querySelector('[data-role="fields"]').innerHTML = opts.fields.map(f => renderField(f, entry[f.key])).join('');
+            el.querySelector('[data-role="fields"]').innerHTML = opts.fields.map(f => {
+                let val = entry[f.key];
+                if ((val === undefined || val === null || (Array.isArray(val) && val.length === 0)) && f.key === 'genre' && info.genre) {
+                    val = info.genre;
+                }
+                return renderField(f, val);
+            }).join('');
             bootstrap.Modal.getOrCreateInstance(el).show();
         }
 
@@ -241,6 +290,13 @@ window.DoorConfigForm = (function () {
                     delete config[modalKey][field.key];
                 } else if (field.type === 'int') {
                     config[modalKey][field.key] = Math.max(0, parseInt(input.value, 10) || 0);
+                } else if (field.type === 'tags') {
+                    const items = input.value.split(',').map(s => s.trim()).filter(s => s !== '');
+                    if (items.length === 0) {
+                        delete config[modalKey][field.key];
+                    } else {
+                        config[modalKey][field.key] = items;
+                    }
                 } else {
                     config[modalKey][field.key] = input.value;
                 }

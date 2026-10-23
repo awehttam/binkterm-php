@@ -47,6 +47,7 @@ class JsdosDoorManifestDefinition implements DoorManifestTypeDefinition
             'version'     => '1.0',
             'author'      => '',
             'description' => '',
+            'genre'       => [],
             'icon'        => null,
             'emulator'    => 'jsdos',
             'managed'     => 'web',
@@ -105,6 +106,14 @@ class JsdosDoorManifestDefinition implements DoorManifestTypeDefinition
                         'type'      => 'textarea',
                         'required'  => false,
                         'default'   => '',
+                    ],
+                    [
+                        'path'      => 'genre',
+                        'label_key' => 'ui.admin.door_manifest_editor.field.game_genre',
+                        'type'      => 'tags',
+                        'required'  => false,
+                        'default'   => [],
+                        'help_key'  => 'ui.admin.door_manifest_editor.field.tags_help',
                     ],
                     [
                         'path'           => 'icon',

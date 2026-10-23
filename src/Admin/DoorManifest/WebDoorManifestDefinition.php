@@ -51,6 +51,7 @@ class WebDoorManifestDefinition implements DoorManifestTypeDefinition
                 'author'      => '',
                 'description' => '',
                 'entry_point' => 'index.html',
+                'genre'       => [],
                 'icon'        => null,
                 'screenshots' => [],
             ],
@@ -104,6 +105,14 @@ class WebDoorManifestDefinition implements DoorManifestTypeDefinition
                         'type'      => 'textarea',
                         'required'  => false,
                         'default'   => '',
+                    ],
+                    [
+                        'path'      => 'game.genre',
+                        'label_key' => 'ui.admin.door_manifest_editor.field.game_genre',
+                        'type'      => 'tags',
+                        'required'  => false,
+                        'default'   => [],
+                        'help_key'  => 'ui.admin.door_manifest_editor.field.tags_help',
                     ],
                     [
                         'path'           => 'game.entry_point',
