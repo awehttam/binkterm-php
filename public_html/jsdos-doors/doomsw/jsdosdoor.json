@@ -5,6 +5,7 @@
     "author": "id Software",
     "description": "The classic first-person shooter. Fight through the demon-infested UAC base.",
     "icon": "icon.png",
+    "genre": ["FPS"],
     "emulator": "jsdos",
     "emulator_config": {
         "cpu_cycles": "max 90%",

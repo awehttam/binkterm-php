@@ -399,6 +399,8 @@ return [
     'errors.admin.appearance.splash.license_required' => 'A valid license is erforderlich to configure splash pages',
     'errors.admin.appearance.splash.save_failed' => 'splash Einstellungen konnte nicht gespeichert werden',
     'errors.admin.appearance.file_areas.save_failed' => 'file areas Einstellungen konnte nicht gespeichert werden',
+    'errors.admin.appearance.doors.save_failed' => 'Door-Erscheinungsbildeinstellungen konnten nicht gespeichert werden',
+    'errors.admin.appearance.doors.categories_failed' => 'Door-Kategorien konnten nicht geladen werden',
     'errors.admin.dashboard.ram_usage_unavailable' => 'RAM usage details are not available on this system.',
     'errors.admin.shell_art.list_failed' => 'Failed to list shell art files',
     'errors.admin.shell_art.upload.no_file' => 'No shell art file hochgeladen',
@@ -446,6 +448,12 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'webdoors configuration konnten nicht geladen werden',
     'errors.admin.webdoors_config.save_failed' => 'webdoors configuration konnte nicht gespeichert werden',
     'errors.admin.webdoors_config.activate_failed' => 'Failed to activate webdoors configuration',
+    'errors.admin.areafix_grammars.load_failed' => 'Laden der AreaFix-Grammatikkonfiguration fehlgeschlagen',
+    'errors.admin.areafix_grammars.save_failed' => 'Speichern der AreaFix-Grammatikkonfiguration fehlgeschlagen',
+    'errors.admin.areafix_grammars.message_text_required' => 'Bitte zuerst den Nachrichtentext einfügen',
+    'errors.admin.areafix_grammars.ai_no_provider' => 'Es ist kein KI-Anbieter konfiguriert',
+    'errors.admin.areafix_grammars.ai_invalid_response' => 'Die KI hat keine verwendbare Grammatikdefinition zurückgegeben',
+    'errors.admin.areafix_grammars.ai_generate_failed' => 'Generieren der Grammatik fehlgeschlagen',
     'errors.admin.jsdosdoors_config.load_failed' => 'JS-DOS doors configuration konnten nicht geladen werden',
     'errors.admin.jsdosdoors_config.save_failed' => 'JS-DOS doors configuration konnte nicht gespeichert werden',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
@@ -602,6 +610,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Ungültig: slot number',
     'errors.webdoor.save_too_large' => 'data exceeds Maximum size speichern',
     'errors.webdoor.save_not_found' => 'nicht gefunden speichern',
+    'errors.webdoor.game_unavailable' => 'Dieses Spiel ist nicht verfügbar',
 
     // Door API
     'errors.door.door_name_required' => 'Door name erforderlich',
@@ -668,11 +677,13 @@ return [
     'errors.admin.areafix.invalid_json' => 'Ungültig: request payload',
     'errors.admin.areafix.uplink_required' => 'Uplink address ist erforderlich',
     'errors.admin.areafix.invalid_robot' => 'Robot muss sein "areafix" or "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Unbekannte Grammatikstufe',
     'errors.admin.areafix.commands_required' => 'At least one command ist erforderlich',
     'errors.admin.areafix.send_failed' => 'command konnte nicht gesendet werden',
     'errors.admin.areafix.history_failed' => 'message history konnten nicht geladen werden',
     'errors.admin.areafix.sync_failed' => 'Failed to sync areas',
     'errors.admin.areafix.no_area_list_found' => 'Keine Bereichsliste in den letzten Antworten für diesen Uplink gefunden',
+    'errors.admin.areafix.preview_failed' => 'Vorschau der Synchronisierung konnte nicht erstellt werden',
     'errors.admin.poll.failed' => 'Failed to Umfrage BinkP uplink',
 
     'errors.admin.lovlynet.invalid_json' => 'Ungültig: request payload',
@@ -826,4 +837,11 @@ return [
     'errors.admin.bbs_settings.invalid_screening_config' => 'Ungültige Konfiguration der Registrierungsprüfung',
     'errors.admin.nntp_settings.load_failed' => 'NNTP-Einstellungen konnten nicht geladen werden',
     'errors.admin.nntp_settings.save_failed' => 'NNTP-Einstellungen konnten nicht gespeichert werden',
+
+    // ANSI avatars
+    'errors.avatar.invalid' => 'Die ANSI-Avatar-Daten sind ungültig',
+    'errors.avatar.too_large' => 'Die ANSI-Avatar-Anfrage ist zu groß',
+    'errors.avatar.malformed' => 'Ein ANSI-Avatar muss kanonisches Base64 eines 120-Byte-BIN sein',
+    'errors.avatar.blank' => 'Ein ANSI-Avatar darf nicht leer auf Schwarz sein',
+    'errors.avatar.dimensions' => 'ANSI-Avatare müssen genau 120 Byte groß sein',
 ];

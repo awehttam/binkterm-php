@@ -43,10 +43,18 @@ class NntpAuth
      */
     public function login(string $username, string $password, string $remoteIp = ''): ?array
     {
-        $user = $this->auth->authenticateCredentials($username, $password);
-        if ($user === false) {
+        $throttle = new \BinktermPHP\Security\LoginThrottle();
+        if (!$throttle->isAllowed($username, $remoteIp)) {
             return null;
         }
+
+        $user = $this->auth->authenticateCredentials($username, $password);
+        if ($user === false) {
+            $throttle->recordFailure($username, $remoteIp);
+            $throttle->cleanOld();
+            return null;
+        }
+        $throttle->recordSuccess($username);
 
         $this->userId = (int)$user['id'];
         try {

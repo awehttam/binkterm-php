@@ -149,6 +149,10 @@
             realtimeTransportMode: {{ effective_realtime_transport_mode|json_encode|raw }},
             realtimeWsUrl: {{ realtime_ws_url|json_encode|raw }}
         };
+        window.userSettings = {{ client_settings|default({})|json_encode|raw }};
+        if (!window.userSettings.timezone) {
+            window.userSettings.timezone = 'America/Los_Angeles';
+        }
     </script>
     <script src="/js/user-storage.js"></script>
     <script src="/js/app.js"></script>
@@ -373,6 +377,7 @@
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" href="/admin/lovlynet"><i class="fas fa-globe"></i> {{ t('ui.base.admin.lovlynet', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/areafix"><i class="fas fa-network-wired me-1"></i> {{ t('ui.base.admin.areafix', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/areafix-grammars"><i class="fas fa-file-code me-1"></i> {{ t('ui.base.admin.areafix_grammars', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
                                 <li class="dropdown-submenu">
@@ -591,9 +596,9 @@
 
     <script>
         // Global user settings loaded from server
-        window.userSettings = {
-            timezone: 'America/Los_Angeles' // Default, will be loaded via AJAX
-        };
+        window.userSettings = Object.assign({
+            timezone: 'America/Los_Angeles'
+        }, window.userSettings || {});
         {% if current_user %}
         window.currentUserId = {{ current_user.user_id ?? current_user.id }};
         window.currentUserIsAdmin = {{ current_user.is_admin ? 'true' : 'false' }};

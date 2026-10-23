@@ -75,6 +75,7 @@ return [
     'ui.terminalserver.server.whos_online.status_view' => 'Voir profil',
     'ui.terminalserver.server.whos_online.status_back' => 'Retour',
     'ui.terminalserver.server.idle.disconnect' => 'Délai d\'inactivité dépassé - déconnexion...',
+    'ui.terminalserver.server.session_revoked' => 'Votre session a été fermée ailleurs - déconnexion...',
     'ui.terminalserver.server.idle.warning_line' => 'Êtes-vous toujours là ? (Appuyez sur Entrée pour continuer)',
     'ui.terminalserver.server.idle.warning_key' => 'Êtes-vous toujours là ? (Appuyez sur une touche pour continuer)',
     'ui.terminalserver.server.press_any_key' => 'Appuyez sur une touche pour revenir...',
@@ -660,4 +661,8 @@ return [
     'ui.terminalserver.chat.help.line5'              => 'Compose pane: Enter sends, Ctrl+E opens multiline editor',
     'ui.terminalserver.chat.help.line6'              => 'Ctrl+C exits local chat, R refreshes lists',
     'ui.terminalserver.chat.help.line7'              => 'Admins: in a room, focus Online Users and press K or B to moderate.',
+
+    // ANSI avatars
+    'ui.terminalserver.settings.profile.ansi_avatar' => 'Voir l\'avatar ANSI',
+    'ui.terminalserver.profile.ansi_avatar' => 'Avatar ANSI',
 ];

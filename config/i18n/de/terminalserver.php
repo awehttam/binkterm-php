@@ -102,6 +102,7 @@ return [
 
     // --- Idle timeout ---
     'ui.terminalserver.server.idle.disconnect'         => 'Inaktivitäts-Timeout - Verbindung wird getrennt...',
+    'ui.terminalserver.server.session_revoked' => 'Ihre Sitzung wurde an anderer Stelle abgemeldet - Verbindung wird getrennt...',
     'ui.terminalserver.server.idle.warning_line'       => 'Sind Sie noch da? (Drücken Sie Enter um fortzufahren)',
     'ui.terminalserver.server.idle.warning_key'        => 'Sind Sie noch da? (Beliebige Taste drücken zum Fortfahren)',
 
@@ -702,4 +703,8 @@ return [
     'ui.terminalserver.chat.help.line5'              => 'Compose pane: Enter sends, Ctrl+E opens multiline editor',
     'ui.terminalserver.chat.help.line6'              => 'Ctrl+C exits local chat, R refreshes lists',
     'ui.terminalserver.chat.help.line7'              => 'Admins: in a room, focus Online Users and press K or B to moderate.',
+
+    // ANSI avatars
+    'ui.terminalserver.settings.profile.ansi_avatar' => 'ANSI-Avatar anzeigen',
+    'ui.terminalserver.profile.ansi_avatar' => 'ANSI-Avatar',
 ];

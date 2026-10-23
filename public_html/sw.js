@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v986';
+const CACHE_NAME = 'binkcache-v1017';
 
 // Static assets to precache
 const staticAssets = [
@@ -27,6 +27,8 @@ const staticAssets = [
     '/js/ansi-editor.js',
     '/js/pcboard.js',
     '/css/ansisys.css',
+    '/css/avatar-ansi.css',
+    '/js/avatar-ansi.js',
     '/css/chat-page.css',
     // Theme stylesheets
     '/css/style.css',
@@ -69,6 +71,15 @@ function getCache() {
         caches.open(CACHE_NAME).then((c) => { _cache = c; return c; }),
         timeout
     ]);
+}
+
+// Network fetch for a runtime cache miss. `cache: 'no-cache'` makes the browser
+// revalidate its HTTP-cache entry with the server (a cheap 304 when unchanged)
+// instead of using it as-is. Without this, a new worker's empty cache is filled
+// from the browser HTTP cache, which can still hold the pre-deploy copy of an
+// asset, and that stale copy then stays in the new cache until the next bump.
+function revalidatingFetch(request) {
+    return fetch(new Request(request, { cache: 'no-cache' }));
 }
 
 async function precacheStaticAssets(cache) {
@@ -158,7 +169,7 @@ self.addEventListener('fetch', (event) => {
 
     // Admin-only files are excluded from caching — they change frequently during
     // development and are only loaded for admins, so per-user caching isn't worth it.
-    const adminPaths = ['/js/admin-terminal.js', '/js/xterm.js', '/js/xterm-addon-fit.js', '/css/xterm.css'];
+    const adminPaths = ['/js/admin-terminal.js', '/js/xterm.js', '/js/xterm-addon-fit.js', '/css/xterm.css', '/js/binkterm-mobile-terminal.js', '/css/binkterm-mobile-terminal.css'];
     if (adminPaths.includes(url.pathname)) {
         return;
     }
@@ -176,7 +187,7 @@ self.addEventListener('fetch', (event) => {
                     // Not in cache yet — fetch, store, and return.
                     // Do not cache partial responses (206) — the Cache API
                     // rejects them and audio range requests can trigger this.
-                    return fetch(request).then((networkResponse) => {
+                    return revalidatingFetch(request).then((networkResponse) => {
                         if (networkResponse.ok && networkResponse.status === 200) {
                             cache.put(request, networkResponse.clone());
                         }
@@ -199,7 +210,7 @@ self.addEventListener('fetch', (event) => {
                     if (cachedResponse) {
                         return cachedResponse;
                     }
-                    return fetch(request).then((networkResponse) => {
+                    return revalidatingFetch(request).then((networkResponse) => {
                         if (networkResponse.ok && networkResponse.status === 200) {
                             cache.put(request, networkResponse.clone());
                         }

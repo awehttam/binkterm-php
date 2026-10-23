@@ -289,10 +289,32 @@ class SettingsHandler
             ]
         );
 
+        $viewAvatarAction = new AnsiActionField(
+            'view_ansi_avatar',
+            $this->t('ui.terminalserver.settings.profile.ansi_avatar', 'View ANSI avatar', $locale),
+            function ($conn, array &$state, string $session, BbsSession $server) use ($profile) {
+                $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/ansi-avatar', null, $session);
+                $encoded = null;
+                if (($response['status'] ?? 0) === 200 && is_string($response['data']['avatar']['ansi'] ?? null)) {
+                    $encoded = $response['data']['avatar']['ansi'];
+                }
+                $shell = TerminalShellFactory::create($server, $state);
+                $shell->showPublicProfileViewer($conn, $state, [
+                    'username' => (string)($state['username'] ?? ''),
+                    'real_name' => (string)($state['real_name'] ?? ''),
+                    'location' => (string)($profile['location'] ?? ''),
+                    'about_me' => (string)($profile['about_me'] ?? ''),
+                    'ansi_avatar' => $encoded,
+                ]);
+                return null;
+            }
+        );
+
         $profileForm = new AnsiForm();
         $profileForm->addField($emailField)
                     ->addField($locationField)
-                    ->addField($aboutMeField);
+                    ->addField($aboutMeField)
+                    ->addField($viewAvatarAction);
 
         // --- Account tab ---
         $changePasswordAction = new AnsiActionField(

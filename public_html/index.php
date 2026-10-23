@@ -42,8 +42,10 @@ if ($profilingEnabled) {
 // Initialize database
 Database::getInstance();
 
-// Start session for auth cookies
-if (!headers_sent()) {
+// Start session for auth cookies (skip for static asset endpoints to avoid session lock serializing parallel requests)
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+$isDoorAsset = str_starts_with($requestPath, '/door-assets/');
+if (!headers_sent() && !$isDoorAsset) {
     session_start();
 }
 

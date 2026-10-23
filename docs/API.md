@@ -60,7 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
-  - [AreaFix](#areafix) (1)
+  - [AreaFix](#areafix) (9)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -555,13 +555,147 @@ Click recording confirmation with redirect URL
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
+| `POST` | [`/api/admin/areafix/preview-latest`](#post-apiadminareafixpreview-latest) | Yes | Parse the latest incoming AreaFix/FileFix reply for an uplink and return a diff against current local area state, without writing anything to the database. |
+| `POST` | [`/api/admin/areafix/sync`](#post-apiadminareafixsync) | Yes | Sync a sysop-curated list of areas (typically a subset selected in the preview) to the database. |
 | `POST` | [`/api/admin/areafix/sync-latest`](#post-apiadminareafixsync-latest) | Yes | Inspect the latest incoming AreaFix/FileFix reply for an uplink and sync areas to the database. |
+| `GET` | [`/api/admin/areafix/grammars-config`](#get-apiadminareafixgrammars-config) | Yes | Return the raw contents of `config/areafix_grammars.json`. |
+| `POST` | [`/api/admin/areafix/grammars-config`](#post-apiadminareafixgrammars-config) | Yes | Replace `config/areafix_grammars.json` wholesale. |
+| `POST` | [`/api/admin/areafix/grammars-ai-generate`](#post-apiadminareafixgrammars-ai-generate) | Yes | Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message. |
+| `POST` | [`/api/admin/areafix/grammars-test`](#post-apiadminareafixgrammars-test) | Yes | Test the grammars currently in the admin editor against a pasted sample reply, without saving anything. |
+| `GET` | [`/api/admin/areafix/grammar-memory`](#get-apiadminareafixgrammar-memory) | Yes | Return the remembered `AreaFixParser` tier for both robots on an uplink. |
+| `POST` | [`/api/admin/areafix/grammar-memory`](#post-apiadminareafixgrammar-memory) | Yes | Manually force or clear the remembered tier for one uplink+robot. |
 
-#### `POST /api/admin/areafix/sync-latest`
+#### `GET /api/admin/areafix/grammars-config`
 
 **Requires authentication** (Admin only)
 
-Inspects recent message history from the specified uplink to find the latest incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes them into the local database (`echoareas` or `file_areas`).
+Returns the raw contents of `config/areafix_grammars.json`, the data-driven AreaFix/FileFix grammar definitions loaded by `AreaFixParser` (see `docs/AreaFix.md#data-driven-grammar-definitions`). Used by the `/admin/areafix-grammars` editor page.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the config was read |
+| `config` | object | Config wrapper |
+| `config.config_json` | string | Raw JSON text of `config/areafix_grammars.json` (`"[]"` if the file doesn't exist) |
+| `config.example_json` | string\|null | Raw JSON text of `config/areafix_grammars.json.example`, for the admin UI's "Populate from Example" button; `null` if no example file is shipped |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 500 | Failed to load AreaFix grammar configuration |
+
+---
+
+#### `POST /api/admin/areafix/grammars-config`
+
+**Requires authentication** (Admin only)
+
+Replaces `config/areafix_grammars.json` wholesale with the given JSON array, written via the admin daemon (the web process cannot write config files directly; see `docs/AdminDaemon.md`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `json` | string | Yes | New contents of `config/areafix_grammars.json`, as a JSON-encoded array of grammar definition objects |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful save |
+| `config` | object | Config wrapper |
+| `config.config_json` | string | Raw JSON text of the saved config |
+| `message_code` | string | i18n key for the success message |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing/invalid JSON payload, or failed to save AreaFix grammar configuration |
+
+---
+
+#### `POST /api/admin/areafix/grammars-ai-generate`
+
+**Requires authentication** (Admin only)
+
+Asks the configured AI provider (see `docs/AIProviders.md`) to infer a data-driven `AreaFixParser` grammar definition (see `docs/AreaFix.md#data-driven-grammar-definitions`) from the raw text of a pasted AreaFix/FileFix reply message. Nothing is written to `config/areafix_grammars.json` by this endpoint — it only returns a suggestion for the sysop to review, edit, and save via `/api/admin/areafix/grammars-config`. The suggestion always comes back with `enabled: false` regardless of what the AI returns, and every regex is validated with `AreaFixParser::isValidPattern()` before being returned.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message_text` | string | Yes | Raw text of an AreaFix/FileFix reply message to infer a grammar from (truncated to 6000 characters) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if a grammar suggestion was generated |
+| `grammar` | object | Suggested grammar definition, in the same shape documented in `docs/AreaFix.md#data-driven-grammar-definitions` |
+| `grammar.id` | string | Suggested identifier, sanitized to `[a-z0-9_-]` |
+| `grammar.enabled` | boolean | Always `false` |
+| `grammar.header_pattern` | string | Suggested header-detection regex |
+| `grammar.row_pattern` | string | Suggested per-row regex, guaranteed to contain a `(?<tag>...)` named group |
+| `grammar.stop_pattern` | string | Suggested stop-scan regex; omitted if the AI didn't provide one |
+| `grammar.default_action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `grammar.status_rules` | array of objects | Suggested status-to-action rules; omitted if empty |
+| `grammar.status_rules[].pattern` | string | Regex tested against the row's captured status text |
+| `grammar.status_rules[].action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 422 | Missing `message_text`, or the AI's response wasn't a usable grammar definition (invalid regex, or `row_pattern` missing a `tag` capture group) |
+| 500 | Failed to generate grammar (AI request error) |
+| 503 | No AI provider is configured |
+
+---
+
+#### `POST /api/admin/areafix/grammars-test`
+
+**Requires authentication** (Admin only)
+
+Runs the real `AreaFixParser::parseWithTier()` pipeline against a pasted sample reply, using the exact grammar definitions passed in `grammars` rather than what's saved to `config/areafix_grammars.json`. This is how the `/admin/areafix-grammars` editor's **Test Against Sample** button lets a sysop check a hand-edited (or AI-suggested) grammar before saving — nothing is written to disk. Built-in grammars are still tried first, exactly as they would be for a real reply.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message_text` | string | Yes | Sample reply text to test (truncated to 20000 characters) |
+| `grammars` | array of objects | Yes | The full grammar array to test with, in the same shape documented in `docs/AreaFix.md#data-driven-grammar-definitions` — normally the admin editor's current (possibly unsaved) JSON content |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the test ran |
+| `tier` | string\|null | Tier identifier that matched (see `docs/AreaFix.md#per-uplink-grammar-memory`), or `null` if nothing matched — including the freeform fallback |
+| `areas` | array of objects | Areas extracted, in the same shape `preview-latest` returns |
+| `areas[].name` | string | Area tag |
+| `areas[].description` | string\|null | Area description, if known |
+| `areas[].action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `areas[].is_subscribed` | boolean | Whether the matched tier reports this area as subscribed |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, or `grammars` isn't an array |
+| 422 | Missing `message_text` |
+
+---
+
+#### `POST /api/admin/areafix/preview-latest`
+
+**Requires authentication** (Admin only)
+
+Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and returns a per-area diff against the current `echoareas`/`file_areas` state — without applying any changes. The admin UI calls this endpoint to render a mandatory preview/confirmation step before calling `/api/admin/areafix/sync-latest`.
+
+When `message_id` is omitted, the newest actionable incoming reply is used (the "Latest Reply" panel's sync button). When `message_id` is given, that specific incoming netmail message is previewed instead (the per-row sync button in the message history table); the endpoint returns 404 if that message isn't an incoming, actionable reply from this uplink.
 
 **Request Body** _(JSON)_
 
@@ -569,6 +703,95 @@ Inspects recent message history from the specified uplink to find the latest inc
 |-------|------|----------|-------------|
 | `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
 | `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `message_id` | integer | No | `netmail.id` of a specific incoming reply to preview; defaults to the newest actionable reply |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if a preview was generated |
+| `areas` | array of objects | Parsed areas, each classified against current local state |
+| `areas[].name` | string | Area tag |
+| `areas[].description` | string\|null | Area description, if known |
+| `areas[].action` | string | Parsed action: `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `areas[].is_subscribed` | boolean | Whether the reply indicates this area is subscribed |
+| `areas[].status` | string | Diff classification: `"new"`, `"reactivate"`, `"deactivate"`, or `"unchanged"` |
+| `areas[].currently_active` | boolean | Whether the area is currently active locally, before any sync is applied |
+| `areas[].current_description` | string\|null | The area's current local description, before any sync is applied (`null` if the area doesn't exist locally yet) |
+| `areas[].description_will_change` | boolean | Whether applying the sync would update the local description. True for a new area with a non-empty description, or an existing area whose current description is a placeholder (see `AreaFixManager::isPlaceholderDescription()`) and the incoming one is not. Always false when `status` is `"deactivate"`, since unsubscribing never touches the description. |
+| `areas[].description_differs` | boolean | True when the hub's description differs from the current local one but `description_will_change` is false (the local description is a real, non-placeholder value and will not be overwritten). Lets the UI surface the mismatch for the sysop to review, without implying the sync will change anything. Always false when `description_will_change` is true, and always false for a new area. |
+| `areas_count` | integer | Number of areas in the diff |
+| `from` | string | Sender name or address of the reply message |
+| `date` | string\|null | Timestamp the reply was received or written |
+| `tier` | string\|null | `AreaFixParser` tier identifier that matched this reply (see `docs/AreaFix.md#per-uplink-grammar-memory`), e.g. `"mystic_blocks"` or `"configured:my_hub_format"` |
+| `remembered_tier` | string\|null | Tier last recorded for this uplink+domain+robot from a previously confirmed sync; `null` if this uplink has never been synced before |
+| `format_changed` | boolean | True only when both `tier` and `remembered_tier` are known and differ from each other |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload or missing uplink address |
+| 404 | No area list found in recent replies for this uplink |
+| 500 | Failed to generate sync preview |
+
+---
+
+#### `POST /api/admin/areafix/sync`
+
+**Requires authentication** (Admin only)
+
+Syncs an explicit, caller-provided list of areas into the local database. This is what the admin UI's preview modal calls to apply the sysop's checkbox selection — the `areas` array is normally the subset of `/api/admin/areafix/preview-latest`'s response the sysop left checked, but the endpoint accepts any well-formed area list.
+
+When `force_descriptions` is true, an existing area's description is overwritten whenever the submitted one differs from the current one, regardless of whether the current one is a placeholder. This is appropriate here because the sysop has already reviewed each selected area's description (including any mismatch flagged by `description_differs` in the preview) and explicitly chosen to include it. Without `force_descriptions`, the usual protection applies: an existing, non-placeholder description is never overwritten (see `AreaFixManager::isPlaceholderDescription()`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `areas` | array of objects | Yes | Areas to sync |
+| `areas[].name` | string | Yes | Area tag |
+| `areas[].description` | string\|null | No | Area description |
+| `areas[].action` | string | No | `"subscribe"`, `"unsubscribe"`, or `"available"`; derived from `is_subscribed` if omitted |
+| `areas[].is_subscribed` | boolean | No | Used to derive `action` when `action` is omitted (defaults to `true`) |
+| `deactivate_missing` | boolean | No | If true, deactivate any locally-active areas for this uplink/domain not present in `areas` (default `false`) |
+| `force_descriptions` | boolean | No | If true, overwrite an existing area's description whenever it differs from the submitted one, bypassing the placeholder-only protection (default `false`) |
+| `tier` | string | No | The `AreaFixParser` tier `/api/admin/areafix/preview-latest` reported for the reply this selection came from (see `docs/AreaFix.md#per-uplink-grammar-memory`). When given, updates the remembered tier for this uplink+domain+robot after a successful sync. |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful synchronization |
+| `summary` | object | Summary of changes applied to the local database |
+| `summary.created` | integer | Number of new areas inserted |
+| `summary.activated` | integer | Number of existing inactive areas re-activated |
+| `summary.deactivated` | integer | Number of areas deactivated |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, missing uplink address, or invalid robot |
+| 500 | Failed to sync areas |
+
+---
+
+#### `POST /api/admin/areafix/sync-latest`
+
+**Requires authentication** (Admin only)
+
+Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes all of them into the local database (`echoareas` or `file_areas`) — an all-or-nothing apply of the whole reply, without the `force_descriptions` protection override or the ability to select a subset of areas. The admin UI's preview modal now calls `/api/admin/areafix/sync` with the sysop's curated selection instead (see above); this endpoint remains available for callers that want to apply an entire reply directly without a preview step.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `message_id` | integer | No | `netmail.id` of a specific incoming reply to apply; defaults to the newest actionable reply |
 
 **Response** _(JSON)_
 
@@ -591,12 +814,73 @@ Inspects recent message history from the specified uplink to find the latest inc
 
 ---
 
+#### `GET /api/admin/areafix/grammar-memory`
+
+**Requires authentication** (Admin only)
+
+Returns the per-uplink `AreaFixParser` grammar memory (see `docs/AreaFix.md#per-uplink-grammar-memory`) for both robots on an uplink, plus the list of tier identifiers a "force this tier" selector may choose from. Backs the **Admin → Networks → Edit Uplink** dialog.
+
+**Query Parameters**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the memory was read |
+| `areafix` | object\|null | Remembered tier for the `areafix` robot on this uplink; `null` if never recorded |
+| `areafix.tier` | string | Tier identifier, e.g. `"mystic_blocks"` or `"configured:my_hub_format"` |
+| `areafix.last_matched_at` | string | Timestamp this tier was last recorded |
+| `filefix` | object\|null | Same shape as `areafix`, for the `filefix` robot |
+| `known_tiers` | array of strings | Every tier identifier `AreaFixParser::getKnownTierIds()` currently knows about, in the order they're tried |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing uplink address |
+
+---
+
+#### `POST /api/admin/areafix/grammar-memory`
+
+**Requires authentication** (Admin only)
+
+Manually forces or clears the remembered grammar tier for one uplink+robot, without requiring a real AreaFix sync. Setting a tier here stores it exactly the way a confirmed sync would (`AreaFixManager::rememberTier()`), so it's tried first on the uplink's next reply.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | Yes | Robot name: `"areafix"` or `"filefix"` |
+| `tier` | string\|null | No | Tier identifier to force (must be one of `known_tiers` from the `GET` response above); omit or pass `null` to clear the remembered tier instead |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful update |
+| `tier` | string\|null | The tier now recorded (`null` if cleared) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, missing uplink address, invalid robot, or `tier` isn't a recognized identifier |
+
+---
+
 ### Auth
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/auth/login`](#post-apiauthlogin) | No | Authenticate user with username and password, returning session cookie and CSRF token. |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | No | Invalidate user session and clear authentication cookie. |
+| `GET` | [`/api/auth/csrf-token`](#get-apiauthcsrf-token) | Yes | Return the session's current CSRF token (re-sync after a stale-token rejection). |
 | `POST` | [`/api/auth/verify-gateway-token`](#post-apiauthverify-gateway-token) | No | Verify gateway token for external service integration (requires API key). |
 | `POST` | [`/api/auth/gateway-token`](#post-apiauthgateway-token) | Yes | Generate a time-limited gateway token for authenticated user. |
 | `POST` | [`/api/auth/forgot-password`](#post-apiauthforgot-password) | No | Initiate password reset by username or email address. |
@@ -608,6 +892,8 @@ Inspects recent message history from the specified uplink to find the latest inc
 Public
 
 Validates credentials and creates an authenticated session. Sets a 30-day HTTP-only session cookie and tracks the login event. Returns a CSRF token for subsequent authenticated requests. The service parameter (default 'web') determines session behavior. Failed authentication returns 401 with invalid credentials error.
+
+Repeated failed attempts are throttled by two independent rolling-window counters — one keyed on the normalized submitted username, one on the resolved client IP (`AUTH_LOGIN_USER_MAX` / `AUTH_LOGIN_IP_MAX` failures per `AUTH_LOGIN_WINDOW` seconds; defaults 5 / 20 / 900). While either counter is over its limit the endpoint returns the **same** generic `401` / `errors.auth.invalid_credentials` response as a wrong password — there is no distinct "locked" status and no account lockout. A successful login clears the username counter but not the IP counter. This applies to every interactive transport, since Web, Telnet, TLS-Telnet and SSH all authenticate through this route.
 
 **Request Body** _(JSON)_
 
@@ -650,6 +936,27 @@ Logout confirmation
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
+
+---
+
+#### `GET /api/auth/csrf-token`
+
+Requires authentication
+
+Returns the current per-user CSRF token for the authenticated session. The token is rotated whenever the same user logs in again (another browser, or a Telnet/SSH session), which leaves the copy cached by an already-open page or terminal session stale. The web client (`public_html/js/app.js`) and the terminal server (`TelnetUtils::apiRequest()`) call this once after a `403` with `error_code` `errors.auth.invalid_csrf_token`, then retry. Read-only: the token is not rotated.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always true |
+| `csrf_token` | string\|null | The session's current CSRF token |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Not authenticated |
 
 ---
 
@@ -1816,6 +2123,7 @@ Retrieves paginated messages from either a chat room or a direct message convers
 | `dm_user_id` | integer | No | User ID for direct message thread (mutually exclusive with room_id) |
 | `before_id` | integer | No | Fetch messages before this message ID (for pagination) |
 | `limit` | integer | No | Max messages to return (default 50, max 200) |
+| `entered` | integer | No | Pass `1` on a real room switch or initial load to record a "Chat Room Entered" activity event. Omit for pagination and background refreshes. |
 
 **Response** _(JSON)_
 
@@ -4432,7 +4740,7 @@ JSON object with upload success, public URL, and original filename.
 
 Public
 
-Fetches and streams audio/music files (XM, IT, S3M, MOD, SID, MIDI, etc.) from external public URLs via CURL. Validates URL scheme (HTTP/HTTPS), file extension, and host to prevent SSRF attacks. Enforces 8MB size limit. Returns 404 if URL is invalid or media unavailable.
+Fetches a tracker/MIDI file (XM, IT, S3M, MOD, STM, AMF, 669, MPTM, SID, MIDI) from an external public URL for the in-browser retro audio player (policy: `src/Security/MediaProxyPolicy.php`). Only `http` on port 80 and `https` on port 443, no user info, an allowed extension, and a host whose every A and AAAA address is public; the fetch is pinned to exactly those checked addresses (every redirect hop is checked and pinned again), never uses a proxy, and TLS verifies the host name. At most 3 redirects and 8 MB. The upstream `Content-Type` is never used: the body is always an opaque download.
 
 **Query Parameters**
 
@@ -4446,16 +4754,19 @@ Raw proxied media file bytes
 
 | Header | Value |
 |--------|-------|
-| `Content-Type` | MIME type reported by the upstream server (e.g. `audio/x-mod`, `application/octet-stream`) |
+| `Content-Type` | Always `application/octet-stream` |
 | `Content-Length` | File size in bytes |
-| `Content-Disposition` | `inline; filename="<basename>"` |
+| `Content-Disposition` | `attachment; filename="<sanitized basename>"` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Content-Security-Policy` | `sandbox; default-src 'none'` |
+| `Cross-Origin-Resource-Policy` | `same-origin` |
 | `Cache-Control` | `public, max-age=86400` |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Invalid URL, disallowed extension, private host, or media not found |
+| 404 | Invalid URL, port, scheme or extension; a host with any non-public address; a connection to an unchecked address; or media not found |
 
 ---
 
@@ -8106,6 +8417,7 @@ Public profile fields
 | `profile.real_name` | string | Full/real name (may be empty) |
 | `profile.location` | string | Location (may be empty) |
 | `profile.about_me` | string | Biography/about-me text (may be empty) |
+| `profile.ansi_avatar` | string or null | Canonical Base64 of the user's 120-byte ANSI avatar BIN, or `null` when none is saved |
 
 **Error Responses**
 
@@ -8113,6 +8425,106 @@ Public profile fields
 |--------|-------------|
 | 401 | Authentication required |
 | 404 | User not found |
+
+---
+
+#### `GET /api/user/ansi-avatar`
+
+**Requires authentication**
+
+Returns the signed-in user's ANSI avatar. The avatar is a Synchronet-compatible 10 by 6 CP437 BIN. `avatar` is `null` when the user has not saved one.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` on success |
+| `avatar` | object or null | Saved avatar, or `null` |
+| `avatar.ansi` | string | Canonical Base64 of the 120-byte BIN (160 characters, no padding) |
+| `avatar.cells` | array of arrays | Six rows of ten cells |
+| `avatar.cells[][].char` | integer | CP437 byte, 0 through 255 |
+| `avatar.cells[][].fg` | integer | Foreground color, 0 through 15 |
+| `avatar.cells[][].bg` | integer | Background color, 0 through 7 |
+| `avatar.cells[][].blink` | boolean | Stored blink bit; display does not animate it |
+| `avatar.cells[][].glyph` | string | Inert Unicode stand-in for the CP437 byte |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+
+---
+
+#### `GET /api/user/ansi-avatar/{id}`
+
+**Requires authentication**
+
+Returns the ANSI avatar of an active user. The response shape matches `GET /api/user/ansi-avatar`. An inactive or unknown user is a 404. Callers cannot use this route to write.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Active user ID |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | User not found |
+
+---
+
+#### `POST /api/user/ansi-avatar`
+
+**Requires authentication**
+
+Replaces the signed-in user's avatar. The session CSRF token must be sent as `X-CSRF-Token`. The body is JSON. A `user_id` or `id` property, if present, is ignored; the write always uses the authenticated user.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ansi` | string | Yes | Canonical Base64 of a 120-byte BIN |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Avatar saved |
+| `avatar` | object | Same object shape as `GET /api/user/ansi-avatar` |
+| `avatar.ansi` | string | Canonical Base64 that was stored |
+| `avatar.cells` | array of arrays | Six rows of ten cells |
+| `avatar.cells[][].char` | integer | CP437 byte, 0 through 255 |
+| `avatar.cells[][].fg` | integer | Foreground color, 0 through 15 |
+| `avatar.cells[][].bg` | integer | Background color, 0 through 7 |
+| `avatar.cells[][].blink` | boolean | Stored blink bit |
+| `avatar.cells[][].glyph` | string | Inert Unicode stand-in |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Body is not a canonical 120-byte avatar (`errors.avatar.invalid`, `errors.avatar.malformed`, `errors.avatar.blank`, `errors.avatar.dimensions`, or `errors.avatar.too_large`) |
+| 401 | Authentication required |
+| 403 | CSRF token missing or not the session token |
+
+---
+
+#### `DELETE /api/user/ansi-avatar`
+
+**Requires authentication**
+
+Removes the signed-in user's avatar. Requires `X-CSRF-Token`. There is no request body. The response is `{ "success": true, "avatar": null }`.
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 403 | CSRF token missing or not the session token |
 
 ---
 
@@ -8862,6 +9274,10 @@ User settings object with locale, shell, notification preferences, and license s
 | `settings.font_family` | string | UI font family |
 | `settings.font_size` | integer | UI font size in pixels |
 | `settings.date_format` | string | Date format locale code (e.g., 'en-US') |
+| `settings.date_display_style` | string | Date display style preference ('system_choice', 'relative', 'date') |
+| `settings.echomail_date_field` | string | Echomail date column preference ('system_choice', 'received', 'written') |
+| `settings.effective_date_display_style` | string | Effective resolved date display style ('relative', 'date') |
+| `settings.effective_echomail_date_field` | string | Effective resolved echomail date column ('received', 'written') |
 | `settings.quote_coloring` | boolean | Whether quoted text is colorized |
 | `settings.default_echo_list` | string | Default echo list view (reader, list) |
 | `settings.signature_text` | string\|null | User's message signature |
@@ -8888,7 +9304,7 @@ User settings object with locale, shell, notification preferences, and license s
 
 **Requires authentication**
 
-Updates user settings including locale, shell preference, and notification sounds. Validates notification sound values against allowed set (disabled, notify1-5). Shell changes respect AppearanceConfig lock. Locale changes are persisted. Composition settings (hard wrap, advanced mode) are stored in UserMeta.
+Updates user settings including locale, shell preference, notification sounds, and date display preferences. Validates notification sound values against allowed set (disabled, notify1-5) and date preferences against allowed choices. Shell changes respect AppearanceConfig lock. Locale changes are persisted. Composition settings (hard wrap, advanced mode) are stored in UserMeta.
 
 **Request Body** _(JSON)_
 
@@ -8896,7 +9312,31 @@ Settings update payload
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `settings` | object | Yes | Object containing settings to update: locale, shell, chat_notification_sound, echomail_notification_sound, netmail_notification_sound, file_notification_sound, compose_advanced_open, compose_hard_wrap, media_render_mode |
+| `settings` | object | Yes | Object containing settings to update |
+| `settings.locale` | string | No | UI locale code (e.g., 'en', 'fr') |
+| `settings.shell` | string | No | UI shell preference ('web' or 'bbs-menu') |
+| `settings.timezone` | string | No | User's timezone (e.g., 'America/Los_Angeles') |
+| `settings.theme` | string | No | UI theme (e.g., 'light', 'dark', 'amber') |
+| `settings.messages_per_page` | integer | No | Number of messages shown per page |
+| `settings.threaded_view` | boolean | No | Whether echomail is shown in threaded mode |
+| `settings.netmail_threaded_view` | boolean | No | Whether netmail is shown in threaded mode |
+| `settings.default_sort` | string | No | Default sort order (date_desc, date_asc, subject, author) |
+| `settings.font_family` | string | No | UI font family |
+| `settings.font_size` | integer | No | UI font size in pixels |
+| `settings.date_format` | string | No | Date format locale code (e.g., 'en-US') |
+| `settings.date_display_style` | string | No | Date display style preference ('system_choice', 'relative', 'date') |
+| `settings.echomail_date_field` | string | No | Echomail date column preference ('system_choice', 'received', 'written') |
+| `settings.quote_coloring` | boolean | No | Whether quoted text is colorized |
+| `settings.default_echo_list` | string | No | Default echo list view (reader, list) |
+| `settings.signature_text` | string | No | User's message signature |
+| `settings.default_tagline` | string | No | Default message tagline |
+| `settings.chat_notification_sound` | string | No | Chat notification sound (disabled, notify1–5) |
+| `settings.echomail_notification_sound` | string | No | Echomail notification sound (disabled, notify1–5) |
+| `settings.netmail_notification_sound` | string | No | Netmail notification sound (disabled, notify1–5) |
+| `settings.file_notification_sound` | string | No | File notification sound (disabled, notify1–5) |
+| `settings.compose_advanced_open` | boolean | No | Whether advanced compose panel is open by default |
+| `settings.compose_hard_wrap` | integer | No | Hard-wrap column for message composition: `0` (disabled), `39`, `72` (default), or `79`; other values are coerced to `72` |
+| `settings.media_render_mode` | string | No | Media rendering mode ('click', 'auto') |
 
 **Response** _(JSON)_
 

@@ -83,6 +83,12 @@ sudo adduser binktermphp
 sudo su - binktermphp
 ```
 
+The web server user (e.g. `www-data`) must be able to traverse the new home directory to reach the installation. Grant "other" execute permission on it:
+
+```bash
+sudo chmod o+x /home/binktermphp
+```
+
 BinktermPHP will be installed into this user's home directory (e.g. `/home/binktermphp/binkterm-php`). Make note of this path — you will need it when configuring the web server and cron jobs.
 
 ---

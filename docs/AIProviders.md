@@ -25,6 +25,7 @@
   - [Translation Catalog Generation](#translation-catalog-generation)
   - [Message Reader Assistant](#message-reader-assistant)
   - [AI Chat Bots](#ai-chat-bots)
+  - [AreaFix Grammar Generation](#areafix-grammar-generation)
 - [Admin Dashboard](#admin-dashboard)
   - [What It Shows](#what-it-shows)
   - [Supported Periods](#supported-periods)
@@ -511,6 +512,20 @@ ai_bot
 ```
 
 Unlike other features, each bot has its own provider and model configured directly on the bot record via the admin UI. This means different bots can use different providers. If a bot has no provider set, the standard resolution order applies — `AI_AI_BOT_PROVIDER`, then `AI_DEFAULT_PROVIDER`, then the first configured provider.
+
+---
+
+### AreaFix Grammar Generation
+
+`POST /api/admin/areafix/grammars-ai-generate` (see `docs/AreaFix.md#data-driven-grammar-definitions`) uses `AiService::generateJson()` to infer a data-driven `AreaFixParser` grammar definition from a pasted AreaFix/FileFix reply message, via the "Paste from AreaFix Message" button on `/admin/areafix-grammars`.
+
+Relevant feature id:
+
+```text
+areafix_grammar_ai_generate
+```
+
+The suggested grammar always comes back with `enabled: false` regardless of what the model returns, and every regex is validated with `AreaFixParser::isValidPattern()` before it's shown to the sysop — nothing is written to `config/areafix_grammars.json` until the sysop reviews the suggestion and clicks Save.
 
 ---
 

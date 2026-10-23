@@ -104,31 +104,31 @@ class RLoginDoorManager
     /**
      * Fetch the stored icon blob for a door.
      *
-     * @return array{data: string, mime: string}|null
+     * @return array{data: string, mime: string, size: int}|null
      */
     public function getIconBlob(string $doorId): ?array
     {
-        return $this->getBlob($doorId, 'icon_data', 'icon_mime');
+        return $this->getBlob($doorId, 'icon_data', 'icon_mime', 'icon_size');
     }
 
     /**
      * Fetch the stored screenshot blob for a door.
      *
-     * @return array{data: string, mime: string}|null
+     * @return array{data: string, mime: string, size: int}|null
      */
     public function getScreenshotBlob(string $doorId): ?array
     {
-        return $this->getBlob($doorId, 'screenshot_data', 'screenshot_mime');
+        return $this->getBlob($doorId, 'screenshot_data', 'screenshot_mime', 'screenshot_size');
     }
 
-    private function getBlob(string $doorId, string $dataColumn, string $mimeColumn): ?array
+    private function getBlob(string $doorId, string $dataColumn, string $mimeColumn, string $sizeColumn): ?array
     {
         if (!self::isValidDoorId($doorId)) {
             return null;
         }
 
         $db = Database::getInstance()->getPdo();
-        $stmt = $db->prepare("SELECT $dataColumn AS data, $mimeColumn AS mime FROM rlogin_doors WHERE door_id = ?");
+        $stmt = $db->prepare("SELECT $dataColumn AS data, $mimeColumn AS mime, $sizeColumn AS size FROM rlogin_doors WHERE door_id = ?");
         $stmt->execute([$doorId]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
@@ -141,7 +141,12 @@ class RLoginDoorManager
             $data = stream_get_contents($data);
         }
 
-        return ['data' => $data, 'mime' => $row['mime'] ?: 'application/octet-stream'];
+        // Stored size is backfilled by migration for pre-existing rows and set at
+        // write time in createDoor()/updateDoor(); fall back to strlen() only if
+        // a row somehow slipped through without it.
+        $size = $row['size'] !== null ? (int)$row['size'] : strlen($data);
+
+        return ['data' => $data, 'mime' => $row['mime'] ?: 'application/octet-stream', 'size' => $size];
     }
 
     /**
@@ -180,6 +185,9 @@ class RLoginDoorManager
             $columns[] = 'icon_mime';
             $placeholders[] = '?';
             $values[] = $icon['mime'];
+            $columns[] = 'icon_size';
+            $placeholders[] = '?';
+            $values[] = $icon['data'] !== null ? strlen($icon['data']) : null;
         }
 
         if ($screenshot !== null) {
@@ -190,6 +198,9 @@ class RLoginDoorManager
             $columns[] = 'screenshot_mime';
             $placeholders[] = '?';
             $values[] = $screenshot['mime'];
+            $columns[] = 'screenshot_size';
+            $placeholders[] = '?';
+            $values[] = $screenshot['data'] !== null ? strlen($screenshot['data']) : null;
         }
 
         $sql = 'INSERT INTO rlogin_doors (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
@@ -230,6 +241,8 @@ class RLoginDoorManager
             $lobColumns[count($values)] = true;
             $sets[] = 'icon_mime = ?';
             $values[] = $icon['mime'];
+            $sets[] = 'icon_size = ?';
+            $values[] = $icon['data'] !== null ? strlen($icon['data']) : null;
         }
 
         if ($screenshot !== null) {
@@ -238,6 +251,8 @@ class RLoginDoorManager
             $lobColumns[count($values)] = true;
             $sets[] = 'screenshot_mime = ?';
             $values[] = $screenshot['mime'];
+            $sets[] = 'screenshot_size = ?';
+            $values[] = $screenshot['data'] !== null ? strlen($screenshot['data']) : null;
         }
 
         $sets[] = 'updated_at = NOW()';
@@ -360,6 +375,7 @@ class RLoginDoorManager
             'allow_anonymous' => !empty($fields['allow_anonymous']) ? 'true' : 'false',
             'guest_max_sessions' => isset($fields['guest_max_sessions']) && $fields['guest_max_sessions'] !== '' ? (int)$fields['guest_max_sessions'] : 2,
             'hide_from_web' => !empty($fields['hide_from_web']) ? 'true' : 'false',
+            'emulate_modem_speed' => !empty($fields['emulate_modem_speed']) ? 'true' : 'false',
         ];
     }
 
@@ -405,6 +421,7 @@ class RLoginDoorManager
 
             // Requirements
             'admin_only' => $row['admin_only'] === true || $row['admin_only'] === 't' || $row['admin_only'] === '1',
+            'emulate_modem_speed' => $row['emulate_modem_speed'] === true || $row['emulate_modem_speed'] === 't' || $row['emulate_modem_speed'] === '1',
 
             // Runtime config
             'config' => [
@@ -415,6 +432,7 @@ class RLoginDoorManager
                 'allow_anonymous' => $row['allow_anonymous'] === true || $row['allow_anonymous'] === 't' || $row['allow_anonymous'] === '1',
                 'guest_max_sessions' => (int)$row['guest_max_sessions'],
                 'hide_from_web' => $row['hide_from_web'] === true || $row['hide_from_web'] === 't' || $row['hide_from_web'] === '1',
+                'emulate_modem_speed' => $row['emulate_modem_speed'] === true || $row['emulate_modem_speed'] === 't' || $row['emulate_modem_speed'] === '1',
             ],
         ];
     }

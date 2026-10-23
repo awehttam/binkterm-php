@@ -55,6 +55,26 @@ class FreqRequestTracker
     }
 
     /**
+     * Mark that an attempt has started without counting it yet. Called before
+     * waiting for the remote host's BinkP session lock, so the scheduler does
+     * not start another retry while this one waits. recordAttempt() is called
+     * once the lock is held and the session is about to dial; a poll deferred
+     * because the host was busy therefore never counts toward
+     * FREQ_MAX_ATTEMPTS.
+     *
+     * @param int $id Record ID
+     */
+    public function touchLastAttempt(int $id): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE freq_requests_outbound
+            SET last_attempt_at = NOW()
+            WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+    }
+
+    /**
      * Find all pending requests for a given node address.
      *
      * Returns oldest first so that when two users requested the same filename

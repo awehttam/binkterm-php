@@ -6,6 +6,7 @@
     "version": "1.0.0",
     "author": "BinktermPHP",
     "description": "Multi Relay Chat - Real-time IRC-like chat connecting multiple BBSes",
+    "genre": ["Communications"],
     "entry_point": "index.php",
     "icon": "icon.svg"
   },

@@ -61,7 +61,47 @@ class AdminDaemonClient
 
     public function binkPollSync(string $upstream): array
     {
-        return $this->sendCommand('binkp_poll_sync', ['upstream' => $upstream]);
+        // binkp_poll_sync is side-effecting and non-idempotent: it spawns a
+        // real outbound BinkP session. An ambiguous failure after dispatch
+        // (read timeout, connection drop) must NOT be blindly retried - see
+        // sendCommand()'s $retryable parameter.
+        return $this->sendCommand(
+            'binkp_poll_sync',
+            ['upstream' => $upstream],
+            false,
+            self::binkPollSyncReadTimeout($upstream)
+        );
+    }
+
+    /**
+     * Seconds to wait for a binkp_poll_sync reply.
+     *
+     * Each session first waits up to BinkpClient::HOST_LOCK_WAIT_SECONDS for
+     * the per-host lock, then runs under the BinkP timeout configured in
+     * binkp.json (BinkpConfig::getBinkpTimeout()). That timeout limits
+     * inactivity, not total session length, so a session that is still
+     * transferring can outlast this bound. When that happens the client
+     * reports a timeout and does not retry; the poll finishes server-side and
+     * the host lock keeps any later poll from overlapping it.
+     *
+     * @param string $upstream Uplink address, or 'all' for every enabled uplink
+     */
+    public static function binkPollSyncReadTimeout(string $upstream): int
+    {
+        $sessions = 1;
+        $binkpTimeout = 300;
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $binkpTimeout = max(1, (int)$binkpConfig->getBinkpTimeout());
+            if ($upstream === 'all') {
+                $sessions = max(1, count($binkpConfig->getEnabledUplinks()));
+            }
+        } catch (\Throwable $e) {
+            // Fall back to the BinkpConfig default timeout.
+        }
+
+        $perSession = \BinktermPHP\Binkp\Protocol\BinkpClient::HOST_LOCK_WAIT_SECONDS + $binkpTimeout;
+        return $sessions * $perSession + 60;
     }
 
     /**
@@ -155,6 +195,16 @@ class AdminDaemonClient
         return $this->sendCommand('save_lovlynet_config', ['json' => $json]);
     }
 
+    public function getAreafixGrammarsConfig(): array
+    {
+        return $this->sendCommand('get_areafix_grammars_config');
+    }
+
+    public function saveAreafixGrammarsConfig(string $json): array
+    {
+        return $this->sendCommand('save_areafix_grammars_config', ['json' => $json]);
+    }
+
     public function getWebdoorsConfig(): array
     {
         return $this->sendCommand('get_webdoors_config');
@@ -229,12 +279,13 @@ class AdminDaemonClient
         return $this->sendCommand('get_door_manifest', ['door_type' => $doorType, 'door_id' => $doorId]);
     }
 
-    public function saveDoorManifest(string $doorType, string $doorId, array $manifest): array
+    public function saveDoorManifest(string $doorType, string $doorId, array $manifest, ?array $runtime = null): array
     {
         return $this->sendCommand('save_door_manifest', [
             'door_type' => $doorType,
             'door_id'   => $doorId,
             'manifest'  => $manifest,
+            'runtime'   => $runtime,
         ]);
     }
 
@@ -776,11 +827,41 @@ class AdminDaemonClient
         }
     }
 
-    private function sendCommand(string $cmd, array $data = []): array
+    /**
+     * @param bool $retryable Whether an ambiguous failure (read timeout,
+     *                        connection drop) after this command is
+     *                        dispatched may be silently retried by opening a
+     *                        second connection and re-sending it.
+     *
+     *                        Default true preserves the original behavior for
+     *                        every existing caller. Pass false for any command
+     *                        whose server-side effect is NOT safe to trigger
+     *                        twice - most importantly binkp_poll_sync, which
+     *                        spawns a real outbound BinkP session: a blind
+     *                        retry after a read timeout causes a duplicate
+     *                        poll - the first attempt's spawned poll keeps
+     *                        running in the background, unaware that the
+     *                        client gave up on it, while the retry spawns a
+     *                        second, independent poll for the same uplink.
+     *
+     *                        When false, exactly one attempt is made; any
+     *                        failure (including an ambiguous one) is thrown
+     *                        immediately rather than re-dispatching the
+     *                        command.
+     * @param int|null $readTimeoutSeconds Read timeout for this command's
+     *                        reply; null keeps the connection default.
+     */
+    private function sendCommand(string $cmd, array $data = [], bool $retryable = true, ?int $readTimeoutSeconds = null): array
     {
-        for ($attempt = 0; $attempt < 2; $attempt++) {
+        $maxAttempts = $retryable ? 2 : 1;
+
+        for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
             try {
                 $this->connect();
+
+                if ($readTimeoutSeconds !== null && is_resource($this->socket)) {
+                    stream_set_timeout($this->socket, $readTimeoutSeconds);
+                }
 
                 $this->writeLine([
                     'cmd' => $cmd,
@@ -798,7 +879,7 @@ class AdminDaemonClient
                 return $result;
             } catch (\RuntimeException $e) {
                 $this->close();
-                if ($attempt === 1) {
+                if ($attempt === $maxAttempts - 1) {
                     throw $e;
                 }
             }
@@ -820,8 +901,14 @@ class AdminDaemonClient
     {
         $line = @fgets($this->socket);
         if ($line === false) {
+            $meta = is_resource($this->socket) ? stream_get_meta_data($this->socket) : [];
+            $timedOut = !empty($meta['timed_out']);
             $this->close();
-            throw new \RuntimeException('Admin daemon closed connection');
+            throw new \RuntimeException(
+                $timedOut
+                    ? 'Admin daemon response timed out (command may still be running server-side)'
+                    : 'Admin daemon closed connection'
+            );
         }
 
         $data = json_decode(trim($line), true);

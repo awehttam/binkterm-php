@@ -4,6 +4,7 @@ namespace BinktermPHP\SshServer;
 
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
+use BinktermPHP\Terminal\ConnectionRateLimiter;
 use BinktermPHP\TelnetServer\BbsSession;
 use BinktermPHP\SshServer\SshSession;
 use BinktermPHP\Version;
@@ -38,6 +39,16 @@ class SshServer
     private ?string $pidFile    = null;
     private ?int   $masterPid   = null;
     private string $hostKeyFile;
+    private ConnectionRateLimiter $rateLimiter;
+
+    /** Global ceiling on simultaneously live SSH child processes. */
+    private int $maxChildren;
+    /** True when SSH_MAX_CHILDREN was non-positive and the safe default was used. */
+    private bool $maxChildrenClamped = false;
+    /** @var array<int,true> live direct-child PIDs, one per accepted connection */
+    private array $childPids = [];
+    private bool $capacityLogged = false;
+    private int  $capacitySuppressed = 0;
 
     public function __construct(
         string $host,
@@ -54,6 +65,25 @@ class SshServer
 
         $dataDir            = dirname(__DIR__, 2) . '/data/ssh';
         $this->hostKeyFile  = $dataDir . '/ssh_host_rsa_key';
+
+        // Per-source-IP connection rate limit, applied before any fork/KEX/auth
+        // work — the same fixed-window policy the Telnet daemon uses, with
+        // SSH-namespaced env keys and the identical defaults (5 / 60s; set max
+        // to 0 to disable).
+        $this->rateLimiter = new ConnectionRateLimiter(
+            (int)Config::env('SSH_RATE_LIMIT_MAX', '5'),
+            (int)Config::env('SSH_RATE_LIMIT_WINDOW', '60'),
+            fn(string $message) => $this->log($message)
+        );
+
+        // Global live-child ceiling. A distributed / many-source-IP pre-auth
+        // flood gets past the per-IP limiter, so cap the total number of
+        // fork+KEX workers that can exist at once. Non-positive config is NOT
+        // treated as "disabled" — an unbounded fork path is the whole thing
+        // this guards — it falls back to the safe default instead.
+        $rawMaxChildren          = (int)Config::env('SSH_MAX_CHILDREN', '32');
+        $this->maxChildren       = $rawMaxChildren > 0 ? $rawMaxChildren : 32;
+        $this->maxChildrenClamped = $rawMaxChildren <= 0;
     }
 
     public function setPidFile(string $path): void { $this->pidFile = $path; }
@@ -72,6 +102,10 @@ class SshServer
             !$daemonMode
         );
 
+        if ($this->maxChildrenClamped) {
+            $this->log("SSH_MAX_CHILDREN was non-positive; using the safe default of {$this->maxChildren}");
+        }
+
         if ($daemonMode) {
             if (!function_exists('pcntl_fork') || !function_exists('posix_setsid')) {
                 fwrite(STDERR, "Daemon mode requires pcntl and posix extensions\n");
@@ -83,9 +117,7 @@ class SshServer
         }
 
         if (function_exists('pcntl_signal')) {
-            pcntl_signal(SIGCHLD, function() {
-                while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
-            });
+            $this->installChildReaper();
             $shutdown = function() use (&$server) {
                 $this->log("Received shutdown signal");
                 $this->cleanupDaemon();
@@ -123,9 +155,10 @@ class SshServer
             $write   = $except = null;
             $changed = @stream_select($read, $write, $except, 60);
             if ($changed === false || $changed === 0) {
-                if (function_exists('pcntl_waitpid')) {
-                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
-                }
+                $this->reapChildren();
+                // Prune expired rate-limit entries, as the Telnet daemon does
+                // on each select() timeout.
+                $this->rateLimiter->clean();
                 continue;
             }
 
@@ -133,29 +166,211 @@ class SshServer
             if (!$conn) { continue; }
 
             $connectionCount++;
+
+            // Per-IP connection rate limit — BEFORE pcntl_fork(), the SSH
+            // handshake, or any auth work, so a single flooding source cannot
+            // spend the box's processes/CPU pre-authentication.
+            $peer   = @stream_socket_get_name($conn, true);
+            $peerIp = $this->extractIp($peer);
+            if ($peerIp !== null) {
+                $rl = $this->rateLimiter->check($peerIp);
+                if ($rl > 0) {
+                    if ($rl === 1) {
+                        $this->log("SSH rate limit exceeded for {$peerIp} - connection rejected");
+                    }
+                    @fwrite($conn, "Too many connections from your IP. Please try again later.\r\n");
+                    fclose($conn);
+                    continue;
+                }
+            }
+
+            // Global live-child ceiling. Reap first so the count reflects
+            // children that have already exited, then admit or reject WITHOUT
+            // forking or doing any SSH/KEX/auth work — capacity rejection must
+            // pay no child-process cost.
+            $this->reapChildren();
+            if ($this->atCapacity()) {
+                if (!$this->capacityLogged) {
+                    $this->capacityLogged = true;
+                    $this->log("SSH at capacity ({$this->maxChildren} concurrent sessions) - connection rejected");
+                } else {
+                    $this->capacitySuppressed++;
+                }
+                @fwrite($conn, "Server is at capacity. Please try again later.\r\n");
+                fclose($conn);
+                continue;
+            }
+
+            // Disable Nagle's algorithm on the accepted socket — SSH carries the
+            // same latency-sensitive interactive terminal traffic as Telnet.
+            // Best-effort; never fatal to the connection.
+            \BinktermPHP\TelnetServer\TerminalSocketOptions::enableNoDelay(
+                $conn,
+                $this->debug ? fn(string $m) => $this->log($m) : null
+            );
             if ($this->debug) {
-                $peer = @stream_socket_get_name($conn, true);
                 $this->log("Connection #{$connectionCount} from {$peer}");
             }
 
             if (function_exists('pcntl_fork')) {
-                $pid = pcntl_fork();
+                $pid = $this->forkConnectionChild();
                 if ($pid === -1) {
-                    // Fork failed — handle in main process
+                    // Fork failed — handle in main process (no child, no slot).
                     $this->handleConnection($conn, false);
                 } elseif ($pid === 0) {
                     // Child
                     fclose($server);
                     $this->handleConnection($conn, true);
                 } else {
-                    // Parent
+                    // Parent — the child is already registered against the
+                    // global ceiling by forkConnectionChild().
+                    if ($this->capacityLogged) {
+                        if ($this->capacitySuppressed > 0) {
+                            $this->log("SSH capacity: {$this->capacitySuppressed} further connection(s) were rejected while full");
+                        }
+                        $this->capacityLogged = false;
+                        $this->capacitySuppressed = 0;
+                    }
                     fclose($conn);
-                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
+                    $this->reapChildren();
                 }
             } else {
                 $this->handleConnection($conn, false);
             }
         }
+    }
+
+    /**
+     * Reap exited children whenever SIGCHLD arrives.
+     */
+    private function installChildReaper(): void
+    {
+        pcntl_signal(SIGCHLD, function() {
+            $this->reapChildren();
+        });
+    }
+
+    /**
+     * Fork a connection handler and register the child against the ceiling.
+     *
+     * SIGCHLD is blocked from before the fork until the parent has recorded
+     * the child's PID. With async signals enabled, an unblocked handler could
+     * otherwise reap a child that exits immediately before its PID is
+     * registered; the late registration would then hold a capacity slot
+     * forever. While blocked, the signal stays pending and is delivered when
+     * the mask is restored, after registration. The child restores the mask
+     * too, since it inherits it.
+     *
+     * @return int Child PID in the parent, 0 in the child, -1 if the fork failed
+     */
+    private function forkConnectionChild(): int
+    {
+        $previousMask = [];
+        $masked = function_exists('pcntl_sigprocmask')
+            && pcntl_sigprocmask(SIG_BLOCK, [SIGCHLD], $previousMask);
+
+        $pid = pcntl_fork();
+        if ($pid > 0) {
+            $this->beforeChildRegistered($pid);
+            $this->childPids[$pid] = true;
+        }
+
+        if ($masked) {
+            pcntl_sigprocmask(SIG_SETMASK, $previousMask);
+        }
+
+        return $pid;
+    }
+
+    /**
+     * Test seam: runs in the parent between fork and PID registration, so a
+     * test can widen the window in which a fast-exiting child signals.
+     */
+    protected function beforeChildRegistered(int $pid): void
+    {
+    }
+
+    /**
+     * Whether the global live-child ceiling has been reached. Admission control
+     * only — keyed on nothing per-IP, so every source shares the one ceiling.
+     *
+     * Entries whose process has already exited or been reaped are dropped
+     * first, so a slot that leaked for any reason heals on the next check.
+     */
+    private function atCapacity(): bool
+    {
+        foreach (array_keys($this->childPids) as $pid) {
+            if ($this->childIsGone($pid)) {
+                unset($this->childPids[$pid]);
+            }
+        }
+        return count($this->childPids) >= $this->maxChildren;
+    }
+
+    /**
+     * True when $pid is no longer a live child of this process: it has just
+     * exited (and is reaped here) or was already reaped elsewhere.
+     */
+    protected function childIsGone(int $pid): bool
+    {
+        if (!function_exists('pcntl_waitpid')) {
+            return false;
+        }
+        $status = 0;
+        return pcntl_waitpid($pid, $status, WNOHANG) !== 0;
+    }
+
+    /**
+     * One non-blocking child reap. Isolated so tests can drive the reap
+     * bookkeeping without real subprocesses.
+     *
+     * @return int reaped pid (>0), 0 (none ready), or -1 (no children / no pcntl)
+     */
+    protected function reapOne(): int
+    {
+        if (!function_exists('pcntl_waitpid')) {
+            return -1;
+        }
+        $status = 0;
+        return pcntl_waitpid(-1, $status, WNOHANG);
+    }
+
+    /**
+     * Reap every child that has exited and release its capacity slot. Called
+     * from the SIGCHLD handler, on each accept-loop select() timeout, right
+     * before the capacity check, and just after a fork — so a slot cannot leak
+     * past a child's normal exit.
+     */
+    private function reapChildren(): void
+    {
+        while (($pid = $this->reapOne()) > 0) {
+            unset($this->childPids[$pid]);
+        }
+    }
+
+    /**
+     * Pull the bare IP out of a `stream_socket_get_name()` peer string
+     * (`1.2.3.4:5678` or `[2001:db8::1]:5678`), normalized so an IPv4-mapped
+     * IPv6 peer is reported as plain IPv4. Returns null when it cannot be
+     * resolved — the caller then skips rate limiting for that connection rather
+     * than keying the whole table under a bogus value.
+     */
+    private function extractIp(?string $peer): ?string
+    {
+        if ($peer === null || $peer === '') {
+            return null;
+        }
+
+        if ($peer[0] === '[') {
+            $end = strpos($peer, ']');
+            $ip  = $end !== false ? substr($peer, 1, $end - 1) : $peer;
+        } else {
+            $ip = strrpos($peer, ':') !== false ? substr($peer, 0, strrpos($peer, ':')) : $peer;
+        }
+
+        return filter_var($ip, FILTER_VALIDATE_IP) !== false
+            ? ConnectionRateLimiter::normalizeIp($ip)
+            : null;
     }
 
     // =========================================================================
@@ -164,8 +379,17 @@ class SshServer
 
     private function handleConnection($conn, bool $forked): void
     {
-        $peer   = @stream_socket_get_name($conn, true);
-        $peerIp = $peer ? explode(':', $peer)[0] : 'unknown';
+        $peer     = @stream_socket_get_name($conn, true);
+        $peerIp   = $peer ? explode(':', $peer)[0] : 'unknown';
+        // Validated bare IP (IPv4/IPv6-safe), or null — passed to SshSession so
+        // the initial password check can send the authenticated
+        // X-Binkterm-Client-IP header, matching Telnet/BbsSession.
+        $clientIp = null;
+        if (is_string($peer) && $peer !== '') {
+            // "1.2.3.4:56789" or "[2001:db8::1]:56789"
+            $host = preg_match('/^\[(.+)\]:\d+$/', $peer, $m) ? $m[1] : (string)preg_replace('/:\d+$/', '', $peer);
+            $clientIp = filter_var($host, FILTER_VALIDATE_IP) !== false ? $host : null;
+        }
 
         $sshSession = new SshSession(
             $conn,
@@ -173,7 +397,8 @@ class SshServer
             $this->debug,
             $this->insecure,
             $this->hostKeyFile,
-            $this->hostKeyFile . '.pub'
+            $this->hostKeyFile . '.pub',
+            $clientIp
         );
 
         $authResult = $sshSession->handshake();

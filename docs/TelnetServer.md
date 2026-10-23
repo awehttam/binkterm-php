@@ -13,6 +13,10 @@ troubleshooting.
 
 - **Telnet option negotiation** — IAC-based negotiation for NAWS (terminal size),
   echo control, and suppress-go-ahead
+- **RLogin handshake detection (RFC 1282)** — detects incoming RLogin connections
+  by inspecting the initial null byte and consuming the client handshake strings
+  (client username, server username, terminal type/speed), acknowledging with a
+  null byte and suppressing Telnet IAC escape sequences on raw RLogin streams
 - **Dual listener (plain + TLS)** — listens on a plain-text port (default 2323)
   and a TLS-encrypted port (default 8023) simultaneously; TLS cert is auto-generated
   on first run if not provided
@@ -98,8 +102,12 @@ Command-line options take precedence over `.env` values.
 | `TELNET_TLS_PORT` | `8023` | TLS listener port (equivalent to `--tls-port`) |
 | `TELNET_TLS_CERT` | (empty) | Path to TLS cert PEM (equivalent to `--tls-cert`) |
 | `TELNET_TLS_KEY` | (empty) | Path to TLS key PEM (equivalent to `--tls-key`) |
+| `TELNET_TLS_MIN_VERSION` | `1.0` | Minimum TLS version to accept (`1.0`/`1.1`/`1.2`/`1.3`); the floor and every version above it up to TLS 1.3 are offered. Invalid values fall back to `1.0` |
+| `TELNET_TLS_CIPHERS` | `DEFAULT:@SECLEVEL=0` | OpenSSL cipher list for the TLS listener |
+| `TELNET_TLS_KEY_TYPE` | `ec` | Key type for the auto-generated self-signed certificate: `ec` (ECDSA P-256) or `rsa`. Only affects newly generated certificates |
 | `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window; `0` disables rate limiting |
 | `TELNET_RATE_LIMIT_WINDOW` | `60` | Rate-limit window duration in seconds |
+| `TELNET_PREAUTH_IDLE_TIMEOUT` | `90` | Seconds of inactivity at the login / register prompts before the connection is dropped. Values below `15` are treated as a misconfiguration and ignored. Authenticated sessions are unaffected |
 | `TELNET_TRUSTED_PROXIES` | `127.0.0.1,::1` | Comma-separated source IPs allowed to supply a PROXY protocol header (see [Proxied Connections](#proxied-connections-proxy-protocol)) |
 | `TELNET_PROXY_HEADER_TIMEOUT` | `2` | Seconds to wait for a PROXY header from a trusted source before treating the connection as direct |
 
@@ -107,7 +115,9 @@ Command-line options take precedence over `.env` values.
 
 The Telnet daemon runs two listeners simultaneously by default: a plain-text listener on port 2323 and a TLS-encrypted listener on port 8023. Both listeners expose the same BBS session.
 
-On first start the daemon checks for a certificate and key at `data/telnetd.crt` and `data/telnetd.key`. If they do not exist, a self-signed certificate is generated automatically (using `ext-openssl` or the `openssl` CLI as a fallback) and stored there.
+On first start the daemon checks for a certificate and key at `data/telnet/telnetd.crt` and `data/telnet/telnetd.key`. If they do not exist, a self-signed certificate is generated automatically (using `ext-openssl` or the `openssl` CLI as a fallback) and stored there.
+
+The generated certificate uses an ECDSA P-256 key. An RSA certificate makes OpenSSL sign the handshake with RSA-PSS, which some clients cannot verify (SyncTERM fails with `TLS: Could not find any algorithm named 'PSS(SHA-256,MGF1,32)'`). If a legacy client cannot handle ECDSA, set `TELNET_TLS_KEY_TYPE=rsa`. Changing it has no effect on an existing certificate: delete `data/telnet/telnetd.crt` and `data/telnet/telnetd.key` and restart the daemon to regenerate. An RSA certificate you supply yourself will show the SyncTERM error; use an ECDSA one for such clients.
 
 To disable TLS:
 
@@ -134,7 +144,30 @@ TELNET_TLS_CERT=/etc/ssl/mycert.pem
 TELNET_TLS_KEY=/etc/ssl/mykey.pem
 ```
 
-TLS connections are logged with the cipher suite and key size (e.g., `TLS connection from 1.2.3.4 [TLSv1.2 AES128-GCM-SHA256 128-bit]`).
+When you supply your own cert/key the daemon validates the pair at start-up —
+the files must exist, be readable, be valid PEM, and the certificate must
+match the private key. If any of those checks fail the daemon logs the exact
+reason and starts with the **TLS listener disabled** (the plain-text listener
+is unaffected); it does **not** silently self-sign over your configured paths.
+The auto-generated self-signed pair is only created when `TELNET_TLS_CERT` /
+`TELNET_TLS_KEY` are left unset.
+
+### Protocol versions and ciphers
+
+By default the listener accepts TLS 1.0 through TLS 1.3. A modern client
+negotiates TLS 1.3; an old BBS SSL stack that only speaks TLS 1.0/1.1 still
+connects. Raise the floor once you know your users don't need the deprecated
+versions:
+
+```ini
+TELNET_TLS_MIN_VERSION=1.2
+```
+
+`TELNET_TLS_CIPHERS` overrides the OpenSSL cipher list (default
+`DEFAULT:@SECLEVEL=0`, kept permissive for legacy SSL stacks).
+
+TLS connections are logged with the negotiated protocol, cipher suite and key
+size (e.g., `TLS connection from 1.2.3.4 [TLSv1.3 TLS_AES_256_GCM_SHA384 256-bit]`).
 
 ## Running as a Service
 
@@ -248,16 +281,40 @@ is forked. Rejections are logged to `data/logs/telnetd.log`.
 
 The window is **fixed per IP**: the first connection from an IP starts the
 clock; the counter resets only after `TELNET_RATE_LIMIT_WINDOW` seconds have
-elapsed since that first connection, not since the most recent one.
+elapsed since that first connection, not since the most recent one. An IPv4
+client seen on a dual-stack listener as `::ffff:192.0.2.1` is counted as
+`192.0.2.1`. The SSH daemon uses the same limiter with its own `SSH_RATE_LIMIT_*`
+settings.
 
 | `.env` variable | Default | Description |
 |---|---|---|
 | `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window. Set to `0` to disable rate limiting entirely. |
-| `TELNET_RATE_LIMIT_WINDOW` | `60` | Window duration in seconds. |
+| `TELNET_RATE_LIMIT_WINDOW` | `60` | Window duration in seconds. A value of `0` or less falls back to `60`; use `TELNET_RATE_LIMIT_MAX=0` to disable the limit. |
 
 The defaults allow 5 connections per minute per IP, which is sufficient for
 any legitimate user. Adjust `TELNET_RATE_LIMIT_MAX` downward if you are seeing
 active floods, or set it to `0` on private/LAN-only installs.
+
+### Pre-authentication Idle Timeout
+
+Scanners routinely open a Telnet connection, read the banner, and then sit
+silent — each such socket holds a forked handler until the idle timer fires.
+To shed those quickly, the login / register / reset-password prompts use a
+short idle deadline (`TELNET_PREAUTH_IDLE_TIMEOUT`, default **90 seconds**)
+instead of the full authenticated-session idle timeout. Any keystroke before
+authentication refreshes the timer, so a caller reading the login screen and
+typing at a normal pace is never cut off. On a successful login the session
+switches to the normal authenticated idle thresholds (the values returned by
+`GET /api/config/session-init`, or the built-in `300` s warning / `420` s
+disconnect defaults). Telnet protocol negotiation alone does not count as
+activity.
+
+SSH sessions authenticate at the protocol layer before the BBS menu, so an
+authenticated SSH caller never enters this pre-auth window; an SSH client that
+is dropped to the BBS login prompt without a session does.
+
+This is idle-socket hygiene, not abuse prevention — a client that deliberately
+trickles keystrokes can still hold a pre-auth connection open.
 
 ### Proxied Connections (PROXY protocol)
 

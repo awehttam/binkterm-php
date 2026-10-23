@@ -404,6 +404,8 @@ return [
     'errors.admin.appearance.splash.license_required' => 'A valid license is required to configure splash pages',
     'errors.admin.appearance.splash.save_failed' => 'Failed to save splash settings',
     'errors.admin.appearance.file_areas.save_failed' => 'Failed to save file areas settings',
+    'errors.admin.appearance.doors.save_failed' => 'Failed to save doors appearance settings',
+    'errors.admin.appearance.doors.categories_failed' => 'Failed to load door categories',
     'errors.admin.dashboard.ram_usage_unavailable' => 'RAM usage details are not available on this system.',
     'errors.admin.shell_art.list_failed' => 'Failed to list shell art files',
     'errors.admin.shell_art.upload.no_file' => 'No shell art file uploaded',
@@ -451,6 +453,12 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'Failed to load webdoors configuration',
     'errors.admin.webdoors_config.save_failed' => 'Failed to save webdoors configuration',
     'errors.admin.webdoors_config.activate_failed' => 'Failed to activate webdoors configuration',
+    'errors.admin.areafix_grammars.load_failed' => 'Failed to load AreaFix grammar configuration',
+    'errors.admin.areafix_grammars.save_failed' => 'Failed to save AreaFix grammar configuration',
+    'errors.admin.areafix_grammars.message_text_required' => 'Please paste some message text first',
+    'errors.admin.areafix_grammars.ai_no_provider' => 'No AI provider is configured',
+    'errors.admin.areafix_grammars.ai_invalid_response' => 'AI did not return a usable grammar definition',
+    'errors.admin.areafix_grammars.ai_generate_failed' => 'Failed to generate grammar',
     'errors.admin.jsdosdoors_config.load_failed' => 'Failed to load JS-DOS doors configuration',
     'errors.admin.jsdosdoors_config.save_failed' => 'Failed to save JS-DOS doors configuration',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
@@ -607,6 +615,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Invalid slot number',
     'errors.webdoor.save_too_large' => 'Save data exceeds maximum size',
     'errors.webdoor.save_not_found' => 'Save not found',
+    'errors.webdoor.game_unavailable' => 'This game is not available',
 
     // Door API
     'errors.door.door_name_required' => 'Door name required',
@@ -673,11 +682,13 @@ return [
     'errors.admin.areafix.invalid_json' => 'Invalid request payload',
     'errors.admin.areafix.uplink_required' => 'Uplink address is required',
     'errors.admin.areafix.invalid_robot' => 'Robot must be "areafix" or "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Unrecognized grammar tier',
     'errors.admin.areafix.commands_required' => 'At least one command is required',
     'errors.admin.areafix.send_failed' => 'Failed to send command',
     'errors.admin.areafix.history_failed' => 'Failed to load message history',
     'errors.admin.areafix.sync_failed' => 'Failed to sync areas',
     'errors.admin.areafix.no_area_list_found' => 'No area list found in recent replies for this uplink',
+    'errors.admin.areafix.preview_failed' => 'Failed to generate sync preview',
     'errors.admin.poll.failed' => 'Failed to poll BinkP uplink',
 
     'errors.admin.lovlynet.invalid_json' => 'Invalid request payload',
@@ -822,4 +833,11 @@ return [
     'errors.admin.bbs_settings.invalid_screening_config' => 'Invalid registration screening configuration',
     'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
     'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
+
+    // ANSI avatars
+    'errors.avatar.invalid' => 'ANSI avatar data is not valid',
+    'errors.avatar.too_large' => 'ANSI avatar request is too large',
+    'errors.avatar.malformed' => 'ANSI avatar must be canonical Base64 of a 120-byte BIN',
+    'errors.avatar.blank' => 'ANSI avatar cannot be blank on black',
+    'errors.avatar.dimensions' => 'ANSI avatars require exactly 120 bytes',
 ];

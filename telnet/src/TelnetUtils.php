@@ -82,6 +82,23 @@ class TelnetUtils
     private static bool $ansiColorEnabled = true;
 
     /**
+     * Emulated dialup baud rate for terminal output throttling (0 = unthrottled).
+     * When > 0, output in safeWrite() is chunked and paced to simulate authentic
+     * dialup baud rates (e.g. 28800 baud).
+     */
+    private static int $throttleBaud = 0;
+
+    public static function setThrottleBaud(int $baud): void
+    {
+        self::$throttleBaud = max(0, $baud);
+    }
+
+    public static function getThrottleBaud(): int
+    {
+        return self::$throttleBaud;
+    }
+
+    /**
      * Per-process client context for API calls. The daemon forks one process per
      * connection, so these statics are effectively per-session. Set once at
      * session start so every {@see apiRequest()} tells the web side the real
@@ -89,6 +106,23 @@ class TelnetUtils
      */
     private static ?string $clientIp = null;
     private static ?string $clientToken = null;
+
+    /**
+     * The session's current CSRF token, kept per process so a re-synced token
+     * (after another login of the same user rotated it) is used by every
+     * later apiRequest() instead of the stale copy callers pass in.
+     */
+    private static ?string $csrfToken = null;
+
+    public static function setCsrfToken(?string $token): void
+    {
+        self::$csrfToken = ($token !== null && $token !== '') ? $token : null;
+    }
+
+    public static function getCsrfToken(): ?string
+    {
+        return self::$csrfToken;
+    }
 
     /**
      * Record the connecting user's real IP and the shared terminal secret so
@@ -281,6 +315,40 @@ class TelnetUtils
     }
 
     /**
+     * Whether an apiRequest() response is a stale-CSRF rejection that should be
+     * healed by re-syncing the token once.
+     */
+    public static function shouldHealStaleCsrf(
+        bool $isMutating,
+        int $httpStatus,
+        mixed $data,
+        bool $alreadyHealed,
+        ?string $session,
+        ?string $effectiveCsrf
+    ): bool {
+        return $isMutating
+            && $httpStatus === 403
+            && !$alreadyHealed
+            && $session !== null
+            && $session !== ''
+            && $effectiveCsrf !== null
+            && is_array($data)
+            && ($data['error_code'] ?? '') === 'errors.auth.invalid_csrf_token';
+    }
+
+    /** Fetch the session's current CSRF token, or null if unavailable. */
+    private static function refreshCsrfToken(string $base, string $session): ?string
+    {
+        $resp = self::apiRequest($base, 'GET', '/api/auth/csrf-token', null, $session, 1, null);
+        if (($resp['status'] ?? 0) !== 200) {
+            return null;
+        }
+        $token = $resp['data']['csrf_token'] ?? null;
+
+        return is_string($token) && $token !== '' ? $token : null;
+    }
+
+    /**
      * Make an authenticated HTTP request to a BBS API endpoint.
      *
      * Retries transient network failures up to $maxRetries times with a 500 ms
@@ -313,6 +381,9 @@ class TelnetUtils
     {
         $url = rtrim($base, '/') . $path;
         $attempt = 0;
+        $isMutating = in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'], true);
+        $effectiveCsrf = self::$csrfToken ?? $csrfToken;
+        $csrfHealed = false;
 
         while ($attempt < $maxRetries) {
             $attempt++;
@@ -344,8 +415,8 @@ class TelnetUtils
                     $headers[] = 'Content-Length: ' . strlen($json);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
                 }
-                if ($csrfToken !== null) {
-                    $headers[] = 'X-CSRF-Token: ' . $csrfToken;
+                if ($effectiveCsrf !== null) {
+                    $headers[] = 'X-CSRF-Token: ' . $effectiveCsrf;
                 }
             }
 
@@ -377,6 +448,20 @@ class TelnetUtils
             $data = json_decode($response, true);
             if ($data === null) {
                 $data = ['raw' => $response];
+            }
+
+            // The per-user CSRF token is rotated by every login of the same
+            // user; re-sync once and retry when the server rejects ours as
+            // stale. The rejected request never ran (CSRF is checked first).
+            if (self::shouldHealStaleCsrf($isMutating, (int)$httpCode, $data, $csrfHealed, $session, $effectiveCsrf)) {
+                $csrfHealed = true;
+                $fresh = self::refreshCsrfToken($base, (string)$session);
+                if ($fresh !== null && $fresh !== $effectiveCsrf) {
+                    self::$csrfToken = $fresh;
+                    $effectiveCsrf = $fresh;
+                    $attempt--; // the re-synced retry does not use up a network retry
+                    continue;
+                }
             }
 
             return [
@@ -449,13 +534,55 @@ class TelnetUtils
         error_reporting($prev & ~E_NOTICE);
         $total  = strlen($data);
         $offset = 0;
+
+        $baud = self::$throttleBaud;
+        if ($baud <= 0 || $total === 0) {
+            while ($offset < $total) {
+                $written = @fwrite($conn, substr($data, $offset));
+                if ($written === false || $written === 0) {
+                    break;  // connection closed or unrecoverable error
+                }
+                $offset += $written;
+            }
+            @fflush($conn);
+            error_reporting($prev);
+            return;
+        }
+
+        // Paced / throttled dialup simulation
+        // 1 byte = 1 start bit + 8 data bits + 1 stop bit = 10 bits
+        $cps = $baud / 10.0;
+        $usPerByte = 1000000.0 / $cps;
+
+        // Target ~30-40 chunks per second for smooth visual streaming
+        $chunkSize = max(16, min(128, (int)round($cps / 35.0)));
+
+        $skipThrottle = false;
         while ($offset < $total) {
-            $written = @fwrite($conn, substr($data, $offset));
+            // If the client sent input (e.g. pressed a key to skip), flush remainder immediately
+            if (!$skipThrottle && $total > 128) {
+                $r = [$conn]; $w = $ex = null;
+                if (@stream_select($r, $w, $ex, 0, 0) > 0) {
+                    $skipThrottle = true;
+                }
+            }
+
+            $len = min($chunkSize, $total - $offset);
+            $written = @fwrite($conn, substr($data, $offset, $len));
             if ($written === false || $written === 0) {
-                break;  // connection closed or unrecoverable error
+                break;
             }
             $offset += $written;
+            @fflush($conn);
+
+            if (!$skipThrottle && $offset < $total) {
+                $delayUs = (int)round($written * $usPerByte);
+                if ($delayUs > 0) {
+                    usleep($delayUs);
+                }
+            }
         }
+
         @fflush($conn);
         error_reporting($prev);
     }
@@ -2884,11 +3011,36 @@ class TelnetUtils
 
             $bodyWidth = max(20, $width - 4);
             $bioLabelColor = (string)($profileStyles['bio_label'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+            $avatarLabel = $server->t('ui.terminalserver.profile.ansi_avatar', 'ANSI avatar', [], $locale);
+            $artLines = null;
+            $encodedAvatar = $profile['ansi_avatar'] ?? null;
+            if (self::$ansiColorEnabled && is_string($encodedAvatar) && $encodedAvatar !== '') {
+                try {
+                    $avatar = \BinktermPHP\Avatar\AnsiAvatar::fromBase64($encodedAvatar);
+                    $artLines = \BinktermPHP\Avatar\AnsiAvatarTerminal::lines($avatar, true, $charset);
+                } catch (\Throwable $e) {
+                    $artLines = null;
+                }
+            }
+            $avatarPlain = [$avatarLabel];
+            if ($artLines === null) {
+                $avatarPlain[] = \BinktermPHP\Avatar\AnsiAvatarTerminal::initials(
+                    (string)($profile['username'] ?? ''),
+                    $charset
+                );
+            }
+            $avatarPlain[] = '';
             $bodyLines = array_merge(
+                $avatarPlain,
                 [self::colorize($bioLabel, $bioLabelColor), ''],
                 TerminalMarkupRenderer::render('markdown', $bioText, $bodyWidth)
             );
             $bodyLines = array_map(fn(string $line): string => $server->encodeForTerminal($line), $bodyLines);
+            if (is_array($artLines)) {
+                // Art lines are already in the session charset. Encoding them
+                // again would widen glyphs and can turn a CP437 stand-in into ESC.
+                array_splice($bodyLines, 1, 0, $artLines);
+            }
 
             $statusKey = (string)($profileStyles['status_key'] ?? self::ANSI_RED);
             $statusLabel = (string)($profileStyles['status_label'] ?? self::ANSI_BLUE);
@@ -3209,6 +3361,10 @@ class TelnetUtils
         $hint  = (string)($scheme['hint'] ?? self::ANSI_YELLOW);
 
         $value = $prefill;
+        // Insertion point as a codepoint offset from the start of the value.
+        // Kept in step with the shared TerminalLineEditor below so the boxed
+        // field can show mid-line editing and a truthful cursor position.
+        $cursorPos = mb_strlen($value);
         $inlinePrompt = !empty($options['inline_prompt']);
 
         // Returns [startRow, startCol, innerWidth, inputRow] for the current terminal size.
@@ -3227,7 +3383,7 @@ class TelnetUtils
         };
 
         $render = function() use (
-            $conn, &$state, &$value,
+            $conn, &$state, &$value, &$cursorPos,
             $title, $prompt,
             $tl, $tr, $bl, $br, $hz, $vt,
             $ansi, $frame, $body, $hint, $rst,
@@ -3256,9 +3412,15 @@ class TelnetUtils
             $fieldWidth  = $inlinePrompt && $hasPrompt
                 ? max(10, $innerWidth - 3 - $promptWidth)
                 : $innerWidth - 2;
-            $displayVal  = mb_substr($value, max(0, mb_strlen($value) - $fieldWidth));
+            // Horizontal scroll window: keep the insertion point visible while
+            // preferring to anchor at the start of the value.
+            $valLen = mb_strlen($value);
+            $cur    = max(0, min($cursorPos, $valLen));
+            $scroll = $cur > $fieldWidth ? $cur - $fieldWidth : 0;
+            $scroll = min($scroll, max(0, $valLen - $fieldWidth));
+            $displayVal  = mb_substr($value, $scroll, $fieldWidth);
             $inputContent = $displayVal . str_repeat(' ', max(0, $fieldWidth - mb_strlen($displayVal)));
-            $cursorOffset = mb_strlen($displayVal);
+            $cursorOffset = max(0, min($fieldWidth, $cur - $scroll));
 
             $draw = static function(int $r, string $line) use ($conn, $startCol): void {
                 self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
@@ -3320,7 +3482,7 @@ class TelnetUtils
                 $draw($r,   $btmBorder);
             }
 
-            // Place cursor at end of input field and show it
+            // Place the terminal cursor at the logical insertion point and show it
             $cursorCol = $startCol + 1 + (($inlinePrompt && $hasPrompt) ? ($promptWidth + 1) : 0) + $cursorOffset + 1; // box left + vt + space + chars
             self::safeWrite($conn, "\033[{$inputRow};{$cursorCol}H\033[?25h");
 
@@ -3332,8 +3494,31 @@ class TelnetUtils
         $lastRows = $state['rows'] ?? 24;
         $lastCols = $state['cols'] ?? 80;
 
+        // Shared UTF-8-safe editing contract: append + backspace + delete +
+        // mid-line cursor motion (Left/Right/Home/End/Ctrl-A/Ctrl-E). The boxed
+        // field scrolls horizontally to keep the insertion point visible.
+        // Sensitive callers opt out of history by passing no key.
+        $editor   = new \BinktermPHP\TelnetServer\TerminalLineEditor($value, max(1, $maxLength), true);
+        $cursorPos = $editor->cursor();
+        $histKey  = trim((string)($options['history_key'] ?? ''));
+        $histIdx  = 0;
+        $drain    = static function () use ($server, $conn, &$state): void {
+            if (method_exists($server, 'drainPendingInput')) {
+                $server->drainPendingInput($conn, $state);
+            }
+        };
+
+        $Editor  = \BinktermPHP\TelnetServer\TerminalLineEditor::class;
+        $History = \BinktermPHP\TelnetServer\TerminalLineHistory::class;
+        $moreBuffered = static function () use ($server, $conn, &$state): bool {
+            return method_exists($server, 'hasBufferedInput')
+                && $server->hasBufferedInput($conn, $state);
+        };
+
         while (true) {
-            $key = $server->readKeyWithIdleCheck($conn, $state);
+            $key = method_exists($server, 'readLineKeyWithIdleCheck')
+                ? $server->readLineKeyWithIdleCheck($conn, $state)
+                : $server->readKeyWithIdleCheck($conn, $state);
 
             $newRows = $state['rows'] ?? $lastRows;
             $newCols = $state['cols'] ?? $lastCols;
@@ -3349,36 +3534,49 @@ class TelnetUtils
             }
 
             if ($key === null) {
+                $drain();
                 return null;
             }
 
-            if ($key === 'ENTER') {
+            // A stray empty token (protocol chatter that slipped through) is a
+            // no-op — never a cancel. Only an explicit Esc / Ctrl-C cancels.
+            if ($key === '') {
+                continue;
+            }
+
+            if ($histKey !== '' && ($key === 'UP' || $key === 'DOWN')) {
+                [$histIdx, $recalled] = $History::step($state, $histKey, $histIdx, $key === 'UP' ? 1 : -1);
+                $editor->setValue($recalled ?? '');
+                $value = $editor->value();
+                $cursorPos = $editor->cursor();
+                $render();
+                continue;
+            }
+
+            $result = $editor->apply($key);
+            $value  = $editor->value();
+            $cursorPos = $editor->cursor();
+
+            if ($result === $Editor::RESULT_SUBMIT) {
                 self::safeWrite($conn, "\033[?25l");
+                $drain();
+                if ($histKey !== '') {
+                    $History::push($state, $histKey, $value);
+                }
                 return $value;
             }
-
-            // ESC (bare) returns '' — treat as cancel, along with Ctrl+C
-            if ($key === '' || $key === 'CTRL_C') {
+            if ($result === $Editor::RESULT_CANCEL) {
                 self::safeWrite($conn, "\033[?25l");
+                $drain();
                 return null;
             }
 
-            if ($key === 'BACKSPACE' || $key === 'DELETE') {
-                if ($value !== '') {
-                    $value = mb_substr($value, 0, mb_strlen($value) - 1);
-                    $render();
-                }
+            // Coalesce a paste / type-ahead burst: keep consuming queued keys
+            // and only redraw once the input has momentarily drained.
+            if ($moreBuffered()) {
                 continue;
             }
-
-            if (str_starts_with($key, 'CHAR:')) {
-                $char = substr($key, 5);
-                if (mb_strlen($value) < $maxLength && $char !== '') {
-                    $value .= $char;
-                    $render();
-                }
-                continue;
-            }
+            $render();
         }
     }
 

@@ -16,6 +16,37 @@ use BinktermPHP\Template;
 use BinktermPHP\UserCredit;
 use Pecee\SimpleRouter\SimpleRouter;
 
+if (!function_exists('webAnsiAvatarHtml')) {
+    /**
+     * Server-rendered ANSI plate, or null when the user has no saved avatar.
+     * Lookup failures leave the existing initials fallback in place.
+     */
+    function webAnsiAvatarHtml(int $userId, string $username, ?array $viewer = null): ?string
+    {
+        if ($userId <= 0) {
+            return null;
+        }
+        try {
+            $avatar = (new \BinktermPHP\Avatar\AnsiAvatarStore(\BinktermPHP\Database::getInstance()->getPdo()))->find($userId);
+        } catch (\Throwable $e) {
+            if (function_exists('getServerLogger')) {
+                getServerLogger()->warning('ANSI avatar lookup failed: ' . $e->getMessage());
+            }
+            return null;
+        }
+        if ($avatar === null) {
+            return null;
+        }
+        $label = webLocalizedText(
+            'ui.avatar.aria.plate',
+            'ANSI avatar of {name}',
+            $viewer,
+            ['name' => $username]
+        );
+        return \BinktermPHP\Avatar\AnsiAvatarWeb::render($avatar, $username, true, $label);
+    }
+}
+
 if (!function_exists('webLocalizedText')) {
     function webLocalizedText(string $key, string $fallback, ?array $user = null, array $params = [], string $namespace = 'common'): string
     {
@@ -96,14 +127,36 @@ if (!function_exists('requireBasicAuthUser')) {
             exit;
         }
 
-        $auth = new Auth();
-        $user = $auth->authenticateCredentials($credentials['username'], $credentials['password']);
-        if ($user === false) {
+        // QWK-over-HTTP Basic auth is a public, unauthenticated credential
+        // check that calls Auth::authenticateCredentials() directly, bypassing
+        // the interactive /api/auth/login throttle. Apply the same shared
+        // dual-counter throttle here (same auth_login_attempts table, same
+        // thresholds) so this endpoint is not a rate-unlimited guessing oracle.
+        // The failure response is byte-identical to a wrong password — no
+        // lockout signal.
+        $clientIp = Auth::resolveClientIp();
+        $throttle = new \BinktermPHP\Security\LoginThrottle();
+        if (!$throttle->isAllowed($credentials['username'], $clientIp)) {
             header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
             http_response_code(401);
             echo 'Invalid username or password.';
             exit;
         }
+
+        $auth = new Auth();
+        $user = $auth->authenticateCredentials($credentials['username'], $credentials['password']);
+        if ($user === false) {
+            $throttle->recordFailure($credentials['username'], $clientIp);
+            $throttle->cleanOld();
+            header('WWW-Authenticate: Basic realm="' . addslashes($realm) . '"');
+            http_response_code(401);
+            echo 'Invalid username or password.';
+            exit;
+        }
+
+        // Successful auth: retire this identifier's failure counter. The
+        // source-IP counter is deliberately left to age out on its own.
+        $throttle->recordSuccess($credentials['username']);
 
         return $user;
     }
@@ -290,6 +343,12 @@ SimpleRouter::get('/', function() {
         $totalEchomailCount = $adminController->getTotalEchomailCount();
     }
 
+    $telnetHost = (string)parse_url(\BinktermPHP\Config::getSiteUrl(), PHP_URL_HOST);
+    $telnetPort = (int)\BinktermPHP\Config::env('TELNET_PORT', '2323');
+    $telnetAddress = $telnetHost !== ''
+        ? $telnetHost . ($telnetPort !== 23 ? ':' . $telnetPort : '')
+        : null;
+
     // Build dashboard card registry and layout
     $creditsConfig = $bbsConfig['credits'] ?? [];
     $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
@@ -323,6 +382,7 @@ SimpleRouter::get('/', function() {
         'show_dashboard_system_info_stats' => $showDashboardSystemInfoStats,
         'registered_user_count' => $registeredUserCount,
         'total_login_count' => $totalLoginCount,
+        'telnet_address' => $telnetAddress,
         'system_uptime_seconds' => $systemUptimeSeconds,
         'system_uptime_days' => $systemUptimeDays,
         'system_uptime_hours' => $systemUptimeHours,
@@ -618,9 +678,8 @@ SimpleRouter::get('/echomail', function() {
         }
     }
 
-    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $isAdmin = !empty($user['is_admin']);
-    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $echoDateOrder = MessageHandler::resolveEchomailDateField($userId);
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
     $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
@@ -670,9 +729,8 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     if (strpos($echoarea, '@') !== false) {
         [$echoarea, $domain] = explode('@', $echoarea, 2);
     }
-    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $isAdmin = !empty($user['is_admin']);
-    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $echoDateOrder = MessageHandler::resolveEchomailDateField($userId);
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled    = !empty($bbsConfig['ai_assistant']['enabled']);
     $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
@@ -941,7 +999,8 @@ SimpleRouter::get('/profile', function() {
         'credits_enabled' => !empty($creditsEnabled),
         'credits_symbol' => $creditsSymbol,
         'credit_balance' => $creditBalance,
-        'credits_config' => $creditsConfig
+        'credits_config' => $creditsConfig,
+        'ansi_avatar_html' => webAnsiAvatarHtml((int)($user['user_id'] ?? 0), (string)$user['username'], $user),
     ];
 
     $template = new Template();
@@ -1056,7 +1115,8 @@ SimpleRouter::get('/profile/{username}', function($username) {
         'viewer_is_admin' => $viewerIsAdmin,
         'transactions' => $transactions,
         'activity_log' => $activityLog,
-        'transfer_fee_percent' => $transferFeePercent
+        'transfer_fee_percent' => $transferFeePercent,
+        'ansi_avatar_html' => webAnsiAvatarHtml((int)$targetUser['id'], (string)$targetUser['username'], $currentUser),
     ];
 
     $template = new Template();

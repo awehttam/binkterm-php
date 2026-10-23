@@ -10,6 +10,25 @@ For the higher-level direction and rationale, see:
 
 - `docs/proposals/MariaMySQLCompat.md`
 
+## Migration SQL boundaries
+
+`scripts/upgrade.php` uses `src/PostgresSqlSplitter.php` for PostgreSQL statement
+boundaries. It preserves comments and quoted content, handles nested block
+comments, doubled quotes, escape strings (including newline continuation), and
+case-sensitive dollar tags. The runner reads `standard_conforming_strings` before
+each yielded statement, so changes made by an earlier statement are respected.
+Unclosed lexical constructs raise an error with their opening line and byte
+offset; both lexical and SQL errors roll back the current migration and its
+`database_migrations` record. PHP migration execution is unchanged.
+
+This is a lexical splitter, not a PostgreSQL grammar validator or a psql script
+interpreter. Use quoted bodies for procedural migrations; psql meta-commands,
+COPY-from-stdin data and unquoted SQL-standard `BEGIN ATOMIC` bodies are outside
+its statement-boundary contract. The separate base-schema installer in
+`scripts/install.php` retains its existing parser; it is not the upgrade path.
+
+`PostgresSqlSplitterTest` checks lexical cases and every checked-out SQL migration.
+
 ## How To Use This Document
 
 - Update this file when adding a new PostgreSQL-specific dependency that future MariaDB/MySQL compatibility work would need to understand.
@@ -216,6 +235,17 @@ Representative examples:
 - Difficulty:
   - medium
 
+### Advisory locks for door admission
+
+- Why PostgreSQL-specific:
+  - `pg_advisory_xact_lock(DoorSessionManager::ADMISSION_LOCK_KEY)` serializes door admission (per-door `max_nodes` check, node selection and the session insert) across processes until the admission transaction ends; row locks cannot protect a count or a free node that has no row yet
+- Current locations:
+  - `src/DoorSessionManager.php` (`findAvailableNode()`)
+- Likely future strategy:
+  - a dedicated single-row lock table locked with `SELECT ... FOR UPDATE`, or the target database's named-lock facility
+- Difficulty:
+  - low
+
 ## Schema And Type Dependencies
 
 ### `SERIAL` and `BIGSERIAL`
@@ -368,6 +398,22 @@ Representative schema examples:
   - isolate query rewrites there separately from the PHP app
 - Difficulty:
   - medium to high
+
+### ANSI avatar BIN storage
+
+- Why PostgreSQL-specific:
+  - `user_ansi_avatars.avatar_bin` is `BYTEA`
+  - the size rule is `octet_length(avatar_bin) = 120`
+  - PHP reads and writes the value with `encode` / `decode(..., 'base64')` so the driver does not interpret bytea text format
+- Current locations:
+  - `database/migrations/v20261014051503_user_ansi_avatars.sql`
+  - `src/Avatar/AnsiAvatarStore.php`
+- Likely future strategy:
+  - store the same 120 bytes in a binary or `VARBINARY(120)` column and bind them as bytes
+- Difficulty:
+  - low
+- Intentional:
+  - yes. The BIN is fixed-width binary, and the database rejects every other length.
 
 ## Migration Hotspots
 

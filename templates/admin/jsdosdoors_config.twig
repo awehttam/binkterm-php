@@ -41,15 +41,6 @@
         <div class="col-lg-4">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.jsdosdoors_config.doors', {}, locale, ['common']) }}</h6>
-                </div>
-                <div class="card-body" id="jsdoorsList">
-                    <div class="text-muted">{{ t('ui.admin.jsdosdoors_config.no_config_loaded', {}, locale, ['common']) }}</div>
-                </div>
-            </div>
-
-            <div class="card shadow mt-3">
-                <div class="card-header">
                     <h6 class="mb-0"><i class="fas fa-plus-circle me-1"></i>{{ t('ui.admin.door_discover.heading', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body p-0" id="discoverDoorsList">
@@ -67,14 +58,31 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">{{ t('ui.admin.jsdosdoors_config.config_filename', {}, locale, ['common']) }}</h6>
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatJsdoorsJson()">{{ t('ui.admin.jsdosdoors_config.format_json', {}, locale, ['common']) }}</button>
                         <button class="btn btn-sm btn-outline-primary" type="button" onclick="saveJsdoorsConfig()" id="saveJsdoorsBtn">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
                     </div>
                 </div>
                 <div class="card-body">
                     <div id="jsdoorsEditorAlert"></div>
-                    <textarea id="jsdoorsJsonEditor" class="form-control" rows="20" spellcheck="false"
-                        style="font-family: Consolas, 'Courier New', monospace;"></textarea>
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="doorFormTab" data-bs-toggle="tab" data-bs-target="#doorFormPane" type="button" role="tab">{{ t('ui.admin.door_config_form.tab_settings', {}, locale, ['common']) }}</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="doorJsonTab" data-bs-toggle="tab" data-bs-target="#doorJsonPane" type="button" role="tab">{{ t('ui.admin.door_config_form.tab_json', {}, locale, ['common']) }}</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="doorFormPane" role="tabpanel">
+                            <div id="doorFormContainer"></div>
+                        </div>
+                        <div class="tab-pane fade" id="doorJsonPane" role="tabpanel">
+                            <div class="mb-2 text-end">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatJsdoorsJson()">{{ t('ui.admin.jsdosdoors_config.format_json', {}, locale, ['common']) }}</button>
+                            </div>
+                            <textarea id="jsdoorsJsonEditor" class="form-control" rows="20" spellcheck="false"
+                                style="font-family: Consolas, 'Courier New', monospace;"></textarea>
+                        </div>
+                    </div>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <small class="text-muted" id="jsdoorsJsonStatus">{{ t('ui.admin.jsdosdoors_config.waiting_for_config', {}, locale, ['common']) }}</small>
                         <small class="text-muted">{{ t('ui.admin.jsdosdoors_config.json_validation_before_save', {}, locale, ['common']) }}</small>
@@ -83,11 +91,19 @@
             </div>
         </div>
     </div>
+    <datalist id="manifestCategoriesList">
+        <option value="JSDOS">
+        {% for cat in standard_categories %}
+        <option value="{{ cat }}">
+        {% endfor %}
+    </datalist>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/door-config-form.js?v=1.3.0"></script>
 <script>
+let doorForm = null;
 let jsdoorsConfigState = {
     active: false,
     configJson: null,
@@ -107,6 +123,21 @@ document.addEventListener('DOMContentLoaded', function() {
         loadJsdoorsConfig();
         loadAvailableDoors();
         loadDiscoverDoors();
+    });
+    doorForm = DoorConfigForm.create({
+        container: 'doorFormContainer',
+        manifestType: 'jsdos',
+        editor: 'jsdoorsJsonEditor',
+        indent: 2,
+        fields: [
+            {key: 'enabled', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_enabled', fallback: 'Enabled'},
+            {key: 'display_name', type: 'text', labelKey: 'ui.admin.door_manifest_editor.field.runtime_display_name', fallback: 'Display Name Override', helpKey: 'ui.admin.door_manifest_editor.field.runtime_display_name_help', helpFallback: 'Overrides the manifest name in the game library. Leave blank to use the manifest name.'},
+            {key: 'display_description', type: 'textarea', labelKey: 'ui.admin.door_manifest_editor.field.runtime_display_description', fallback: 'Display Description Override'},
+            {key: 'genre', type: 'tags', labelKey: 'ui.admin.door_manifest_editor.field.game_genre', fallback: 'Genre / Tags', helpKey: 'ui.admin.door_manifest_editor.field.tags_help', helpFallback: 'Comma-separated categories or tags (e.g. JSDOS, Adventure, Sci-Fi).'}
+        ],
+        getDoors: () => jsdoorsConfigState.availableDoors,
+        onChange: () => { updateJsonStatus(); renderDoorList(); },
+        onSave: () => saveJsdoorsConfig()
     });
     document.getElementById('jsdoorsJsonEditor').addEventListener('input', () => {
         updateJsonStatus();
@@ -208,68 +239,9 @@ function parseEditorJson(value) {
 }
 
 function renderDoorList() {
-    const list = document.getElementById('jsdoorsList');
-    const editorValue = document.getElementById('jsdoorsJsonEditor').value;
-    const parsed = parseEditorJson(editorValue);
-
-    if (!parsed.valid || !parsed.data || typeof parsed.data !== 'object') {
-        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.jsdosdoors_config.invalid_json', 'Invalid JSON.')}</div>`;
-        return;
+    if (doorForm) {
+        doorForm.render();
     }
-
-    const configKeys = Object.keys(parsed.data);
-    const availableKeys = jsdoorsConfigState.availableDoors.map(door => door.id);
-    const mergedKeys = Array.from(new Set([...configKeys, ...availableKeys])).sort();
-
-    if (mergedKeys.length === 0) {
-        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.jsdosdoors_config.no_doors_defined', 'No doors defined.')}</div>`;
-        return;
-    }
-
-    const items = mergedKeys.map((key) => {
-        const value = parsed.data[key];
-        const enabled = value && typeof value === 'object' ? !!value.enabled : false;
-        const isMissing = !(key in parsed.data);
-        const doorInfo = jsdoorsConfigState.availableDoors.find(door => door.id === key);
-        const displayName = doorInfo?.name ? `${doorInfo.name}` : key;
-        const encodedKey = encodeURIComponent(key);
-        return `
-            <div class="d-flex justify-content-between align-items-center border-bottom py-2">
-                <div>
-                    <div class="fw-semibold">${escapeHtml(displayName)}</div>
-                    <small class="text-muted">${uiT('ui.admin.jsdosdoors_config.enabled_label', 'enabled')}: ${enabled ? uiT('ui.admin.jsdosdoors_config.true', 'true') : uiT('ui.admin.jsdosdoors_config.false', 'false')}${isMissing ? ' ' + uiT('ui.admin.jsdosdoors_config.not_in_config', '(not in config)') : ''}</small>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <a href="/admin/doors/jsdos/${encodedKey}/manifest" class="btn btn-sm btn-outline-info" title="${uiT('ui.admin.door_manifest_editor.heading', 'Door Manifest Editor')}">
-                        <i class="fas fa-file-code"></i>
-                    </a>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" data-door-key="${encodedKey}" ${enabled ? 'checked' : ''} onchange="toggleDoorEnabled(this)">
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    list.innerHTML = items.join('');
-}
-
-function toggleDoorEnabled(input) {
-    const key = decodeURIComponent(input.dataset.doorKey || '');
-    const enabled = input.checked;
-    const editor = document.getElementById('jsdoorsJsonEditor');
-    const parsed = parseEditorJson(editor.value);
-    if (!parsed.valid) {
-        return;
-    }
-
-    if (!parsed.data[key] || typeof parsed.data[key] !== 'object') {
-        parsed.data[key] = {};
-    }
-
-    parsed.data[key].enabled = enabled;
-    editor.value = JSON.stringify(parsed.data, null, 2);
-    updateJsonStatus();
 }
 
 function formatJsdoorsJson() {

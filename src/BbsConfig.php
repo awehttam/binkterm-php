@@ -202,6 +202,34 @@ class BbsConfig
     }
 
     /**
+     * @return bool Whether to throttle Telnet/terminal connection speed to simulate dialup baud rates.
+     */
+    public static function getTerminalThrottleSpeed(): bool
+    {
+        self::load();
+        return !empty(self::$config['terminal_server']['throttle_speed']);
+    }
+
+    /**
+     * @return int The simulated dialup baud rate (default 28800).
+     */
+    public static function getTerminalThrottleBaud(): int
+    {
+        self::load();
+        $baud = (int)(self::$config['terminal_server']['throttle_baud'] ?? 28800);
+        return $baud > 0 ? $baud : 28800;
+    }
+
+    /**
+     * @return bool Whether baud throttling also applies to SSH connections.
+     */
+    public static function getTerminalThrottleSsh(): bool
+    {
+        self::load();
+        return !empty(self::$config['terminal_server']['throttle_ssh']);
+    }
+
+    /**
      * Return the shell modes sysops allow users to select via TERMSERVER_ALLOWEDSHELLS.
      *
      * The environment variable accepts a space-separated list such as "tui line".
@@ -343,6 +371,20 @@ class BbsConfig
     public static function shouldAlwaysDisplayBulletins(): bool
     {
         return self::getBulletinDisplayMode() === 'always';
+    }
+
+    public static function getDefaultDateDisplayStyle(): string
+    {
+        self::load();
+        $val = strtolower(trim((string)(self::$config['default_date_display_style'] ?? 'relative')));
+        return in_array($val, ['relative', 'date'], true) ? $val : 'relative';
+    }
+
+    public static function getDefaultEchomailDateField(): string
+    {
+        self::load();
+        $val = strtolower(trim((string)(self::$config['default_echomail_date_field'] ?? 'received')));
+        return in_array($val, ['received', 'written'], true) ? $val : 'received';
     }
 
     public static function isFeatureEnabled(string $feature): bool

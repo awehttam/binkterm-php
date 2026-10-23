@@ -6,6 +6,7 @@
         "version": "1.0.0",
         "author": "Claude Opus 4.6",
         "description": "Turn-based RPG where players fight monsters, level up, collect loot, and battle other players in PvP combat.",
+        "genre": ["RPG", "Multiplayer"],
         "entry_point": "index.php",
         "icon": "icon.svg"
     },

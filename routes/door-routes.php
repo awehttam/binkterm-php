@@ -7,6 +7,7 @@
 
 use BinktermPHP\ActivityTracker;
 use BinktermPHP\DoorSessionManager;
+use BinktermPHP\DoorCapacityException;
 use BinktermPHP\DoorManager;
 use BinktermPHP\NativeDoorManager;
 use BinktermPHP\RLoginDoorManager;
@@ -300,7 +301,13 @@ SimpleRouter::post('/api/door/launch', function() {
         }
 
         // Start new session
-        $session = $sessionManager->startSession($userId, $doorName, $userData, $doorType);
+        $session = $sessionManager->startSession(
+            $userId,
+            $doorName,
+            $userData,
+            $doorType,
+            isset($maxNodesLimit) && $maxNodesLimit !== null ? (int)$maxNodesLimit : null
+        );
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_DOSDOOR_PLAY, null, $doorName);
 
@@ -327,6 +334,13 @@ SimpleRouter::post('/api/door/launch', function() {
             ]
         ]);
 
+    } catch (DoorCapacityException $e) {
+        // Lost a concurrent race for the last slot (the pre-check above passed).
+        getDoorLogger()->warning("DOSDOOR: [API] Door '$doorName' at capacity: " . $e->getMessage());
+        doorApiError('errors.door.capacity_reached_detail', 'Door at capacity', 503, [
+            'active_sessions' => $e->activeSessions,
+            'max_nodes' => $e->maxNodes,
+        ]);
     } catch (Exception $e) {
         getDoorLogger()->error("DOSDOOR: [API] Launch failed for '$doorName': " . $e->getMessage());
         doorApiError('errors.door.launch_failed', 'Failed to start door session', 500);
@@ -442,7 +456,7 @@ SimpleRouter::post('/api/door/guest/launch', function() {
         ];
 
         $sessionManager = new DoorSessionManager(null, true);
-        $session = $sessionManager->startSession($guestUserId, $doorName, $userData, 'native');
+        $session = $sessionManager->startSession($guestUserId, $doorName, $userData, 'native', $maxNodes);
 
         $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');
         if (empty($wsUrl)) {
@@ -468,6 +482,13 @@ SimpleRouter::post('/api/door/guest/launch', function() {
             ],
         ]);
 
+    } catch (DoorCapacityException $e) {
+        http_response_code(503);
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Door at capacity',
+            'message' => "This door is currently full ({$e->maxNodes} player(s) maximum). Please try again later.",
+        ]);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode([
@@ -635,6 +656,14 @@ SimpleRouter::get('/play/{doorid}', function($doorid) {
 // Serve door assets (icons, screenshots, etc.)
 // Only serves assets explicitly declared in the door's manifest for security
 SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
+    // Release session lock immediately and clean anti-cache headers so asset requests don't queue
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    header_remove('Pragma');
+    header_remove('Expires');
+    header_remove('Set-Cookie');
+
     // Sanitize door ID
     $doorid = preg_replace('/[^a-zA-Z0-9_-]/', '', $doorid);
 
@@ -660,9 +689,17 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
             return;
         }
 
+        $etag = '"' . md5($blob['data']) . '"';
+        header('ETag: ' . $etag);
         header('Content-Type: ' . $blob['mime']);
-        header('Content-Length: ' . strlen($blob['data']));
-        header('Cache-Control: public, max-age=86400');
+        header('Content-Length: ' . $blob['size']);
+        header('Cache-Control: public, max-age=604800, stale-while-revalidate=86400');
+
+        if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && trim($_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+            http_response_code(304);
+            return;
+        }
+
         echo $blob['data'];
         return;
     }
@@ -727,9 +764,20 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     $mimeType = $mimeTypes[$extension] ?? 'application/octet-stream';
 
-    // Serve the file
+    $mtime = filemtime($doorPath);
+    $etag = '"' . md5($doorid . $asset . $mtime . filesize($doorPath)) . '"';
+
+    header('ETag: ' . $etag);
+    header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
     header('Content-Type: ' . $mimeType);
     header('Content-Length: ' . filesize($doorPath));
-    header('Cache-Control: public, max-age=86400'); // Cache for 24 hours
+    header('Cache-Control: public, max-age=604800, stale-while-revalidate=86400');
+
+    if ((isset($_SERVER['HTTP_IF_NONE_MATCH']) && trim($_SERVER['HTTP_IF_NONE_MATCH']) === $etag) ||
+        (isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) && strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']) >= $mtime)) {
+        http_response_code(304);
+        return;
+    }
+
     readfile($doorPath);
 });

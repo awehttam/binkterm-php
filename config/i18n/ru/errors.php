@@ -400,6 +400,8 @@ return [
     'errors.admin.appearance.splash.license_required' => 'Для настройки заставочных страниц требуется действующая лицензия',
     'errors.admin.appearance.splash.save_failed' => 'Не удалось сохранить настройки заставки',
     'errors.admin.appearance.file_areas.save_failed' => 'Не удалось сохранить настройки областей файлов',
+    'errors.admin.appearance.doors.save_failed' => 'Не удалось сохранить настройки внешнего вида дверей',
+    'errors.admin.appearance.doors.categories_failed' => 'Не удалось загрузить категории дверей',
     'errors.admin.dashboard.ram_usage_unavailable' => 'Сведения об использовании оперативной памяти недоступны в данной системе',
     'errors.admin.shell_art.list_failed' => 'Не удалось вывести список файлов shell‑арта',
     'errors.admin.shell_art.upload.no_file' => 'Файл shell‑арта не загружен',
@@ -447,6 +449,12 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'Не удалось загрузить конфигурацию web‑дверей',
     'errors.admin.webdoors_config.save_failed' => 'Не удалось сохранить конфигурацию web‑дверей',
     'errors.admin.webdoors_config.activate_failed' => 'Не удалось активировать конфигурацию web‑дверей',
+    'errors.admin.areafix_grammars.load_failed' => 'Не удалось загрузить конфигурацию грамматик AreaFix',
+    'errors.admin.areafix_grammars.save_failed' => 'Не удалось сохранить конфигурацию грамматик AreaFix',
+    'errors.admin.areafix_grammars.message_text_required' => 'Сначала вставьте текст сообщения',
+    'errors.admin.areafix_grammars.ai_no_provider' => 'ИИ-провайдер не настроен',
+    'errors.admin.areafix_grammars.ai_invalid_response' => 'ИИ не вернул пригодное определение грамматики',
+    'errors.admin.areafix_grammars.ai_generate_failed' => 'Не удалось создать грамматику',
     'errors.admin.jsdosdoors_config.load_failed' => 'Не удалось загрузить конфигурацию JS‑DOS дверей',
     'errors.admin.jsdosdoors_config.save_failed' => 'Не удалось сохранить конфигурацию JS‑DOS дверей',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Не удалось активировать конфигурацию JS‑DOS дверей',
@@ -604,6 +612,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Недопустимый номер слота',
     'errors.webdoor.save_too_large' => 'Данные сохранения превышают максимально допустимый размер',
     'errors.webdoor.save_not_found' => 'Сохранение не найдено',
+    'errors.webdoor.game_unavailable' => 'Эта игра недоступна',
 
     // Door API
     'errors.door.door_name_required' => 'Требуется название двери',
@@ -670,11 +679,13 @@ return [
     'errors.admin.areafix.invalid_json' => 'Недопустимые данные запроса',
     'errors.admin.areafix.uplink_required' => 'Требуется адрес аплинка',
     'errors.admin.areafix.invalid_robot' => 'Робот должен быть "areafix" или "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Нераспознанный уровень грамматики',
     'errors.admin.areafix.commands_required' => 'Требуется хотя бы одна команда',
     'errors.admin.areafix.send_failed' => 'Не удалось отправить команду',
     'errors.admin.areafix.history_failed' => 'Не удалось загрузить историю сообщений',
     'errors.admin.areafix.sync_failed' => 'Не удалось синхронизировать области',
     'errors.admin.areafix.no_area_list_found' => 'В недавних ответах для этого аплинка не найдено списка эхоконференций',
+    'errors.admin.areafix.preview_failed' => 'Не удалось сформировать предпросмотр синхронизации',
     'errors.admin.poll.failed' => 'Не удалось выполнить опрос аплинка BinkP',
 
     'errors.admin.lovlynet.invalid_json' => 'Недопустимые данные запроса',
@@ -827,4 +838,11 @@ return [
     'errors.admin.bbs_settings.invalid_screening_config' => 'Неверная конфигурация проверки регистраций',
     'errors.admin.nntp_settings.load_failed' => 'Не удалось загрузить настройки NNTP',
     'errors.admin.nntp_settings.save_failed' => 'Не удалось сохранить настройки NNTP',
+
+    // ANSI avatars
+    'errors.avatar.invalid' => 'Данные ANSI-аватара недопустимы',
+    'errors.avatar.too_large' => 'Запрос ANSI-аватара слишком большой',
+    'errors.avatar.malformed' => 'ANSI-аватар должен быть каноническим Base64 BIN-файла на 120 байт',
+    'errors.avatar.blank' => 'ANSI-аватар не может быть пустым на чёрном фоне',
+    'errors.avatar.dimensions' => 'ANSI-аватар должен быть ровно 120 байт',
 ];

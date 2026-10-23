@@ -814,8 +814,8 @@ class NativeAdapter extends EmulatorAdapter {
 
         const env = {
             ...process.env,
-            DOOR_USER_NAME: userData.handle || userData.username || 'Guest',
-            DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
+            DOOR_USER_NAME: userData.handle || userData.username || userData.alias || userData.real_name || 'Guest',
+            DOOR_USER_REAL_NAME: userData.real_name || userData.alias || 'Guest',
             DOOR_USER_NUMBER: String(sessionData.user_id || ''),
             DOOR_NODE: String(node_number),
             DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
@@ -989,6 +989,8 @@ class RloginAdapter extends EmulatorAdapter {
         // was created.
         const terminalType = doorCfg.terminal_type || userData.rlogin_terminal_type || 'xterm-256color';
         const terminalSpeed = parseInt(doorCfg.terminal_speed, 10) || 38400;
+        this.emulateModemSpeed = doorCfg.emulate_modem_speed === true || doorCfg.emulate_modem_speed === 't' || doorCfg.emulate_modem_speed === 1 || doorCfg.emulate_modem_speed === '1';
+        this.terminalSpeed = terminalSpeed;
         const termString = `${terminalType}/${terminalSpeed}`;
 
         slog.log(`[${this.getName()}] Connecting to ${host}:${port} as client='${clientUsername}' server='${serverUsername}' term='${termString}'`);

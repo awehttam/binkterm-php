@@ -170,44 +170,34 @@ class OpenRouterProvider implements AiProviderInterface
         }
         $messages[] = ['role' => 'user', 'content' => $request->getUserPrompt()];
 
-        $payload = [
+        $basePayload = [
             'model' => $request->getModel(),
             'messages' => $messages,
             'temperature' => $request->getTemperature(),
             'max_tokens' => $request->getMaxOutputTokens(),
-            // Some models routed via openrouter/auto are hybrid reasoning models that spend
-            // the max_tokens budget on hidden reasoning tokens before ever emitting content,
-            // leaving message.content empty. Ask OpenRouter to skip reasoning where the
-            // underlying model supports toggling it; unsupported models ignore this field.
-            'reasoning' => ['enabled' => false],
         ];
 
         // Omit response_format: the underlying model selected by openrouter/auto may not
         // support JSON mode. JSON responses rely on prompt-level instructions instead.
 
         $url = $this->apiBase . '/chat/completions';
-        $this->logger->debug('OpenRouter request: ' . $url . ' model=' . ($request->getModel() ?? $this->defaultModel));
 
+        // Some models routed via openrouter/auto are hybrid reasoning models that spend
+        // the max_tokens budget on hidden reasoning tokens before ever emitting content,
+        // leaving message.content empty. Ask OpenRouter to skip reasoning where the
+        // underlying model supports toggling it; unsupported models ignore this field.
+        // A minority of models (routed via openrouter/auto, where the actual model isn't
+        // known ahead of time) instead make reasoning mandatory and reject the request
+        // outright with a 400 when asked to disable it — retry once without the field.
         try {
-            $response = HttpClient::postJson(
-                $url,
-                $payload,
-                $this->buildHeaders(),
-                $request->getTimeoutSeconds()
-            );
-        } catch (\Throwable $exception) {
-            $this->logger->debug('OpenRouter network error: ' . $exception->getMessage());
-            throw new AiException($this->getName(), $exception->getMessage(), null, 'network_error', null, $exception);
-        }
-
-        $this->logger->debug('OpenRouter response status=' . $response['status']);
-
-        $body = $response['body'];
-        if ($response['status'] >= 400) {
-            $message = $body['error']['message'] ?? 'OpenRouter API request failed.';
-            $code = $body['error']['code'] ?? 'api_error';
-            $this->logger->error('OpenRouter API error: status=' . $response['status'] . ' code=' . $code . ' message=' . $message);
-            throw new AiException($this->getName(), (string)$message, $response['status'], (string)$code, $response['raw']);
+            $body = $this->postCompletion($url, $basePayload + ['reasoning' => ['enabled' => false]], $request->getTimeoutSeconds());
+        } catch (AiException $exception) {
+            if ($exception->getHttpStatus() === 400 && $this->isReasoningMandatoryError($exception->getMessage())) {
+                $this->logger->debug('OpenRouter: model requires mandatory reasoning, retrying without the reasoning field');
+                $body = $this->postCompletion($url, $basePayload, $request->getTimeoutSeconds());
+            } else {
+                throw $exception;
+            }
         }
 
         $content = $this->extractContent($body);
@@ -235,6 +225,48 @@ class OpenRouterProvider implements AiProviderInterface
             isset($body['choices'][0]['finish_reason']) ? (string)$body['choices'][0]['finish_reason'] : null,
             $body
         );
+    }
+
+    /**
+     * POST a /chat/completions payload and return the decoded response body,
+     * throwing AiException on a network failure or an HTTP error status.
+     *
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function postCompletion(string $url, array $payload, int $timeoutSeconds): array
+    {
+        $this->logger->debug('OpenRouter request: ' . $url . ' model=' . ($payload['model'] ?? $this->defaultModel));
+
+        try {
+            $response = HttpClient::postJson($url, $payload, $this->buildHeaders(), $timeoutSeconds);
+        } catch (\Throwable $exception) {
+            $this->logger->debug('OpenRouter network error: ' . $exception->getMessage());
+            throw new AiException($this->getName(), $exception->getMessage(), null, 'network_error', null, $exception);
+        }
+
+        $this->logger->debug('OpenRouter response status=' . $response['status']);
+
+        $body = $response['body'];
+        if ($response['status'] >= 400) {
+            $message = $body['error']['message'] ?? 'OpenRouter API request failed.';
+            $code = $body['error']['code'] ?? 'api_error';
+            $this->logger->error('OpenRouter API error: status=' . $response['status'] . ' code=' . $code . ' message=' . $message);
+            throw new AiException($this->getName(), (string)$message, $response['status'], (string)$code, $response['raw']);
+        }
+
+        return $body;
+    }
+
+    /**
+     * Detect OpenRouter's "reasoning is mandatory and cannot be disabled" error, which some
+     * models routed via openrouter/auto return when asked to disable reasoning via the
+     * 'reasoning' => ['enabled' => false] payload field.
+     */
+    private function isReasoningMandatoryError(string $message): bool
+    {
+        return stripos($message, 'reasoning') !== false
+            && (stripos($message, 'mandatory') !== false || stripos($message, 'cannot be disabled') !== false);
     }
 
     /**

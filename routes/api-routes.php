@@ -122,6 +122,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $username = $input['username'] ?? '';
         $password = $input['password'] ?? '';
         $service = $input['service'] ?? 'web';
+        // Browser logins send the "Remember me" checkbox; clients that do not
+        // send it (terminal daemons, older scripts) keep the persistent cookie.
+        $remember = is_array($input) && array_key_exists('remember', $input)
+            ? $input['remember'] === true
+            : true;
 
         if (empty($username) || empty($password)) {
             apiError('errors.auth.missing_credentials', apiLocalizedText('errors.auth.missing_credentials', 'Username and password required'), 400);
@@ -133,20 +138,38 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        // Shared failed-login throttle for every interactive credential login
+        // (Web, Telnet, TLS-Telnet, SSH initial password auth, SSH fallback
+        // BbsSession login) -- they all reach this one route. For the terminal
+        // daemons Auth::resolveClientIp() yields the end-user IP from the
+        // authenticated X-Binkterm-Client-IP header. A throttled attempt returns
+        // the identical generic failure as a wrong password below -- no lockout
+        // signal, no username-enumeration signal.
+        $clientIp = Auth::resolveClientIp();
+        $loginThrottle = new \BinktermPHP\Security\LoginThrottle();
+        if (!$loginThrottle->isAllowed($username, $clientIp)) {
+            apiError('errors.auth.invalid_credentials', apiLocalizedText('errors.auth.invalid_credentials', 'Invalid credentials'), 401);
+            return;
+        }
+
         $auth = new Auth();
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
-            setcookie('binktermphp_session', $sessionId, [
-                'expires'  => time() + 86400 * 30,
-                'path'     => '/',
-                'httponly' => true,
-                'samesite' => 'Lax',
-            ]);
+            // Successful auth: retire this identifier's failure counter. The
+            // source-IP counter is deliberately left to age out on its own so
+            // holding one valid account cannot reset an IP spray counter.
+            $loginThrottle->recordSuccess($username);
+
+            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions($remember));
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
             }
-            // Track login event and retrieve CSRF token for the response
+            // Record the one login event for this successful login and retrieve
+            // the CSRF token for the response. This route is the single login
+            // boundary for Web, Telnet, TLS-Telnet and SSH, so the event carries
+            // $service and the real caller IP; the terminal daemons must not
+            // emit a second one after they get their session back from here.
             $csrfToken = null;
             try {
                 $db = Database::getInstance()->getPdo();
@@ -155,7 +178,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $row = $stmt->fetch();
                 if ($row) {
                     $userId = (int)$row['user_id'];
-                    ActivityTracker::track($userId, ActivityTracker::TYPE_LOGIN);
+                    ActivityTracker::trackLogin($userId, $service, Auth::resolveClientIp());
                     $meta      = new UserMeta();
                     $csrfToken = $meta->getValue($userId, 'csrf_token');
                 }
@@ -164,8 +187,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
             echo json_encode(['success' => true, 'csrf_token' => $csrfToken]);
         } else {
+            // Count only a real credential attempt that returned false --
+            // never a malformed request, network error, or client disconnect.
+            $loginThrottle->recordFailure($username, $clientIp);
+            $loginThrottle->cleanOld();
             apiError('errors.auth.invalid_credentials', apiLocalizedText('errors.auth.invalid_credentials', 'Invalid credentials'), 401);
         }
+    });
+
+    /**
+     * GET /api/auth/csrf-token
+     *
+     * Returns the current session's per-user CSRF token. The token is rotated
+     * on every login of the same user (Auth::createAuthenticatedSession), so a
+     * page or terminal session that cached it can become stale when the user
+     * logs in elsewhere; clients call this once to re-sync after a 403
+     * errors.auth.invalid_csrf_token and retry. Read-only: it never rotates the
+     * token, and it discloses nothing beyond what every authenticated page
+     * render already embeds (meta csrf-token); cross-origin pages cannot read
+     * the response.
+     */
+    SimpleRouter::get('/auth/csrf-token', function() {
+        header('Content-Type: application/json');
+        header('Cache-Control: no-store');
+        $user = RouteHelper::requireAuth();
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        echo json_encode(['success' => true, 'csrf_token' => (new UserMeta())->getValue($userId, 'csrf_token')]);
     });
 
     SimpleRouter::post('/auth/logout', function() {
@@ -325,13 +373,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $registrationSource = strtolower(trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_SOURCE'] ?? 'web')));
         $registrationToken = trim((string)($_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN'] ?? ''));
         $terminalClientIpHeader = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
-        $expectedRegistrationToken = trim((string)\BinktermPHP\Config::env(
-            'TERMINAL_REGISTRATION_SECRET',
-            'Chang3Me'
-        ));
+        $expectedRegistrationToken = \BinktermPHP\Config::terminalRegistrationSecret();
         $isTerminalRegistration = in_array($registrationSource, ['telnet', 'ssh'], true)
             && $expectedRegistrationToken !== ''
             && hash_equals($expectedRegistrationToken, $registrationToken);
+        if (in_array($registrationSource, ['telnet', 'ssh'], true) && $expectedRegistrationToken === '') {
+            getServerLogger()->warning(
+                'Terminal registration received but TERMINAL_REGISTRATION_SECRET is unset or still the published default; '
+                . 'treating it as a browser registration. Set a site-specific secret in .env and restart the terminal daemons.'
+            );
+        }
         $registrationIpAddress = $_SERVER['REMOTE_ADDR'] ?? '';
         if ($isTerminalRegistration && filter_var($terminalClientIpHeader, FILTER_VALIDATE_IP) !== false) {
             $registrationIpAddress = $terminalClientIpHeader;
@@ -602,19 +653,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $session = $auth->createAuthenticatedSession($newUserId, $service);
                 $sessionId = $session['session_id'];
 
-                setcookie('binktermphp_session', $sessionId, [
-                    'expires'  => time() + 86400 * 30,
-                    'path'     => '/',
-                    'httponly' => true,
-                    'samesite' => 'Lax',
-                ]);
+                setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
 
                 if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                     $_SESSION['show_login_bulletins_for_session'] = $sessionId;
                 }
 
                 try {
-                    ActivityTracker::track($newUserId, ActivityTracker::TYPE_LOGIN);
+                    ActivityTracker::trackLogin($newUserId, $service, Auth::resolveClientIp());
                 } catch (\Throwable $e) {
                     // Tracking errors must not break registration
                 }
@@ -1403,11 +1449,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         unset($row);
 
-        if ($roomId && !$beforeId) {
-            // No before_id means this is a room switch or initial page-load
-            // restore, not pagination (loadOlderMessages() always sets
-            // before_id) — the one signal that the user actually entered
-            // this room, as opposed to scrolling up for older history.
+        if ($roomId && !$beforeId && !empty($_GET['entered'])) {
+            // Clients pass entered=1 only on a real room switch or initial
+            // load. Pagination (before_id) and background snapshot refreshes
+            // (e.g. the terminal server re-fetching the active room) must not
+            // log an enter event.
             $roomName = $rows[0]['room_name'] ?? null;
             ActivityTracker::track($userId, ActivityTracker::TYPE_CHAT_ROOM_ENTER, $roomId, $roomName);
         }
@@ -7840,6 +7886,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoarea = urldecode($echoarea);
         }
 
+        // Comma-separated list of network domains (or '__local__') to scope an
+        // echomail search to when no specific echoarea is given
+        $networks = [];
+        if (!empty($_GET['network'])) {
+            $networks = array_filter(array_map(
+                fn($n) => trim(urldecode($n)),
+                explode(',', $_GET['network'])
+            ), fn($n) => $n !== '');
+        }
+
+        // Comma-separated list of interest IDs to scope an echomail search to
+        // when no specific echoarea is given
+        $interestIds = [];
+        if (!empty($_GET['interests'])) {
+            $interestIds = array_filter(array_map(
+                fn($n) => (int)trim($n),
+                explode(',', $_GET['interests'])
+            ), fn($n) => $n > 0);
+        }
+
         // Collect field-specific search params
         $searchParams = [];
         if (!empty($_GET['from_name'])) {
@@ -7888,7 +7954,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams);
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams, $networks, $interestIds);
 
         // For echomail searches, derive per-echo-area counts from already-fetched results
         // and compute filter counts by PK lookup — avoids re-running the expensive search query.
@@ -8132,6 +8198,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        $ansiAvatar = null;
+        try {
+            $stored = (new \BinktermPHP\Avatar\AnsiAvatarStore($db))->find((int)$targetUser['id']);
+            if ($stored !== null) {
+                $ansiAvatar = $stored->toBase64();
+            }
+        } catch (\Throwable $e) {
+            $ansiAvatar = null;
+        }
+
         echo json_encode([
             'success' => true,
             'profile' => [
@@ -8140,6 +8216,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'real_name' => (string)($targetUser['real_name'] ?? ''),
                 'location' => (string)($targetUser['location'] ?? ''),
                 'about_me' => (string)($targetUser['about_me'] ?? ''),
+                'ansi_avatar' => $ansiAvatar,
             ],
         ]);
     })->where(['id' => '[0-9]+']);
@@ -10131,6 +10208,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 72;
                 $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'click';
             }
+
+            $settings['effective_date_display_style'] = MessageHandler::resolveDateDisplayStyle($userId, $settings);
+            $settings['effective_echomail_date_field'] = MessageHandler::resolveEchomailDateField($userId, $settings);
 
             $settings['license_valid'] = \BinktermPHP\License::isValid();
 
@@ -13484,67 +13564,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // Tracker/MIDI media proxy for the retro audio player. The policy decides
+    // the URL (http/https on 80/443, allowed extensions), the exact public addresses the
+    // fetch may use (A and AAAA, all checked, curl pinned to them on every hop) and the
+    // response headers (always an opaque download; the remote Content-Type is never used).
     SimpleRouter::get('/media/raw', function() {
+        $policy = new \BinktermPHP\Security\MediaProxyPolicy();
         $url = trim($_GET['url'] ?? '');
-        $allowedExts = ['xm', 'it', 's3m', 'mod', 'stm', 'amf', '669', 'mptm', 'sid', 'mid', 'midi'];
-        $maxBytes = 8 * 1024 * 1024;
 
         $sendNotFound = function(): void {
             http_response_code(404);
             header('Content-Type: text/plain; charset=UTF-8');
+            header('X-Content-Type-Options: nosniff');
             echo 'Media not found';
         };
 
-        $isPublicHost = function(string $host): bool {
-            $host = trim($host, '[]');
-            if ($host === '' || in_array(strtolower($host), ['localhost', 'localhost.localdomain'], true)) {
-                return false;
-            }
-
-            $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
-            if (!$ips) {
-                return false;
-            }
-
-            foreach ($ips as $ip) {
-                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                    return false;
-                }
-            }
-
-            return true;
-        };
-
-        $isAllowedUrl = function(string $candidate) use ($allowedExts, $isPublicHost): bool {
-            if (!filter_var($candidate, FILTER_VALIDATE_URL)) {
-                return false;
-            }
-
-            $scheme = strtolower(parse_url($candidate, PHP_URL_SCHEME) ?? '');
-            $host = parse_url($candidate, PHP_URL_HOST) ?? '';
-            $path = strtolower(parse_url($candidate, PHP_URL_PATH) ?? '');
-            $ext = ltrim(strrchr($path, '.') ?: '', '.');
-
-            return in_array($scheme, ['http', 'https'], true)
-                && in_array($ext, $allowedExts, true)
-                && $isPublicHost($host);
-        };
-
-        if (!$isAllowedUrl($url) || !function_exists('curl_init')) {
+        $pin = $policy->pinFor($url);
+        if ($pin === null || !function_exists('curl_init')) {
             $sendNotFound();
             return;
         }
 
         $currentUrl = $url;
+        $maxBytes = \BinktermPHP\Security\MediaProxyPolicy::MAX_BYTES;
         $body = false;
-        $contentType = 'application/octet-stream';
         $status = 0;
 
         for ($redirects = 0; $redirects <= 3; $redirects++) {
             $ch = curl_init($currentUrl);
             $options = [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HEADER         => true,
                 CURLOPT_FOLLOWLOCATION => false,
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_TIMEOUT        => 15,
@@ -13552,56 +13600,64 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 CURLOPT_HTTPHEADER     => ['Accept: audio/*,application/octet-stream,*/*'],
                 CURLOPT_ENCODING       => 'gzip, deflate',
                 CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_MAXFILESIZE    => $maxBytes,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_MAXFILESIZE    => \BinktermPHP\Security\MediaProxyPolicy::MAX_BYTES,
+                // Connect only to the addresses the policy checked for this hop.
+                CURLOPT_RESOLVE        => \BinktermPHP\Security\MediaProxyPolicy::curlResolve($pin),
+                CURLOPT_PORT           => $pin['port'],
+                // Never through a proxy (an inherited http_proxy/HTTPS_PROXY/ALL_PROXY would resolve the name itself).
+                CURLOPT_PROXY          => '',
+                CURLOPT_NOPROXY        => '*',
+                // Collect headers and body ourselves so the byte cap holds even without a Content-Length.
+                CURLOPT_HEADERFUNCTION => function ($ch, string $line) use (&$headers): int {
+                    $headers .= $line;
+                    return strlen($line);
+                },
+                CURLOPT_WRITEFUNCTION  => function ($ch, string $chunk) use (&$body, $maxBytes): int {
+                    $body .= $chunk;
+                    return strlen($body) > $maxBytes ? -1 : strlen($chunk);
+                },
             ];
             if (defined('CURLOPT_PROTOCOLS')) {
                 $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
             }
             curl_setopt_array($ch, $options);
 
+            $headers = '';
+            $body = '';
             $raw = curl_exec($ch);
             $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $headerSize = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-            $curlContentType = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            $primaryIp = (string)curl_getinfo($ch, CURLINFO_PRIMARY_IP);
             curl_close($ch);
 
-            if ($raw === false) {
+            // Belt and braces: the connection must have gone to a checked address.
+            if ($raw === false || !\BinktermPHP\Security\MediaProxyPolicy::isPinnedAddress($pin, $primaryIp)) {
                 $sendNotFound();
                 return;
             }
 
-            $headers = substr($raw, 0, $headerSize);
-            $body = substr($raw, $headerSize);
-
             if (in_array($status, [301, 302, 303, 307, 308], true) && preg_match('/^Location:\s*(.+)$/mi', $headers, $m)) {
-                $location = trim($m[1]);
-                $nextUrl = filter_var($location, FILTER_VALIDATE_URL)
-                    ? $location
-                    : rtrim(dirname($currentUrl), '/') . '/' . ltrim($location, '/');
-                if (!$isAllowedUrl($nextUrl)) {
+                $nextUrl = \BinktermPHP\Security\MediaProxyPolicy::resolveReference($currentUrl, trim($m[1]));
+                $pin = $nextUrl === '' ? null : $policy->pinFor($nextUrl);
+                if ($pin === null) {
                     $sendNotFound();
                     return;
                 }
                 $currentUrl = $nextUrl;
                 continue;
             }
-
-            if ($curlContentType !== '') {
-                $contentType = preg_replace('/[\r\n].*/', '', $curlContentType) ?: $contentType;
-            }
             break;
         }
 
-        if ($status < 200 || $status >= 300 || $body === false || strlen($body) > $maxBytes) {
+        if ($status < 200 || $status >= 300 || $body === false || strlen($body) > \BinktermPHP\Security\MediaProxyPolicy::MAX_BYTES) {
             $sendNotFound();
             return;
         }
 
         $filename = sanitizeFilenameForWindows(basename(parse_url($currentUrl, PHP_URL_PATH) ?: 'audio'), 'audio');
-        header('Content-Type: ' . $contentType);
-        header('Content-Length: ' . strlen($body));
-        header('Content-Disposition: inline; filename="' . addcslashes($filename, '"\\') . '"');
-        header('Cache-Control: public, max-age=86400');
+        foreach (\BinktermPHP\Security\MediaProxyPolicy::responseHeaders($filename, strlen($body)) as $h) {
+            header($h);
+        }
         echo $body;
     });
 
@@ -14213,5 +14269,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $publicKey = $node['public_key'] ?? $node['node_id'];
         echo $service->getQrCodeSvg((string)$handle, (string)$publicKey);
     })->where(['id' => '[0-9]+']);
+
+    // Owner-scoped ANSI avatar routes. Loaded here so they inherit /api
+    // and the router group that is active while this closure runs.
+    require __DIR__ . '/avatar-routes.php';
 
 });

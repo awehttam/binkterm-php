@@ -11,10 +11,10 @@ class BbsDirectory
     private \PDO $db;
     private BbsDirectoryGeocoder $geocoder;
 
-    public function __construct(\PDO $db)
+    public function __construct(\PDO $db, ?BbsDirectoryGeocoder $geocoder = null)
     {
         $this->db = $db;
-        $this->geocoder = new BbsDirectoryGeocoder();
+        $this->geocoder = $geocoder ?? new BbsDirectoryGeocoder();
     }
 
     /**
@@ -583,32 +583,59 @@ class BbsDirectory
     /**
      * Backfill coordinates for entries that have a location but no coordinates.
      *
+     * Rows whose location is already known (via geocode_cache) to be a
+     * permanent NO_RESULT are excluded before the $limit is applied, so they
+     * can never occupy a bounded batch slot and starve newer, still-unknown
+     * rows further down the id order. This reuses the geocoder's own cache
+     * lookup/normalization -- no new schema, no retry counters.
+     *
      * @param int|null $limit
      * @param bool $dryRun
-     * @return array{selected:int, updated:int, skipped:int, failed:int, rows:array<int, array<string, mixed>>}
+     * @return array{selected:int, updated:int, skipped:int, excluded_known_no_result:int, failed:int, rows:array<int, array<string, mixed>>}
      */
     public function backfillMissingCoordinates(?int $limit = null, bool $dryRun = false): array
     {
-        $sql = "
+        // Bound how many candidate rows we scan in one call, independent of
+        // $limit -- keeps this bounded even if permanently-excluded rows
+        // vastly outnumber the genuinely eligible ones.
+        $scanCap = 2000;
+        if ($limit !== null && $limit > 0) {
+            $scanCap = max($scanCap, $limit * 20);
+        }
+
+        $stmt = $this->db->prepare("
             SELECT id, name, location, latitude, longitude
             FROM bbs_directory
             WHERE location IS NOT NULL
               AND BTRIM(location) <> ''
               AND (latitude IS NULL OR longitude IS NULL)
             ORDER BY id ASC
-        ";
+            LIMIT :scan_cap
+        ");
+        $stmt->bindValue(':scan_cap', $scanCap, \PDO::PARAM_INT);
+        $stmt->execute();
+        $candidates = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        if ($limit !== null && $limit > 0) {
-            $sql .= " LIMIT " . (int)$limit;
+        $entries = [];
+        $excludedKnownNoResult = 0;
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeLocation($candidate['location'] ?? null);
+            if ($normalized !== null && $this->geocoder->isKnownNoResult($normalized)) {
+                $excludedKnownNoResult++;
+                continue;
+            }
+
+            $entries[] = $candidate;
+            if ($limit !== null && $limit > 0 && count($entries) >= $limit) {
+                break;
+            }
         }
-
-        $stmt = $this->db->query($sql);
-        $entries = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $result = [
             'selected' => count($entries),
             'updated' => 0,
             'skipped' => 0,
+            'excluded_known_no_result' => $excludedKnownNoResult,
             'failed' => 0,
             'rows' => [],
         ];

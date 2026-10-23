@@ -21,7 +21,9 @@ inside the newsreader. See [Netmail newsgroup](#netmail-newsgroup) below.
   (Messages → Subgroups, or the web subscription page). Two members can see
   different group lists.
 - Members authenticate with their normal BinktermPHP username (or real name) and
-  password.
+  password. Repeated failures are limited by the shared
+  [failed-login throttle](CONFIGURATION.md#failed-login-throttle); a throttled
+  attempt gets the same `481 Authentication failed` as a wrong password.
 - Message bodies are served as UTF-8. The original FTN kludges (`MSGID`, `CHRS`,
   `SEEN-BY`, `PATH`, …) are preserved as `X-FTN-*` headers.
 - The daemon runs as its own process, `scripts/nntp_server.php`, separate from the

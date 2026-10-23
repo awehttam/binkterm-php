@@ -26,6 +26,7 @@ use BinktermPHP\FileAreaManager;
 use BinktermPHP\Realtime\PostgresSseEventMaintenance;
 use BinktermPHP\Realtime\SseEventMaintenanceInterface;
 use BinktermPHP\Admin\DoorManifest\DoorManifestTypeRegistry;
+use BinktermPHP\Admin\DoorManifest\DoorRuntimeFields;
 
 class AdminDaemonServer
 {
@@ -529,6 +530,23 @@ class AdminDaemonServer
                     } else {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'failed_to_send_signal']);
                     }
+                    break;
+                case 'get_areafix_grammars_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getAreafixGrammarsConfig()]);
+                    break;
+                case 'save_areafix_grammars_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeAreafixGrammarsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getAreafixGrammarsConfig()]);
                     break;
                 case 'get_webdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
@@ -1092,7 +1110,8 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'missing_manifest']);
                         break;
                     }
-                    $this->saveDoorManifest($doorType, $doorId, $manifest);
+                    $runtime = $data['runtime'] ?? null;
+                    $this->saveDoorManifest($doorType, $doorId, $manifest, is_array($runtime) ? $runtime : null);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['saved' => true]]);
                     break;
                 case 'list_door_manifest_files':
@@ -1525,7 +1544,59 @@ class AdminDaemonServer
         ]);
 
         // $message is a pre-formatted log line from Logger — write it verbatim.
-        @file_put_contents($logPath, $message . "\n", FILE_APPEND | LOCK_EX);
+        $this->writeLogLineOrWarn($logPath, $logFile, $message, $pid);
+    }
+
+    /**
+     * Appends one pre-formatted line to $logPath, falling through to this
+     * daemon's own logger (which this process has always been able to
+     * write to, e.g. data/logs/admin_daemon.log) if the target file isn't.
+     *
+     * This exists because Logger::log()'s own file write is a *sender-side*
+     * fallback trigger: when a caller's direct write to its target log file
+     * fails (e.g. a mismatch between the UID that created the file and the
+     * UID the caller runs as), it sends this UDP fallback to us — but
+     * udpLog() only confirms the packet left the sender's socket, not that
+     * we durably wrote it. If our own write to the exact same target then
+     * *also* fails (the same UID mismatch applies equally to us, since this
+     * daemon and everything it spawns via binkp_poll_sync/binkp_poll run as
+     * one fixed service account), the message was previously discarded here
+     * with no trace anywhere — silently losing a BinkP session's detailed
+     * protocol trace, which is exactly the data needed to diagnose a stalled
+     * or hung session after the fact. Falling through to this daemon's own
+     * logger means the content survives instead of vanishing, even though
+     * it lands in admin_daemon.log rather than the intended file.
+     *
+     * The underlying fix for a specific target file needing this fallback
+     * at all is ownership/permissions on that file (out of scope here —
+     * this only prevents the *content* from being silently lost).
+     */
+    private function writeLogLineOrWarn(string $logPath, string $logFile, string $message, int $pid): void
+    {
+        $written = @file_put_contents($logPath, $message . "\n", FILE_APPEND | LOCK_EX);
+
+        if ($written === false) {
+            // Guard against a self-referential loop: $this->logger writes to
+            // this daemon's own log file (admin_daemon.log). If the failing
+            // target *is* admin_daemon.log, warning through $this->logger
+            // would attempt that exact same failing write again and could
+            // trigger another UDP-fallback round-trip back into this same
+            // handler. There is nothing further to fall through to in that
+            // one case, so the failure is left unreported here rather than
+            // risking recursion — every other target is safe to warn about.
+            if ($logFile === 'admin_daemon.log') {
+                return;
+            }
+
+            $this->logger->warning(
+                'Admin daemon UDP logger failed to persist message - target log file not writable by this process',
+                [
+                    'log_file'     => $logFile,
+                    'pid'          => $pid,
+                    'lost_message' => $message,
+                ]
+            );
+        }
     }
 
     private function formatUdpTimestamp(int $timestampMs): string
@@ -1855,6 +1926,46 @@ class AdminDaemonServer
         return __DIR__ . '/../../config/taglines.txt';
     }
 
+    private function getAreafixGrammarsConfig(): array
+    {
+        $configPath = $this->getAreafixGrammarsConfigPath();
+        $examplePath = $this->getAreafixGrammarsExamplePath();
+
+        $configJson = file_exists($configPath) ? file_get_contents($configPath) : '[]';
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'config_json'  => $configJson,
+            'example_json' => $exampleJson,
+        ];
+    }
+
+    private function getAreafixGrammarsExamplePath(): string
+    {
+        return __DIR__ . '/../../config/areafix_grammars.json.example';
+    }
+
+    private function writeAreafixGrammarsConfig(array $config): void
+    {
+        $configPath = $this->getAreafixGrammarsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode(array_values($config), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode AreaFix grammars config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function getAreafixGrammarsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/areafix_grammars.json';
+    }
+
     private function getWebdoorsConfig(): array
     {
         $configPath = $this->getWebdoorsConfigPath();
@@ -2169,6 +2280,14 @@ class AdminDaemonServer
             if (!$this->isValidDoorManifestId($entry)) {
                 continue;
             }
+            // Underscore-prefixed directories (_doorsdk, _c64engine) are shared
+            // internal code, and dosdoors/rlogindoors are the launchers for
+            // other door types; none are WebDoors that take a manifest.
+            if ($doorType === 'web'
+                && (str_starts_with($entry, '_') || in_array($entry, ['dosdoors', 'rlogindoors'], true))
+            ) {
+                continue;
+            }
 
             $manifestPath = $typeRootPath . '/' . $entry . '/' . $manifestFilename;
             $manifestExists = file_exists($manifestPath);
@@ -2229,11 +2348,15 @@ class AdminDaemonServer
             }
         }
 
+        $fieldSections   = $typeDef->getFieldSections();
+        $fieldSections[] = DoorRuntimeFields::getSection($doorType);
+
         return [
             'manifest'              => $manifest,
+            'runtime'               => $this->readDoorRuntimeEntry($typeDef->getRuntimeConfigPath(), $doorId),
             'editable'              => $editable,
             'exists'                => $exists,
-            'field_sections'        => $typeDef->getFieldSections(),
+            'field_sections'        => $fieldSections,
             'picker_profiles'       => $typeDef->getFilePickerProfiles(),
             'root_directory'        => $typeDef->getRootDirectory(),
             'manifest_filename'     => $typeDef->getManifestFilename(),
@@ -2246,7 +2369,7 @@ class AdminDaemonServer
     /**
      * Validate and write a door manifest via the adapter's rules.
      */
-    private function saveDoorManifest(string $doorType, string $doorId, array $manifest): void
+    private function saveDoorManifest(string $doorType, string $doorId, array $manifest, ?array $runtime = null): void
     {
         $typeDef = DoorManifestTypeRegistry::getType($doorType);
         if ($typeDef === null) {
@@ -2304,10 +2427,63 @@ class AdminDaemonServer
             throw new \RuntimeException("Failed to write manifest: {$manifestPath}");
         }
 
+        if ($runtime !== null) {
+            $this->saveDoorRuntimeEntry($doorType, $typeDef->getRuntimeConfigPath(), $doorId, $runtime);
+        }
+
         $this->logger->info('Door manifest saved', [
             'type' => $doorType,
             'id'   => $doorId,
         ]);
+    }
+
+    /**
+     * Read one door's entry from a runtime config file (e.g. config/dosdoors.json).
+     *
+     * @return array The entry, or an empty array when the file or entry is missing.
+     */
+    private function readDoorRuntimeEntry(?string $relativePath, string $doorId): array
+    {
+        if ($relativePath === null) {
+            return [];
+        }
+        $path = __DIR__ . '/../../' . $relativePath;
+        if (!file_exists($path)) {
+            return [];
+        }
+        $config = json_decode((string)file_get_contents($path), true);
+        $entry = is_array($config) ? ($config[$doorId] ?? null) : null;
+        return is_array($entry) ? $entry : [];
+    }
+
+    /**
+     * Merge submitted runtime settings into one door's entry in its config file.
+     */
+    private function saveDoorRuntimeEntry(string $doorType, ?string $relativePath, string $doorId, array $runtime): void
+    {
+        if ($relativePath === null) {
+            return;
+        }
+        $path = __DIR__ . '/../../' . $relativePath;
+
+        $config = [];
+        if (file_exists($path)) {
+            $config = json_decode((string)file_get_contents($path), true);
+            if (!is_array($config)) {
+                throw new \RuntimeException("Runtime config contains invalid JSON: {$relativePath}");
+            }
+        }
+
+        $existing = isset($config[$doorId]) && is_array($config[$doorId]) ? $config[$doorId] : [];
+        $config[$doorId] = DoorRuntimeFields::merge($doorType, $existing, $runtime);
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode runtime config as JSON');
+        }
+        if (file_put_contents($path, $json . PHP_EOL) === false) {
+            throw new \RuntimeException("Failed to write runtime config: {$relativePath}");
+        }
     }
 
     /**

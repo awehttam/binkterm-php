@@ -136,8 +136,11 @@ class BinkpServer
         $this->reapChildren();
         if (count($this->childPids) >= $this->config->getMaxConnections()) {
             $this->log('Maximum connections reached, rejecting new connection', 'WARNING');
-            $this->sendBusy($clientSocket, 'Maximum connections reached');
-            socket_close($clientSocket);
+            // sendBusy() owns (and closes) the descriptor once it has exported
+            // it to a stream; close the raw socket here only if it did not.
+            if (!$this->sendBusy($clientSocket, 'Maximum connections reached')) {
+                $this->closeRawSocket($clientSocket);
+            }
             return;
         }
 
@@ -159,11 +162,17 @@ class BinkpServer
                 // Close the server socket in child - we don't need it
                 socket_close($this->serverSocket);
 
-                // Handle the connection
-                $this->handleConnectionSync($clientSocket, $connectionId, $clientIP);
-
-                // Exit child process
-                exit(0);
+                // Handle the connection. Nothing may escape past exit(0): an
+                // uncaught exception here would return the child into the
+                // parent's accept loop as a second server process.
+                try {
+                    $this->handleConnectionSync($clientSocket, $connectionId, $clientIP);
+                } catch (\Throwable $e) {
+                    $this->logQuietly("Unhandled error in connection child for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+                } finally {
+                    // Exit child process
+                    exit(0);
+                }
             } else {
                 // Parent process
                 // Close the client socket in parent - child owns it now
@@ -182,8 +191,11 @@ class BinkpServer
      */
     private function handleConnectionSync($clientSocket, $connectionId, $clientIP)
     {
+        $exported = false;
+        $stream = null;
+        $session = null;
         try {
-            $stream = $this->socketToStream($clientSocket);
+            $stream = $this->socketToStream($clientSocket, $exported);
             $session = new BinkpSession($stream, false, $this->config);
             $session->setLogger($this->logger);
             $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
@@ -217,7 +229,7 @@ class BinkpServer
                         $this->log("Failed to trigger packet processing: " . $e->getMessage(), 'ERROR');
                     }
                 } else {
-                    $sessionLogger->endSession('failed', 'Session processing failed');
+                    $sessionLogger->endSession('failed', 'Session ended abnormally without reaching clean termination (e.g. a hard EOB/inactivity timeout or premature disconnect - see protocol log)');
                     $this->log("Session failed for {$clientIP} ({$connectionId})", 'ERROR');
                 }
             } else {
@@ -225,16 +237,93 @@ class BinkpServer
                 $this->log("Handshake failed for {$clientIP} ({$connectionId})", 'ERROR');
             }
 
-            $session->close();
         } catch (\Throwable $e) {
+            $this->logQuietly("Connection error for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
             if (isset($sessionLogger)) {
-                $sessionLogger->endSession('failed', $e->getMessage());
+                try {
+                    $sessionLogger->endSession('failed', $e->getMessage());
+                } catch (\Throwable $logError) {
+                    $this->logQuietly("Failed to record session failure for {$clientIP} ({$connectionId}): " . $logError->getMessage(), 'ERROR');
+                }
             }
-            $this->log("Connection error for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+        } finally {
+            $this->releaseConnection($clientSocket, $exported, $stream, $session, $clientIP, $connectionId);
         }
+    }
 
-        if (is_resource($clientSocket)) {
-            socket_close($clientSocket);
+    /**
+     * Close an accepted connection exactly once, through whichever handle owns it.
+     *
+     * After socket_export_stream() the stream owns the descriptor: closing the
+     * stream closes the socket, and socket_close() on the exported Socket then
+     * fails. Before export the raw Socket is the only owner. Cleanup errors are
+     * logged, never thrown, because this runs at the end of a forked child.
+     *
+     * @param \Socket|mixed       $clientSocket
+     * @param resource|null       $stream
+     * @param BinkpSession|null   $session
+     */
+    private function releaseConnection($clientSocket, bool $exported, $stream, $session, $clientIP, $connectionId): void
+    {
+        try {
+            if ($session !== null) {
+                $session->close();
+            }
+        } catch (\Throwable $e) {
+            $this->logQuietly("Error closing session for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+        } finally {
+            if ($exported) {
+                // No session, or its close() failed before closing the stream.
+                $this->closeStream($stream);
+            } else {
+                $this->closeRawSocket($clientSocket);
+            }
+        }
+    }
+
+    /**
+     * Log from cleanup code without letting a logger failure escape.
+     */
+    private function logQuietly(string $message, string $level): void
+    {
+        try {
+            $this->log($message, $level);
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /**
+     * Close a stream if it is still open, without throwing.
+     *
+     * @param resource|null $stream
+     */
+    private function closeStream($stream): void
+    {
+        if (!is_resource($stream)) {
+            return;
+        }
+        try {
+            BinkpFrame::forgetSocket($stream);
+            fclose($stream);
+        } catch (\Throwable $e) {
+            $this->logQuietly("Failed to close connection stream: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Close an accepted Socket that was never exported to a stream, without throwing.
+     *
+     * @param \Socket|mixed $socket
+     */
+    private function closeRawSocket($socket): void
+    {
+        if (!$socket instanceof \Socket) {
+            return;
+        }
+        try {
+            socket_close($socket);
+        } catch (\Throwable $e) {
+            $this->logQuietly("Failed to close client socket: " . $e->getMessage(), 'ERROR');
         }
     }
 
@@ -260,19 +349,49 @@ class BinkpServer
         }
     }
     
-    private function sendBusy($socket, $message)
+    /**
+     * @return bool True once the socket has been exported to a stream (the
+     *              descriptor is then owned and closed here, whether or not
+     *              the busy frame was sent); false if it was never exported,
+     *              so the caller still owns the raw socket and must close it.
+     */
+    private function sendBusy($socket, $message): bool
     {
+        $exported = false;
+        $stream = null;
         try {
-            $stream = $this->socketToStream($socket);
+            $stream = $this->socketToStream($socket, $exported);
             $frame = BinkpFrame::createCommand(BinkpFrame::M_BSY, $message);
             $frame->writeToSocket($stream);
-        } catch (\Exception $e) {
-            $this->log("Failed to send busy message: " . $e->getMessage(), 'ERROR');
+        } catch (\Throwable $e) {
+            // Socket operations here (clearSocketTimeouts(), socket_export_stream())
+            // can throw \Error/\TypeError on PHP 8 (e.g. an already-closed
+            // socket) — not just \Exception — so this must catch the full
+            // \Throwable surface to avoid escaping into acceptConnection().
+            $this->logQuietly("Failed to send busy message: " . $e->getMessage(), 'ERROR');
+        } finally {
+            $this->closeStream($stream);
         }
+
+        return $exported;
     }
-    
-    private function socketToStream($socket)
+
+    /**
+     * Export an accepted socket to a configured stream.
+     *
+     * $exported becomes true as soon as socket_export_stream() succeeds; from
+     * then on the stream owns the descriptor and the raw Socket must not be
+     * closed. If configuring the stream fails afterwards, the stream is closed
+     * here before the error is rethrown, so the caller never has to close an
+     * exported socket it holds no stream for.
+     *
+     * @param \Socket $socket
+     * @return resource
+     */
+    private function socketToStream($socket, bool &$exported = false)
     {
+        $exported = false;
+
         // Normalize exported sockets to stream-only timeout handling for
         // consistency with the frame reader.
         $this->clearSocketTimeouts($socket);
@@ -281,13 +400,19 @@ class BinkpServer
         if ($socketResource === false) {
             throw new \Exception('Failed to convert socket to stream');
         }
+        $exported = true;
 
-        // Set stream timeout explicitly - socket options may not carry over on Linux
-        $timeout = $this->config->getBinkpTimeout();
-        stream_set_timeout($socketResource, $timeout);
+        try {
+            // Set stream timeout explicitly - socket options may not carry over on Linux
+            $timeout = $this->config->getBinkpTimeout();
+            stream_set_timeout($socketResource, $timeout);
 
-        // Ensure blocking mode is set consistently across platforms
-        stream_set_blocking($socketResource, true);
+            // Ensure blocking mode is set consistently across platforms
+            stream_set_blocking($socketResource, true);
+        } catch (\Throwable $e) {
+            $this->closeStream($socketResource);
+            throw $e;
+        }
 
         return $socketResource;
     }

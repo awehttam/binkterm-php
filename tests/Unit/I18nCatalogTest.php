@@ -20,7 +20,7 @@ class I18nCatalogTest extends TestCase
         self::$i18nDir = dirname(__DIR__, 2) . '/config/i18n';
         self::$locales = array_filter(
             array_map('basename', glob(self::$i18nDir . '/*', GLOB_ONLYDIR) ?: []),
-            fn($d) => !str_starts_with($d, '.')
+            fn($d) => !str_starts_with($d, '.') && $d !== 'overrides'
         );
     }
 
@@ -200,7 +200,10 @@ class I18nCatalogTest extends TestCase
     {
         $cases = [];
         $i18nDir = dirname(__DIR__, 2) . '/config/i18n';
-        $locales = array_map('basename', glob($i18nDir . '/*', GLOB_ONLYDIR) ?: []);
+        $locales = array_filter(
+            array_map('basename', glob($i18nDir . '/*', GLOB_ONLYDIR) ?: []),
+            fn($d) => $d !== 'overrides'
+        );
         foreach ($locales as $locale) {
             foreach (['common', 'errors'] as $ns) {
                 $cases["$locale/$ns"] = [$locale, $ns];

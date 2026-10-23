@@ -1,0 +1,5 @@
+{% if ansi_avatar_html %}
+    {{ ansi_avatar_html|raw }}
+{% else %}
+    <span class="bt-ansi-fallback" role="img" aria-label="{{ t('ui.avatar.aria.fallback', {'name': profile_username}, 'common') }}">{{ profile_username|slice(0, 2)|upper }}</span>
+{% endif %}

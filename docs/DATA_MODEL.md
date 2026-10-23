@@ -95,6 +95,16 @@ Key-value store for arbitrary user metadata.
 
 Used for: MCP bearer keys, per-user AI and display settings, daily login tracking, and other extensible preferences. Unique index on `(user_id, keyname)`.
 
+### `user_ansi_avatars`
+
+One optional Synchronet-compatible avatar per account. The BIN is glyph and attribute data, not an escape script. See [AnsiAvatars.md](AnsiAvatars.md).
+
+| Column | Notes |
+|--------|-------|
+| `user_id` | Primary key, FK → `users.id` `ON DELETE CASCADE` |
+| `avatar_bin` | `BYTEA`, exactly 120 bytes |
+| `updated_at` | `TIMESTAMPTZ`, refreshed on every save |
+
 ### `user_transactions`
 
 Append-only credit ledger. Every credit change goes through here via `UserCredit::transact()`. The `users.credit_balance` column is the running total; `user_transactions` is the audit trail.
@@ -179,6 +189,7 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `activity_categories` / `activity_types` / `user_activity_log` | User activity analytics |
 | `pending_users` | Registration requests awaiting approval; retained after approval/rejection for history. `risk_score` / `risk_flags` (JSONB) / `screening_forced_review` hold the registration-screening result |
 | `registration_attempts` | Per-IP registration attempt log used for rate limiting and the screening velocity signal |
+| `auth_login_attempts` | Failed interactive-login log for the shared `POST /api/auth/login` throttle (`BinktermPHP\Security\LoginThrottle`). One row per real failed credential attempt; two rolling-window counters keyed on the normalized username (`identifier_key`) and the resolved client IP (`ip_key`). `success` flips to TRUE when a later successful login for that identifier retires its rows from the username counter — the IP counter ignores the flag. No password or request payload is stored; rows are cleaned after 1h |
 | `tor_exit_nodes` | Cached Tor exit node IPs for the registration-screening Tor signal; refreshed every 6h by `binkp_scheduler.php` via `scripts/update_tor_exit_list.php` |
 | `disposable_email_domains` | Cached disposable/throwaway email provider domains for the registration-screening `disposable_email` signal; refreshed every 24h by `binkp_scheduler.php` via `scripts/update_disposable_email_list.php` |
 | `screening_list_refresh` | Last-run/status tracking for screening cache-list refresh jobs, so the scheduler can gate them to a fixed interval |
@@ -245,6 +256,8 @@ ever increases, so when an `echomail` row is pruned its mapping row is removed
 users ──────────────────────────────────────────────────────────────┐
   │                                                                  │
   ├── users_meta (key-value preferences and secrets)                 │
+  │                                                                  │
+  ├── user_ansi_avatars (one 120-byte BIN per account)               │
   │                                                                  │
   ├── user_transactions (credit ledger)                              │
   │                                                                  │

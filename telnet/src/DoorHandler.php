@@ -102,7 +102,7 @@ class DoorHandler
             $entry = $doorList[$selected];
             $doorName = $entry['data']['name'] ?? $entry['id'];
             $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
-            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
+            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName, $entry['data'] ?? []);
             // Return to the door menu so users can launch another door or back out explicitly.
             continue;
         }
@@ -117,8 +117,9 @@ class DoorHandler
      * @param string $session Auth session cookie value
      * @param string $doorId Door identifier (e.g. "lord")
      * @param string $doorName Human-readable door name for display
+     * @param array $doorData Door configuration/manifest data
      */
-    private function launchDoor($conn, array &$state, string $session, string $doorId, string $doorName): void
+    private function launchDoor($conn, array &$state, string $session, string $doorId, string $doorName, array $doorData = []): void
     {
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.launching', 'Launching {name}...', ['name' => $doorName], $state['locale']), TelnetUtils::ANSI_CYAN));
@@ -166,7 +167,21 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
-        $this->relayLoop($conn, $state, $wsSock, $doorType);
+        // If this door has emulate_modem_speed enabled, temporarily set baud throttling
+        $prevThrottleBaud = TelnetUtils::getThrottleBaud();
+        $emulateModemSpeed = !empty($doorData['emulate_modem_speed']) || !empty($doorData['config']['emulate_modem_speed']);
+        if ($emulateModemSpeed) {
+            $doorBaud = (int)($doorData['terminal_speed'] ?? $doorData['config']['terminal_speed'] ?? 28800);
+            TelnetUtils::setThrottleBaud($doorBaud > 0 ? $doorBaud : 28800);
+        }
+
+        try {
+            $this->relayLoop($conn, $state, $wsSock, $doorType);
+        } finally {
+            if ($emulateModemSpeed) {
+                TelnetUtils::setThrottleBaud($prevThrottleBaud);
+            }
+        }
 
         // Send WebSocket close frame and release the socket
         $this->wsSendClose($wsSock);
@@ -233,6 +248,11 @@ class DoorHandler
                     break;
                 }
                 if (!is_resource($wsSock) || feof($wsSock)) {
+                    break;
+                }
+                // Leave the door if the caller's auth session was revoked
+                // (checked at most every 30 seconds).
+                if ($this->server->authSessionRevoked()) {
                     break;
                 }
 

@@ -98,6 +98,7 @@ return [
 
     // --- Idle timeout ---
     'ui.terminalserver.server.idle.disconnect'         => 'Tiempo de inactividad agotado - desconectando...',
+    'ui.terminalserver.server.session_revoked' => 'Tu sesión se cerró desde otro lugar - desconectando...',
     'ui.terminalserver.server.idle.warning_line'       => '¿Sigue ahí? (Presione Enter para continuar)',
     'ui.terminalserver.server.idle.warning_key'        => '¿Sigue ahí? (Presione cualquier tecla para continuar)',
 
@@ -698,5 +699,8 @@ return [
     'ui.terminalserver.chat.help.line5'              => 'Compose pane: Enter sends, Ctrl+E opens multiline editor',
     'ui.terminalserver.chat.help.line6'              => 'Ctrl+C exits local chat, R refreshes lists',
     'ui.terminalserver.chat.help.line7'              => 'Admins: in a room, focus Online Users and press K or B to moderate.',
-];
 
+    // ANSI avatars
+    'ui.terminalserver.settings.profile.ansi_avatar' => 'Ver avatar ANSI',
+    'ui.terminalserver.profile.ansi_avatar' => 'Avatar ANSI',
+];

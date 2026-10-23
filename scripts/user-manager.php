@@ -248,11 +248,13 @@ class UserManager
             
             $stmt = $this->db->prepare("
                 INSERT INTO users (username, password_hash, real_name, email, is_admin, is_active) 
-                VALUES (?, ?, ?, ?, ?, 1)
+                VALUES (?, ?, ?, ?, ?, TRUE)
+                RETURNING id
             ");
-            $stmt->execute([$username, $passwordHash, $realName, $email, $isAdmin ? 1 : 0]);
+            $stmt->execute([$username, $passwordHash, $realName, $email, $isAdmin ? 'true' : 'false']);
             
-            $userId = $this->db->lastInsertId();
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $userId = $row ? (int)$row['id'] : 0;
             
             // Create default user settings
             $stmt = $this->db->prepare("

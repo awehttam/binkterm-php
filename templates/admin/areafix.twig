@@ -266,6 +266,45 @@
     </div>
 </div>
 
+{# Preview modal — shown before any AreaFix/FileFix sync is applied #}
+<div class="modal fade" id="areafixPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-eye me-1"></i>{{ t('ui.admin.areafix.preview_modal_title', {}, 'common') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">{{ t('ui.admin.areafix.preview_intro', {}, 'common') }}</p>
+                <div class="mb-2 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAllAreafixPreviewChecked(true)">
+                        {{ t('ui.admin.areafix.select_all', {}, 'common') }}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAllAreafixPreviewChecked(false)">
+                        {{ t('ui.admin.areafix.select_none', {}, 'common') }}
+                    </button>
+                </div>
+                <div id="areafixFormatChangeWarning" class="alert alert-warning small mb-2" style="display:none;"></div>
+                <div id="areafixPreviewBody">
+                    <div class="text-center py-4 text-muted">
+                        <i class="fas fa-spinner fa-spin"></i> {{ t('ui.admin.areafix.preview_loading', {}, 'common') }}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ t('ui.common.cancel', {}, 'common') }}
+                </button>
+                <button type="button" class="btn btn-success" id="areafixPreviewConfirmBtn" onclick="confirmAreafixPreview()" disabled>
+                    <i class="fas fa-check me-1"></i>{{ t('ui.admin.areafix.btn_confirm_apply', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -499,13 +538,23 @@
                 ? (m.from_address || '')
                 : (m.to_address   || '');
 
+            var syncCell = '<i class="fas fa-chevron-down small text-muted"></i>';
+            var msgId = parseInt(m.id, 10);
+            if (m.direction === 'incoming' && msgId) {
+                syncCell = '<button type="button" class="btn btn-outline-success btn-sm py-0 px-1 me-2" ' +
+                    'title="' + escapeHtml(window.t('ui.admin.areafix.btn_sync_areas', {}, 'Sync Areas to Local BBS')) + '" ' +
+                    'onclick="event.stopPropagation(); previewLatestReply(\'' + robot + '\', ' + msgId + ');">' +
+                    '<i class="fas fa-file-import"></i>' +
+                    '</button>' + syncCell;
+            }
+
             html += '<tr class="areafix-history-expand" onclick="toggleHistoryRow(\'' + rowId + '\')">';
             html += '<td class="text-muted small">' + escapeHtml(dateStr) + '</td>';
             html += '<td>' + dirLabel + '</td>';
             html += '<td class="font-monospace small">' + escapeHtml(nodeAddr) + '</td>';
             html += '<td class="small">' + escapeHtml(network) + '</td>';
             html += '<td class="font-monospace small text-truncate" style="max-width:220px;">' + excerpt + '</td>';
-            html += '<td class="text-end"><i class="fas fa-chevron-down small text-muted"></i></td>';
+            html += '<td class="text-end">' + syncCell + '</td>';
             html += '</tr>';
             html += '<tr id="' + rowId + '" class="areafix-row-body">';
             html += '<td colspan="6"><pre class="small mb-0 p-2" style="white-space:pre-wrap;">' +
@@ -538,7 +587,7 @@
                     '<strong>' + from + '</strong>' +
                     (date ? ' &mdash; ' + date : '') +
                 '</div>' +
-                '<button class="btn btn-success btn-sm" id="btnSync_' + robot + '" onclick="syncLatestReply(\'' + robot + '\')">' +
+                '<button class="btn btn-success btn-sm" id="btnSync_' + robot + '" onclick="previewLatestReply(\'' + robot + '\')">' +
                     '<i class="fas fa-file-import me-1"></i>' + escapeHtml(window.t('ui.admin.areafix.btn_sync_areas', {}, 'Sync Areas to Local BBS')) +
                 '</button>' +
             '</div>' +
@@ -547,35 +596,283 @@
             '</pre>';
     }
 
-    window.syncLatestReply = function (robot) {
+    // ── Preview modal ─────────────────────────────────────────────────────────
+    // Every sync (manual or from the "Sync Areas to Local BBS" button) is
+    // previewed before anything is written to the database. The sysop reviews
+    // the new/reactivate/deactivate/unchanged diff and must explicitly confirm.
+
+    var previewState = { robot: null, uplink: null, messageId: null, areas: [], checked: [], tier: null };
+
+    // Human-readable labels for AreaFixParser::TIER_* identifiers (see
+    // src/AreaFix/AreaFixParser.php and docs/AreaFix.md). A data-driven
+    // grammar's tier is "configured:<grammar id>" rather than one of these.
+    var TIER_LABELS = {
+        'mystic_blocks':               { key: 'ui.admin.areafix.tier_mystic_blocks',               fallback: 'Mystic BBS / MBSE blocks' },
+        'delimited_table':             { key: 'ui.admin.areafix.tier_delimited_table',              fallback: 'Delimited table' },
+        'columnar_table':              { key: 'ui.admin.areafix.tier_columnar_table',               fallback: 'Columnar / dotted-leader table' },
+        'quoted_address_list':         { key: 'ui.admin.areafix.tier_quoted_address_list',          fallback: 'Quoted address list' },
+        'flagged_dotted_quoted_list':  { key: 'ui.admin.areafix.tier_flagged_dotted_quoted_list',   fallback: 'Flag-prefixed dotted-leader list' },
+        'freeform':                    { key: 'ui.admin.areafix.tier_freeform',                     fallback: 'Freeform fallback' }
+    };
+
+    function tierLabel(tier) {
+        if (!tier) {
+            return window.t('ui.admin.areafix.tier_unknown', {}, 'unknown format');
+        }
+        if (tier.indexOf('configured:') === 0) {
+            var id = tier.slice('configured:'.length);
+            return window.t('ui.admin.areafix.tier_configured', { id: id }, 'custom grammar "' + id + '"');
+        }
+        var entry = TIER_LABELS[tier];
+        return entry ? window.t(entry.key, {}, entry.fallback) : tier;
+    }
+
+    function renderFormatChangeWarning(data) {
+        var el = document.getElementById('areafixFormatChangeWarning');
+        if (!el) return;
+        if (!data || !data.format_changed) {
+            el.style.display = 'none';
+            el.innerHTML = '';
+            return;
+        }
+        var msg = window.t('ui.admin.areafix.format_changed_warning', {
+            old_tier: tierLabel(data.remembered_tier),
+            new_tier: tierLabel(data.tier)
+        }, 'This hub\'s reply format looks different than last time (was ' + tierLabel(data.remembered_tier) + ', now ' + tierLabel(data.tier) + '). Double-check the areas below before confirming — this can mean the hub\'s mailer software changed or was reconfigured.');
+        el.innerHTML = '<i class="fas fa-triangle-exclamation me-1"></i>' + escapeHtml(msg);
+        el.style.display = '';
+    }
+    var STATUS_LABELS = {
+        'new':        { key: 'ui.admin.areafix.status_new',        fallback: 'New',        badge: 'bg-success' },
+        'reactivate': { key: 'ui.admin.areafix.status_reactivate', fallback: 'Reactivate', badge: 'bg-primary' },
+        'deactivate': { key: 'ui.admin.areafix.status_deactivate', fallback: 'Deactivate', badge: 'bg-danger' },
+        'unchanged':  { key: 'ui.admin.areafix.status_unchanged',  fallback: 'Unchanged',  badge: 'bg-secondary' },
+        'updated':    { key: 'ui.admin.areafix.status_updated',    fallback: 'Updated',    badge: 'bg-info text-dark' }
+    };
+
+    // An area whose activation state is otherwise unchanged but whose
+    // description differs from the hub's (whether that difference would be
+    // applied automatically, or only if the sysop selects it) is shown as
+    // "Updated" rather than "Unchanged", since something about it did differ.
+    function displayStatus(a) {
+        if (a.status === 'unchanged' && (a.description_will_change || a.description_differs)) {
+            return 'updated';
+        }
+        return a.status;
+    }
+
+    function statusBadge(a) {
+        var s = STATUS_LABELS[displayStatus(a)] || STATUS_LABELS.unchanged;
+        var label = window.t(s.key, {}, s.fallback);
+        return '<span class="badge ' + s.badge + '">' + escapeHtml(label) + '</span>';
+    }
+
+    function descriptionCell(a) {
+        var current = a.current_description;
+        var incoming = a.description;
+
+        if (a.description_will_change) {
+            var oldHtml = (current !== null && current !== undefined && current !== '')
+                ? '<div class="text-muted text-decoration-line-through">' + escapeHtml(current) + '</div>'
+                : '';
+            return oldHtml + '<div>' + escapeHtml(incoming || '') + '</div>';
+        }
+
+        // No description change will be applied — show what will remain locally
+        // (a real, sysop-set description is never overwritten by the hub's reply).
+        var shown = (current !== null && current !== undefined && current !== '') ? current : incoming;
+        var html = escapeHtml(shown || '');
+
+        if (a.description_differs && incoming) {
+            html += '<div class="text-muted small fst-italic">' +
+                escapeHtml(window.t('ui.admin.areafix.hub_description_differs', { desc: incoming }, 'Hub lists: "' + incoming + '"')) +
+                '</div>';
+        }
+
+        return html;
+    }
+
+    // A row defaults to unchecked only for a genuine no-op: activation state
+    // unchanged AND no description difference of any kind. Anything flagged
+    // "Updated" (a description difference, whether it would apply
+    // automatically or only via force_descriptions once selected) defaults
+    // checked right along with new/reactivate/deactivate — reviewing the
+    // preview shouldn't also require re-checking every row it flags.
+    function defaultAreafixRowChecked(a) {
+        return displayStatus(a) !== 'unchanged';
+    }
+
+    function renderPreviewBody(areas) {
+        var container = document.getElementById('areafixPreviewBody');
+        if (!container) return;
+
+        previewState.areas = areas;
+        previewState.checked = areas.map(defaultAreafixRowChecked);
+
+        if (!areas.length) {
+            container.innerHTML = '<p class="text-muted mb-0">' +
+                escapeHtml(window.t('ui.admin.areafix.preview_no_changes', {}, 'No changes to apply')) + '</p>';
+            return;
+        }
+
+        var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0">' +
+            '<thead><tr>' +
+            '<th style="width:2rem;"></th>' +
+            '<th>' + escapeHtml(window.t('ui.admin.areafix.col_tag', {}, 'Tag')) + '</th>' +
+            '<th>' + escapeHtml(window.t('ui.admin.areafix.col_description', {}, 'Description')) + '</th>' +
+            '<th>' + escapeHtml(window.t('ui.admin.areafix.col_status', {}, 'Status')) + '</th>' +
+            '</tr></thead><tbody>';
+
+        areas.forEach(function (a, i) {
+            html += '<tr>' +
+                '<td><input type="checkbox" class="form-check-input areafix-preview-row-check" data-index="' + i + '"' +
+                    (previewState.checked[i] ? ' checked' : '') +
+                    ' onchange="toggleAreafixPreviewRow(' + i + ', this.checked)"></td>' +
+                '<td class="font-monospace">' + escapeHtml(a.name || '') + '</td>' +
+                '<td class="small">' + descriptionCell(a) + '</td>' +
+                '<td>' + statusBadge(a) + '</td>' +
+                '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+        updateAreafixPreviewConfirmState();
+    }
+
+    function updateAreafixPreviewConfirmState() {
+        var confirmBtn = document.getElementById('areafixPreviewConfirmBtn');
+        if (!confirmBtn) return;
+        var anyChecked = previewState.checked.some(function (c) { return c; });
+        confirmBtn.disabled = !anyChecked;
+    }
+
+    window.toggleAreafixPreviewRow = function (index, checked) {
+        previewState.checked[index] = checked;
+        updateAreafixPreviewConfirmState();
+    };
+
+    window.setAllAreafixPreviewChecked = function (checked) {
+        previewState.checked = previewState.areas.map(function () { return checked; });
+        document.querySelectorAll('.areafix-preview-row-check').forEach(function (el) {
+            el.checked = checked;
+        });
+        updateAreafixPreviewConfirmState();
+    };
+
+    window.previewLatestReply = function (robot, messageId) {
         var uplink = getSelectedUplink();
         if (!uplink) {
             showToast(window.t('ui.admin.areafix.select_uplink_first', {}, 'Please select an uplink'), true);
             return;
         }
 
-        var btn = document.getElementById('btnSync_' + robot);
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + escapeHtml(window.t('ui.common.processing', {}, 'Processing...'));
+        previewState.robot = robot;
+        previewState.uplink = uplink;
+        previewState.messageId = messageId ? parseInt(messageId, 10) : null;
+        previewState.tier = null;
+        renderFormatChangeWarning(null);
+
+        var modalEl = document.getElementById('areafixPreviewModal');
+        var confirmBtn = document.getElementById('areafixPreviewConfirmBtn');
+        if (confirmBtn) confirmBtn.disabled = true;
+
+        var container = document.getElementById('areafixPreviewBody');
+        if (container) {
+            container.innerHTML = '<div class="text-center py-4 text-muted">' +
+                '<i class="fas fa-spinner fa-spin"></i> ' +
+                escapeHtml(window.t('ui.admin.areafix.preview_loading', {}, 'Loading preview...')) +
+                '</div>';
         }
 
-        fetch('/api/admin/areafix/sync-latest', {
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        var requestBody = { uplink: uplink, robot: robot };
+        if (previewState.messageId) requestBody.message_id = previewState.messageId;
+
+        fetch('/api/admin/areafix/preview-latest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uplink: uplink, robot: robot }),
+            body: JSON.stringify(requestBody),
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.success) {
+                previewState.tier = data.tier || null;
+                renderFormatChangeWarning(data);
+                renderPreviewBody(data.areas || []);
+            } else {
+                renderFormatChangeWarning(null);
+                var errMsg = window.getApiErrorMessage ? window.getApiErrorMessage(data) : (data.message || data.error || window.t('ui.admin.areafix.preview_load_failed', {}, 'Failed to load sync preview'));
+                if (container) {
+                    container.innerHTML = '<p class="text-danger mb-0">' + escapeHtml(errMsg) + '</p>';
+                }
+            }
+        })
+        .catch(function () {
+            if (container) {
+                container.innerHTML = '<p class="text-danger mb-0">' +
+                    escapeHtml(window.t('ui.admin.areafix.preview_load_failed', {}, 'Failed to load sync preview')) + '</p>';
+            }
+        });
+    };
+
+    window.confirmAreafixPreview = function () {
+        var robot = previewState.robot;
+        var uplink = previewState.uplink;
+        if (!robot || !uplink) return;
+
+        var selectedAreas = previewState.areas.filter(function (a, i) { return previewState.checked[i]; })
+            .map(function (a) {
+                return { name: a.name, description: a.description, action: a.action, is_subscribed: a.is_subscribed };
+            });
+
+        if (!selectedAreas.length) {
+            showToast(window.t('ui.admin.areafix.no_areas_selected', {}, 'Select at least one area to sync'), true);
+            return;
+        }
+
+        var confirmBtn = document.getElementById('areafixPreviewConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + escapeHtml(window.t('ui.common.processing', {}, 'Processing...'));
+        }
+
+        // force_descriptions: the sysop has explicitly reviewed and selected
+        // these specific areas in the preview, so a description difference
+        // shown there (even one that would otherwise be protected) is applied.
+        var requestBody = {
+            uplink: uplink,
+            robot: robot,
+            areas: selectedAreas,
+            deactivate_missing: false,
+            force_descriptions: true
+        };
+        if (previewState.tier) {
+            requestBody.tier = previewState.tier;
+        }
+
+        fetch('/api/admin/areafix/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var modalEl = document.getElementById('areafixPreviewModal');
+            var modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            if (data.success) {
                 var s = data.summary || {};
-                var count = data.areas_count || 0;
+                var count = selectedAreas.length;
                 var msg = window.t('ui.admin.areafix.sync_success', {
                     count: count,
                     created: s.created || 0,
                     activated: s.activated || 0
                 }, 'Successfully synced ' + count + ' areas (' + (s.created || 0) + ' created, ' + (s.activated || 0) + ' activated)');
                 showToast(msg, false);
+                loadHistory(robot);
             } else {
                 var errMsg = window.getApiErrorMessage ? window.getApiErrorMessage(data) : (data.message || data.error || window.t('ui.admin.areafix.sync_failed', {}, 'Failed to sync areas'));
                 showToast(errMsg, true);
@@ -585,9 +882,9 @@
             showToast(window.t('ui.admin.areafix.sync_failed', {}, 'Failed to sync areas'), true);
         })
         .finally(function () {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-file-import me-1"></i>' + escapeHtml(window.t('ui.admin.areafix.btn_sync_areas', {}, 'Sync Areas to Local BBS'));
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>' + escapeHtml(window.t('ui.admin.areafix.btn_confirm_apply', {}, 'Confirm & Apply'));
             }
         });
     };

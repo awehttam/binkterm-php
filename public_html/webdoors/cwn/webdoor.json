@@ -9,7 +9,8 @@
         "author": "awehttam",
         "license": "MIT",
         "icon": "icon.svg",
-        "entry_point": "index.html"
+        "entry_point": "index.html",
+        "genre": ["Communications"]
     },
     "config": {
         "credits": {

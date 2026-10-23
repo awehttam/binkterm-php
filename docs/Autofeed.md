@@ -24,6 +24,10 @@ Bluesky source URLs are detected automatically in the admin UI — entering a `b
 
 To prevent overloading a source, feeds checked within the last 5 minutes are skipped unless `--force` is passed.
 
+### Fetch Security
+
+RSS/Atom feed URLs must use `http://` or `https://`. HTTPS certificates are verified against the system trust store, including the host name. Redirects are followed one hop at a time, at most 5: each hop must stay on `http(s)`, and a feed fetched over `https://` may not be redirected to plain `http://`. A feed with an invalid or self-signed certificate fails with a clear error, and nothing is posted for that run.
+
 ## Admin Configuration
 
 Go to **Admin → Auto Feed** to manage feed sources.

@@ -47,6 +47,9 @@ services:
       # ENABLE_LOGROTATE: "false"
       # LOGROTATE_SCHEDULE: "0 0 * * 0"
       # LOGROTATE_KEEP: "52"
+      # LOGROTATE_MAX_SIZE: "10M"   # only rotate logs past this size; pair with a
+      #                             # more frequent LOGROTATE_SCHEDULE to cap
+      #                             # fast growers like binkp_poll.log
 
     ports:
       # Each optional daemon above needs its port published here to be

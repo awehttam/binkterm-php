@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Database;
+use BinktermPHP\PostgresSqlSplitter;
 
 class DatabaseUpgrader
 {
@@ -238,13 +239,11 @@ class DatabaseUpgrader
                 } else {
                     $sql = file_get_contents($migration['file']);
                     
-                    // Split into individual statements
-                    // Remove comments (both full line and inline)
-                    $cleanSql = preg_replace('/--.*$/m', '', $sql); // Remove inline comments
-                    $cleanSql = preg_replace('/^\s*$/m', '', $cleanSql); // Remove empty lines
-                    $statements = array_filter(
-                        array_map('trim', preg_split('/;\s*(?:\r?\n|$)/', $cleanSql)),
-                        function($stmt) { return !empty($stmt); }
+                    if ($sql === false) {
+                        throw new Exception('Unable to read migration SQL');
+                    }
+                    $statements = PostgresSqlSplitter::statements($sql, fn (): bool =>
+                        $this->db->query('SHOW standard_conforming_strings')->fetchColumn() === 'on'
                     );
                     
                     foreach ($statements as $statement) {

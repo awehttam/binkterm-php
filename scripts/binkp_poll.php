@@ -63,7 +63,7 @@ function parseArgs($argv)
 function formatResult($result, $quiet = false)
 {
     if ($quiet) {
-        return $result['success'] ? 'OK' : 'FAIL';
+        return $result['success'] ? 'OK' : (!empty($result['deferred']) ? 'DEFERRED' : 'FAIL');
     }
     // Non-quiet callers should use logResult() instead.
     return '';
@@ -89,9 +89,31 @@ function logResult($result, $logger, $address = null)
         if (isset($result['connect_time'])) {
             $logger->log('INFO', $prefix . '  Connection time: ' . number_format($result['connect_time'], 3) . 's');
         }
+    } elseif (!empty($result['deferred'])) {
+        $logger->log('WARNING', $prefix . 'DEFERRED: ' . ($result['error'] ?? 'remote host busy'));
     } else {
         $logger->log('ERROR', $prefix . 'FAILED: ' . ($result['error'] ?? 'Unknown error'));
     }
+}
+
+/**
+ * Exit status for a batch poll: 1 if any poll genuinely failed, otherwise
+ * HostLockBusyException::EXIT_CODE if any was deferred because its host was
+ * busy, otherwise 0.
+ */
+function batchExitCode(array $results): int
+{
+    $deferred = false;
+    foreach ($results as $result) {
+        if ($result['success']) {
+            continue;
+        }
+        if (empty($result['deferred'])) {
+            return 1;
+        }
+        $deferred = true;
+    }
+    return $deferred ? \BinktermPHP\Binkp\Protocol\HostLockBusyException::EXIT_CODE : 0;
 }
 
 list($args, $positional) = parseArgs($argv);
@@ -156,7 +178,7 @@ try {
             $logger->log('INFO', "Summary: {$successCount}/{$totalCount} successful");
         }
         
-        exit($successCount === $totalCount ? 0 : 1);
+        exit(batchExitCode($results));
 
     } elseif (isset($args['all-hub-nodes'])) {
         if (!$quiet) $logger->log('INFO', 'Polling all node-type hub nodes with a routable host...');
@@ -179,7 +201,7 @@ try {
             $logger->log('INFO', "Summary: {$successCount}/{$totalCount} successful");
         }
 
-        exit($successCount === $totalCount ? 0 : 1);
+        exit(batchExitCode($results));
 
     } elseif (!empty($positional)) {
         $address = $positional[0];
@@ -237,5 +259,8 @@ try {
     } else {
         echo "Error: " . $e->getMessage() . "\n";
     }
-    exit(1);
+    // A busy host is a deferral, not a failure; the scheduler reports it as such.
+    exit($e instanceof \BinktermPHP\Binkp\Protocol\HostLockBusyException
+        ? \BinktermPHP\Binkp\Protocol\HostLockBusyException::EXIT_CODE
+        : 1);
 }

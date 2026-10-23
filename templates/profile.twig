@@ -2,6 +2,10 @@
 
 {% block title %}{{ t('ui.profile.title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/css/avatar-ansi.css">
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
@@ -16,6 +20,7 @@
 
 <div class="row">
     <div class="col-lg-8">
+        {% include 'partials/avatar_ansi_editor.twig' %}
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">{{ t('ui.profile.profile_information', {}, 'common') }}</h5>
@@ -326,4 +331,5 @@ function updateProfile() {
     });
 }
 </script>
+<script src="/js/avatar-ansi.js"></script>
 {% endblock %}

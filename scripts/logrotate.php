@@ -15,18 +15,54 @@
  */
 
 // Log rotation utility for data/logs
-// Usage: php scripts/logrotate.php [--keep=10] [--dry-run]
+// Usage: php scripts/logrotate.php [--keep=10] [--max-size=SIZE] [--logs-dir=PATH] [--dry-run]
+//
+//   --keep=N        Number of compressed generations to retain per log (default 10).
+//   --max-size=SIZE Only rotate a *.log file at least this large. Accepts a plain
+//                   byte count or a K/M/G suffix (e.g. 10M). Omit to rotate every
+//                   log regardless of size (the historical behaviour). Use this
+//                   when scheduling the script frequently so small logs are left
+//                   alone and only a log that has actually grown is rolled.
+//   --logs-dir=PATH Directory to rotate (default: <project>/data/logs). Mainly for
+//                   tests; the compressed generations still go in PATH/old/.
+//   --dry-run       Print the actions without touching any file.
+
+/**
+ * Parse a size string ("1048576", "10M", "512K", "1G") into bytes.
+ * Returns null when the value is not a valid size.
+ */
+function parseSizeToBytes(string $value): ?int
+{
+    if (!preg_match('/^\s*(\d+(?:\.\d+)?)\s*([KMGkmg]?)(?:[Bb])?\s*$/', $value, $m)) {
+        return null;
+    }
+    $multipliers = ['' => 1, 'K' => 1024, 'M' => 1024 ** 2, 'G' => 1024 ** 3];
+    return (int) round((float) $m[1] * $multipliers[strtoupper($m[2])]);
+}
 
 $rootDir = dirname(__DIR__);
 $logsDir = $rootDir . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'logs';
-$oldDir = $logsDir . DIRECTORY_SEPARATOR . 'old';
 
-$options = getopt('', ['keep::', 'dry-run']);
+$options = getopt('', ['keep::', 'max-size::', 'logs-dir::', 'dry-run']);
 $keep = 10;
 if (isset($options['keep']) && is_numeric($options['keep'])) {
     $keep = max(1, (int)$options['keep']);
 }
 $dryRun = array_key_exists('dry-run', $options);
+
+if (isset($options['logs-dir']) && $options['logs-dir'] !== '') {
+    $logsDir = rtrim($options['logs-dir'], DIRECTORY_SEPARATOR);
+}
+$oldDir = $logsDir . DIRECTORY_SEPARATOR . 'old';
+
+$maxSize = null;
+if (isset($options['max-size']) && $options['max-size'] !== '') {
+    $maxSize = parseSizeToBytes((string) $options['max-size']);
+    if ($maxSize === null || $maxSize < 0) {
+        fwrite(STDERR, "Invalid --max-size value: {$options['max-size']}\n");
+        exit(1);
+    }
+}
 
 if (!is_dir($logsDir)) {
     fwrite(STDERR, "Logs directory not found: $logsDir\n");
@@ -58,13 +94,25 @@ foreach ($logFiles as $logPath) {
     $base = basename($logPath);
     $oldBase = $oldDir . DIRECTORY_SEPARATOR . $base;
 
-    // Remove the oldest rotation if it exists
-    $oldest = $oldBase . '.' . ($keep - 1) . '.gz';
-    if (file_exists($oldest)) {
+    // Skip logs that have not grown past the threshold (when one is set), so the
+    // script can be scheduled frequently without churning small logs into empty
+    // generations.
+    clearstatcache(true, $logPath);
+    if ($maxSize !== null && filesize($logPath) < $maxSize) {
+        continue;
+    }
+
+    // Remove any generations at or beyond the retention count (handles --keep
+    // being lowered between runs, not just the single oldest slot).
+    for ($i = $keep - 1; $i < $keep + 64; $i++) {
+        $stale = $oldBase . '.' . $i . '.gz';
+        if (!file_exists($stale)) {
+            continue;
+        }
         if ($dryRun) {
-            echo "[dry-run] delete $oldest\n";
+            echo "[dry-run] delete $stale\n";
         } else {
-            unlink($oldest);
+            unlink($stale);
         }
     }
 
@@ -128,6 +176,6 @@ foreach ($logFiles as $logPath) {
         unlink($rotated);
     }
 
-    echo "Rotated $base -> " . basename($gzPath) . "\n";
+    echo ($dryRun ? "[dry-run] " : "") . "Rotated $base -> " . basename($gzPath) . "\n";
 }
 

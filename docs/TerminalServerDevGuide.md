@@ -38,7 +38,7 @@ Both daemon entry points manually `require_once` every `telnet/src/` class they 
 
 Both daemons hand off to the same `BbsSession` flow after transport setup:
 
-1. **Transport handshake** — Telnet negotiates NAWS, echo control, and optional TLS; SSH reads PTY dimensions from `pty-req` and probes Sixel capability. Before negotiation, if the TCP connection originates from a trusted address (`TELNET_TRUSTED_PROXIES`, plus loopback and the daemon's own bind address), `TelnetServer` consumes an optional HAProxy PROXY protocol v1 header (non-destructive peek) and re-points `$peerName` / `$peerIp` at the real client. This is how PubTerm's per-session forwarder conveys the browser visitor's address; connection rate limiting then keys on it.
+1. **Transport handshake** — For non-SSH streams, `BbsSession::detectRloginHandshake()` inspects the connection for an RFC 1282 RLogin client handshake (leading null byte followed by client/server usernames and terminal type/speed); if detected, it returns the null-byte ACK, enables ANSI, and sets `$state['is_rlogin'] = true` to suppress Telnet IAC negotiation and echo commands. Otherwise, Telnet negotiates NAWS, echo control, and optional TLS. SSH reads PTY dimensions from `pty-req` and probes Sixel capability. Before negotiation, if the TCP connection originates from a trusted address (`TELNET_TRUSTED_PROXIES`, plus loopback and the daemon's own bind address), `TelnetServer` consumes an optional HAProxy PROXY protocol v1 header (non-destructive peek) and re-points `$peerName` / `$peerIp` at the real client. This is how PubTerm's per-session forwarder conveys the browser visitor's address; connection rate limiting then keys on it.
 2. **Pre-login menu** — Login / Register / Reset password / Login and run terminal setup / QWK (when enabled) / Quit. Registration posts to the shared `/api/register` flow, so whether the account stays pending or is auto-approved is controlled centrally by `BbsConfig::shouldRequireRegistrationApproval()`. `BbsSession::attemptRegistration()` first calls `showHouseRulesAndConfirm()`, which renders `AppearanceConfig::getHouseRulesMarkdown()` (falling back to the built-in `ui.rules.*` default rule set when no override exists) in a paged box and requires the user to type `YES` before any fields are prompted. Auto-approved registrations now return a normal authenticated session and continue directly into the terminal session without forcing a reconnect. Choosing **T** sets `force_terminal_setup` on the login result, which makes the post-login setup step in `BbsSession::handle()` run `TerminalSettingsHandler::runDetectionWizard()` even when the user already has saved terminal settings.
 3. **Authentication** — Username/password via `POST /api/auth/login`, or auto-login via auto-approved `POST /api/register`; session cookie stored in `$state`.
 4. **Session init** — Single `GET /api/config/session-init` call returns timezone, locale, date format, charset, ANSI color flag, idle timeout thresholds, and main menu key bindings.
@@ -286,7 +286,7 @@ $statusLine = TelnetUtils::buildStatusBar($segments, $width);
 | Selectable item dialog | `TelnetUtils::showSelectableDialog()` / `$shell->showSelectableDialog()` |
 | ANSI-wrapped text lines | `TelnetUtils::wrapTextLines()` |
 | Address book / nodelist picker | `TelnetUtils::runAddressPicker()` / `$shell->showAddressPicker()` |
-| Public profile viewer | `TelnetUtils::showPublicProfileViewer()` / `$shell->showPublicProfileViewer()` |
+| Public profile viewer | `TelnetUtils::showPublicProfileViewer()` / `$shell->showPublicProfileViewer()`. Avatar art lines are already in the session charset and are inserted after `encodeForTerminal()` so they are not converted a second time. |
 
 If a widget genuinely lacks a capability needed by multiple features, extend it in `TelnetUtils` — do not work around it in a handler. When adding or extending a widget, update the table in `telnet/CLAUDE.md`.
 
@@ -447,6 +447,29 @@ The admin save route derives its valid action list from `array_keys(AppearanceCo
 
 ---
 
+## Dialup Speed Throttling Architecture
+
+BinktermPHP can simulate authentic dialup connection speeds (e.g. 300 to 57,600 baud) over Telnet and SSH connections to preserve the retro BBS experience where ANSI screens draw line-by-line rather than appearing instantaneously.
+
+### Configuration & Initialization
+
+- **Sysop settings**: Configured via **Admin → BBS Settings → Terminal Server Settings** (`throttle_speed`, `throttle_baud`, `throttle_ssh`), stored in `data/bbs.json` under `terminal_server`.
+- **Session init**: In `BbsSession::run()`, the session checks `BbsConfig::getTerminalThrottleSpeed()` and baud rate. If enabled for the transport (always enabled for Telnet, gated by `throttle_ssh` for SSH), `TelnetUtils::setThrottleBaud($baud)` activates throttling for that child process.
+
+### Streaming & Pacing (`TelnetUtils::safeWrite`)
+
+All terminal socket writes in `BbsSession` and `TelnetUtils` are funneled through `TelnetUtils::safeWrite($conn, string $data)`:
+
+1. **Zero-latency bypass**: If `$throttleBaud <= 0` or `$data` is $\le 1$ byte (such as single-character typing echo), the buffer is written immediately via `fwrite` without delays or chunking.
+2. **Chunked pacing**: For multi-byte output (ANSI art, menus, message bodies), bytes are streamed in bursts targeting ~35 updates per second:
+   - Characters per second: $CPS = \frac{\text{baud}}{10}$ (standard 8-N-1 10-bit frame).
+   - Microseconds per byte: $\mu s = \frac{1,000,000}{CPS}$.
+   - Chunk size: $\max(1, \lfloor \frac{CPS}{35} \rfloor)$ bytes.
+   - Delay per chunk: $\text{chunkSize} \times \mu s$.
+3. **Interactive abort / skip on keypress**: During long screen draws, a non-blocking `stream_select` probes `$conn` for readable input before sleeping. If the user presses a key (e.g. spacebar, Enter, or hotkey), the throttle loop immediately flags `$skipThrottle = true` and flushes all remaining chunks without further delay, ensuring responsive navigation.
+
+---
+
 ## Data Access
 
 The terminal server is a trusted first-party component. Code under `telnet/src/` and `ssh/` may access the application's shared classes and database, but must respect clear boundaries.
@@ -524,7 +547,9 @@ When adding any new user-visible string in a handler:
 
 ## API Endpoints Used
 
-The terminal server uses `TelnetUtils::apiRequest()` for most operations. A subset of direct internal calls are made for performance-critical paths: session validation (`Auth`), login activity tracking (`ActivityTracker`), nodelist presence check, feature flags (`BbsConfig`, `BinkpConfig`), and system news (`AppearanceConfig`).
+The terminal server uses `TelnetUtils::apiRequest()` for most operations. A subset of direct internal calls are made for performance-critical paths: session validation (`Auth`), nodelist presence check, feature flags (`BbsConfig`, `BinkpConfig`), and system news (`AppearanceConfig`).
+
+The login event itself (`ActivityTracker::trackLogin()`, tagged `telnet` or `ssh` with the caller IP) is recorded by `POST /api/auth/login` (or `/api/register` for an auto-approved terminal registration) when it issues the session; `BbsSession` does not record a second one after login.
 
 Primary endpoints used by `BbsSession` and the core handlers:
 

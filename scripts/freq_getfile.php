@@ -345,10 +345,15 @@ try {
         $requestId = $tracker->recordRequest($address, $filenames, (int)$user['id'], $useGet ? 'mget' : 'req');
         $logger->log('INFO', "Recorded FREQ request id={$requestId} for user: {$user['username']} (id={$user['id']})");
     }
-    // Always record the attempt immediately before connecting, whether the
-    // row was just created above or attached to via --request-id, so
-    // "attempts" always reflects real connection attempts.
-    $tracker->recordAttempt($requestId);
+    // Always record the attempt immediately before dialing, whether the row
+    // was just created above or attached to via --request-id, so "attempts"
+    // always reflects real connection attempts. It is counted only once the
+    // host lock is held; waiting for (or being deferred by) a busy host is not
+    // an attempt.
+    $tracker->touchLastAttempt($requestId);
+    $client->setBeforeDial(function () use ($tracker, $requestId): void {
+        $tracker->recordAttempt($requestId);
+    });
 
     $result = $client->connect($address, $hostname, $port, null, $forceAnonymous);
 
@@ -459,6 +464,11 @@ try {
         }
     }
 
+} catch (\BinktermPHP\Binkp\Protocol\HostLockBusyException $e) {
+    // Nothing was dialed and no attempt was counted.
+    $logger->log('WARNING', "FREQ deferred: " . $e->getMessage());
+    fwrite(STDERR, "Deferred: " . $e->getMessage() . "\n");
+    $exitCode = \BinktermPHP\Binkp\Protocol\HostLockBusyException::EXIT_CODE;
 } catch (\Exception $e) {
     $logger->log('ERROR', "FREQ failed: " . $e->getMessage());
     fwrite(STDERR, "Error: " . $e->getMessage() . "\n");

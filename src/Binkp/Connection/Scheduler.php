@@ -18,6 +18,7 @@ namespace BinktermPHP\Binkp\Connection;
 
 use BinktermPHP\Advertising;
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Protocol\HostLockBusyException;
 use BinktermPHP\Admin\AdminDaemonClient;
 use BinktermPHP\Config;
 use BinktermPHP\Crashmail\CrashmailService;
@@ -59,6 +60,15 @@ class Scheduler
      * @var array<string,bool>
      */
     private $iterationPolledAddresses = [];
+    /**
+     * Outbound files that existed when each uplink's scheduled poll in the
+     * current iteration started, keyed by uplink address then file path.
+     * Anything else queued for that uplink arrived during or after the
+     * session and was not carried by it.
+     *
+     * @var array<string,array<string,bool>>
+     */
+    private $scheduledPollOutboundSnapshots = [];
     /** Minimum seconds between scheduled crashmail polls */
     const CRASHMAIL_POLL_INTERVAL = 300;
 
@@ -134,8 +144,10 @@ class Scheduler
             
             try {
                 $this->log("Scheduled poll starting for: {$address}");
-                $pollResult = $this->client->binkPoll($address);
+                $this->scheduledPollOutboundSnapshots[$address] = array_fill_keys($this->listOutboundFiles(), true);
+                $pollResult = $this->client->binkPollSync($address);
                 $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $pollDeferred = self::isHostBusyResult($pollResult);
                 $processResult = null;
 
                 if ($pollSuccess) {
@@ -152,10 +164,15 @@ class Scheduler
                 $this->iterationPolledAddresses[$address] = true;
                 $results[$address] = [
                     'success' => $pollSuccess,
+                    'deferred' => $pollDeferred,
                     'poll_result' => $pollResult,
                     'process_packets' => $processResult
                 ];
-                $this->log("Scheduled poll completed for: {$address}");
+                if ($pollDeferred) {
+                    $this->log("Scheduled poll deferred for {$address}: remote host busy with another BinkP session", 'WARNING');
+                } else {
+                    $this->log("Scheduled poll completed for: {$address}");
+                }
                 
             } catch (\Exception $e) {
                 $this->log("Scheduled poll failed for {$address}: " . $e->getMessage(), 'ERROR');
@@ -232,13 +249,7 @@ class Scheduler
     
     public function pollIfOutbound()
     {
-        $outboundPath = $this->config->getOutboundPath();
-        $files = array_merge(
-            glob($outboundPath . '/*.pkt') ?: [],
-            glob($outboundPath . '/*.PKT') ?: [],
-            glob($outboundPath . '/*.tic') ?: [],
-            glob($outboundPath . '/*.TIC') ?: []
-        );
+        $files = $this->listOutboundFiles();
         
         if (empty($files)) {
             $this->outboundQueueActiveStates = [];
@@ -264,6 +275,20 @@ class Scheduler
 
             $hadOutboundFiles = $this->outboundQueueActiveStates[$address] ?? false;
             $this->outboundQueueActiveStates[$address] = true;
+
+            // Files queued after this iteration's scheduled poll started were not
+            // carried by that session, so neither the same-iteration skip nor the
+            // queue timer (stamped by the scheduled poll) should hold them back.
+            $queuedAfterScheduledPoll = false;
+            if (isset($this->scheduledPollOutboundSnapshots[$address])) {
+                $newFiles = array_diff($files, array_keys($this->scheduledPollOutboundSnapshots[$address]));
+                $queuedAfterScheduledPoll = $this->hasOutboundFilesForUplink($uplink, $newFiles);
+            }
+            if ($queuedAfterScheduledPoll) {
+                $this->log("New outbound files for {$address} arrived after its scheduled poll started, polling now", 'DEBUG');
+                $uplinksToPoll[] = $uplink;
+                continue;
+            }
 
             // A scheduled poll already ran for this uplink in the current iteration.
             // Binkp sessions are bidirectional, so the outbound files should have
@@ -297,8 +322,9 @@ class Scheduler
             $this->log("Triggering outbound poll for uplink {$address}");
             
             try {
-                $pollResult = $this->client->binkPoll($address);
+                $pollResult = $this->client->binkPollSync($address);
                 $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $pollDeferred = self::isHostBusyResult($pollResult);
                 $processResult = null;
 
                 if ($pollSuccess) {
@@ -310,10 +336,15 @@ class Scheduler
                 $this->lastOutboundPollTimes[$address] = time();
                 $results[$address] = [
                     'success' => $pollSuccess,
+                    'deferred' => $pollDeferred,
                     'poll_result' => $pollResult,
                     'process_packets' => $processResult
                 ];
-                $this->log("Outbound poll completed for: {$address}");
+                if ($pollDeferred) {
+                    $this->log("Outbound poll deferred for {$address}: remote host busy with another BinkP session", 'WARNING');
+                } else {
+                    $this->log("Outbound poll completed for: {$address}");
+                }
                 
             } catch (\Exception $e) {
                 $this->log("Outbound poll failed for {$address}: " . $e->getMessage(), 'ERROR');
@@ -328,6 +359,16 @@ class Scheduler
         return $results;
     }
     
+    /**
+     * True when a binkp_poll_sync result means the poll was deferred because
+     * another BinkP session held the remote host's lock. Nothing was dialed;
+     * this is not a poll failure.
+     */
+    private static function isHostBusyResult(array $result): bool
+    {
+        return ($result['exit_code'] ?? null) === HostLockBusyException::EXIT_CODE;
+    }
+
     private function isScheduleDue($cronExpression, $address)
     {
         if (empty($cronExpression) || trim((string)$cronExpression) === '') {
@@ -404,6 +445,22 @@ class Scheduler
         }
         
         return (int) $cronField === $currentValue;
+    }
+
+    /**
+     * List the outbound packet and TIC files currently queued.
+     *
+     * @return string[]
+     */
+    private function listOutboundFiles(): array
+    {
+        $outboundPath = $this->config->getOutboundPath();
+        return array_merge(
+            glob($outboundPath . '/*.pkt') ?: [],
+            glob($outboundPath . '/*.PKT') ?: [],
+            glob($outboundPath . '/*.tic') ?: [],
+            glob($outboundPath . '/*.TIC') ?: []
+        );
     }
 
     private function hasOutboundFilesForUplink(array $uplink, array $files): bool
@@ -522,6 +579,7 @@ class Scheduler
         while (true) {
             try {
                 $this->iterationPolledAddresses = [];
+                $this->scheduledPollOutboundSnapshots = [];
                 $this->refreshConfig();
                 $this->keepDbAlive();
 
@@ -634,10 +692,12 @@ class Scheduler
                 foreach ($rows as $row) {
                     $address = $row['node_address'];
                     $this->log("Hub node push starting for {$address}");
-                    $result = $this->client->binkPoll($address);
+                    $result = $this->client->binkPollSync($address);
                     $touchStmt->execute([$row['id']]);
                     if (($result['exit_code'] ?? 1) === 0) {
                         $this->log("Hub node push completed for {$address}");
+                    } elseif (self::isHostBusyResult($result)) {
+                        $this->log("Hub node push deferred for {$address}: remote host busy with another BinkP session", 'WARNING');
                     } else {
                         $this->log("Hub node push failed for {$address}", 'ERROR');
                     }

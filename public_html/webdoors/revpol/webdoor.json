@@ -6,6 +6,7 @@
     "version": "1.0.0",
     "author": "awehttam",
     "description": "Connect to BBS",
+    "genre": ["BBS"],
     "entry_point": "index.php",
     "icon": "icon.svg",
     "screenshots": []

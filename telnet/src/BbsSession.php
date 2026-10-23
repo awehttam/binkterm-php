@@ -69,8 +69,45 @@ class BbsSession
     private const ANSI_RED     = "\033[31m";
     private const ANSI_BG_BLUE = "\033[44m";
 
+    // ===== IDLE TIMEOUT CONSTANTS =====
+    /**
+     * Idle-timeout defaults, in seconds.
+     *
+     * An authenticated session uses {@see AUTH_IDLE_WARNING_DEFAULT} /
+     * {@see AUTH_IDLE_DISCONNECT_DEFAULT} (a server-side session-init response may
+     * still override these with sysop-configured values).
+     *
+     * The pre-authentication phase — the login / register / reset-password
+     * prompts — instead uses a deliberately short window
+     * ({@see PREAUTH_IDLE_TIMEOUT_DEFAULT}, tunable via the
+     * `TELNET_PREAUTH_IDLE_TIMEOUT` env var). Idle Telnet scanners routinely
+     * connect and then sit silent; each such socket pins a forked handler.
+     * Shortening only the pre-auth deadline releases those handlers in ~90s
+     * instead of ~7 minutes without affecting a human who is reading the login
+     * screen and typing — any keystroke before authentication refreshes the
+     * timer. This is idle-socket hygiene, not a claim of abuse prevention.
+     */
+    public const AUTH_IDLE_WARNING_DEFAULT = 300;
+    public const AUTH_IDLE_DISCONNECT_DEFAULT = 420;
+    public const PREAUTH_IDLE_TIMEOUT_DEFAULT = 90;
+
+    /**
+     * Sentinel returned by {@see readTelnetLine()} when it consumed only Telnet
+     * protocol chatter (negotiation, terminal reports) with no application line
+     * started and nothing more immediately readable. It tells the idle-aware
+     * caller to yield and re-check its deadline rather than block on the next
+     * byte. Contains a NUL, so it can never collide with a real input line.
+     */
+    private const LINE_CHATTER_ONLY = "\x00chatter-only";
+
     /** @var resource */
     private $conn;
+
+    /** Seconds between re-validations of the logged-in web auth session. */
+    private const AUTH_SESSION_RECHECK_SECONDS = 30;
+    private ?string $authSessionId = null;
+    private int $authSessionCheckedAt = 0;
+    private bool $authSessionRevoked = false;
     private string $apiBase;
     private bool $debug;
     private bool $insecure;
@@ -167,7 +204,7 @@ class BbsSession
         // Auth::resolveClientIp(). Set here — one forked process per connection.
         TelnetUtils::setClientContext(
             $this->peerIp,
-            trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'))
+            Config::terminalRegistrationSecret()
         );
 
         $state = [
@@ -179,8 +216,8 @@ class BbsSession
             'terminal_info_logged' => false,
             'last_activity'          => time(),
             'idle_warned'            => false,
-            'idle_warning_timeout'   => 300,
-            'idle_disconnect_timeout'=> 420,
+            'idle_warning_timeout'   => self::AUTH_IDLE_WARNING_DEFAULT,
+            'idle_disconnect_timeout'=> self::AUTH_IDLE_DISCONNECT_DEFAULT,
             'pushback' => '',
             'locale'   => $this->systemLocale,
             'isTls'    => $this->isTls,
@@ -205,34 +242,56 @@ class BbsSession
             $this->log("Connection initialized: screen size {$state['cols']}x{$state['rows']}");
         }
 
+        $shouldThrottle = false;
         if (!$this->isSsh) {
-            $this->negotiateTelnet($conn);
-            // TLS telnet clients commonly delay TELNET option replies until after
-            // they see visible output. Blocking on TTYPE before the banner causes
-            // a blank-screen stall on port 8023. Skip the TTYPE probe for TLS and
-            // proceed immediately: charset stays at the conservative ASCII default
-            // until saved settings are applied post-login (or the detection wizard
-            // runs for new users). ANSI color is assumed because virtually all TLS
-            // telnet clients are modern and color-capable.
-            if ($this->isTls) {
-                $this->ansiColorEnabled = true;
-                TelnetUtils::setAnsiColorEnabled(true);
-                if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
+            $shouldThrottle = BbsConfig::getTerminalThrottleSpeed();
+        } else {
+            $shouldThrottle = BbsConfig::getTerminalThrottleSsh();
+        }
+
+        if ($shouldThrottle) {
+            $baud = BbsConfig::getTerminalThrottleBaud();
+            TelnetUtils::setThrottleBaud($baud);
+            if ($this->debug) {
+                $this->log("Dialup baud throttling active at {$baud} baud");
+            }
+        } else {
+            TelnetUtils::setThrottleBaud(0);
+        }
+
+        if (!$this->isSsh) {
+            if ($this->detectRloginHandshake($conn, $state)) {
+                if ($this->debug) { $this->log('RLogin startup: ANSI enabled via RLogin handshake'); }
                 $this->probeSixelSupport($conn, $state);
             } else {
-                // Probe ANSI support before showing the banner by doing the TTYPE
-                // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
-                // then use the IS response to determine color capability.
-                // Default to no color until confirmed; SSH clients are assumed ANSI.
-                $this->ansiColorEnabled = false;
-                TelnetUtils::setAnsiColorEnabled(false);
-                if ($this->probeAnsiSupport($conn, $state)) {
+                $this->negotiateTelnet($conn);
+                // TLS telnet clients commonly delay TELNET option replies until after
+                // they see visible output. Blocking on TTYPE before the banner causes
+                // a blank-screen stall on port 8023. Skip the TTYPE probe for TLS and
+                // proceed immediately: charset stays at the conservative ASCII default
+                // until saved settings are applied post-login (or the detection wizard
+                // runs for new users). ANSI color is assumed because virtually all TLS
+                // telnet clients are modern and color-capable.
+                if ($this->isTls) {
                     $this->ansiColorEnabled = true;
                     TelnetUtils::setAnsiColorEnabled(true);
-                    if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                    if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
                     $this->probeSixelSupport($conn, $state);
                 } else {
-                    if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
+                    // Probe ANSI support before showing the banner by doing the TTYPE
+                    // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
+                    // then use the IS response to determine color capability.
+                    // Default to no color until confirmed; SSH clients are assumed ANSI.
+                    $this->ansiColorEnabled = false;
+                    TelnetUtils::setAnsiColorEnabled(false);
+                    if ($this->probeAnsiSupport($conn, $state)) {
+                        $this->ansiColorEnabled = true;
+                        TelnetUtils::setAnsiColorEnabled(true);
+                        if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+                        $this->probeSixelSupport($conn, $state);
+                    } else {
+                        if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
+                    }
                 }
             }
         } else {
@@ -281,6 +340,12 @@ class BbsSession
             // SSH: already authenticated at the protocol layer
             $loginResult = $this->preAuthSession;
         } else {
+            // Shorten the idle deadline for the pre-auth prompts only. Applied
+            // here, inside the interactive-login branch, so an SSH session
+            // (already authenticated at the protocol layer, handled above) never
+            // enters this window.
+            $this->applyPreAuthIdleDefaults($state);
+
             $showQwkTransfer = BbsConfig::isFeatureEnabled('qwk');
             while ($loginResult === null) {
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
@@ -388,11 +453,17 @@ class BbsSession
 
         // ===== POST-LOGIN SETUP =====
 
+        // Restore normal authenticated idle semantics after the short pre-auth
+        // window (a no-op for SSH, which never shortened them). A server-side
+        // session-init response further below may still override these.
+        $this->applyAuthenticatedIdleDefaults($state);
+
         $session   = $loginResult['session'];
         $username  = $loginResult['username'];
         $loginTime = time();
 
         $state['csrf_token'] = $loginResult['csrf_token'] ?? null;
+        TelnetUtils::setCsrfToken($state['csrf_token']);
 
         $initResp = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/config/session-init', null, $session);
         $initData = $initResp['data'] ?? [];
@@ -418,6 +489,10 @@ class BbsSession
         );
         $state['is_admin'] = !empty($userRecord['is_admin']);
         $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
+        if ($userRecord) {
+            $this->authSessionId = (string)$session;
+            $this->authSessionCheckedAt = time();
+        }
 
         // Persist the negotiated terminal type so other subsystems (e.g. RLogin
         // door launches from the web UI) can fall back to "whatever client this
@@ -435,13 +510,11 @@ class BbsSession
         $transport = $this->isSsh ? 'ssh' : 'telnet';
         $this->log("Login: {$username} from {$peerName} via {$transport}");
 
-        \BinktermPHP\ActivityTracker::track(
-            $userRecord['user_id'] ?? null,
-            \BinktermPHP\ActivityTracker::TYPE_LOGIN,
-            null,
-            $transport,
-            ['ip' => $peerIp]
-        );
+        // The login event for this session was already recorded, tagged with
+        // this transport and the caller IP, by the boundary that issued the
+        // session (POST /api/auth/login, or /api/register for an auto-approved
+        // terminal registration). Recording it again here double-counted every
+        // Telnet/SSH login in Today's Callers and the total login count.
 
         $config = BinkpConfig::getInstance();
         $this->setTerminalTitle($conn, $config->getSystemName());
@@ -982,6 +1055,55 @@ class BbsSession
     /**
      * Translate a terminal server UI string from the 'terminalserver' catalog namespace.
      */
+    /**
+     * Whether this terminal session's web auth session has been revoked or has
+     * expired since login (self-service "revoke session"/"revoke all", a
+     * password reset, account deactivation, expiry). Re-validated at most every
+     * AUTH_SESSION_RECHECK_SECONDS; once revoked it stays revoked. A database
+     * error is not treated as revocation.
+     */
+    public function authSessionRevoked(): bool
+    {
+        if ($this->authSessionRevoked) {
+            return true;
+        }
+        if ($this->authSessionId === null) {
+            return false;
+        }
+        $now = time();
+        if ($now - $this->authSessionCheckedAt < self::AUTH_SESSION_RECHECK_SECONDS) {
+            return false;
+        }
+        $this->authSessionCheckedAt = $now;
+
+        try {
+            $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+        } catch (\Throwable $e) {
+            $this->log('Auth session re-check failed: ' . $e->getMessage());
+            return false;
+        }
+        if ($user) {
+            return false;
+        }
+
+        $this->log('Auth session revoked or expired; disconnecting');
+        return $this->authSessionRevoked = true;
+    }
+
+    /**
+     * Tell the caller their session ended elsewhere and signal disconnect.
+     *
+     * @return array{0:null,1:bool,2:bool}
+     */
+    private function disconnectRevokedSession($conn, array $state): array
+    {
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.session_revoked', 'Your session was signed out elsewhere - disconnecting...', [], $state['locale'] ?? ''), self::ANSI_YELLOW));
+        $this->writeLine($conn, '');
+
+        return [null, false, true];
+    }
+
     public function t(string $key, string $fallback, array $params = [], string $locale = ''): string
     {
         $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['terminalserver']);
@@ -998,23 +1120,11 @@ class BbsSession
 
     /**
      * Write to the connection, suppressing notices on broken pipes.
+     * Respects emulated dialup baud throttling when enabled.
      */
     public function safeWrite($conn, string $data): void
     {
-        if (!is_resource($conn)) { return; }
-        $prev = error_reporting();
-        error_reporting($prev & ~E_NOTICE);
-        $total  = strlen($data);
-        $offset = 0;
-        while ($offset < $total) {
-            $written = @fwrite($conn, substr($data, $offset));
-            if ($written === false || $written === 0) {
-                break;  // connection closed or unrecoverable error
-            }
-            $offset += $written;
-        }
-        @fflush($conn);
-        error_reporting($prev);
+        TelnetUtils::safeWrite($conn, $data);
     }
 
     /**
@@ -1692,7 +1802,7 @@ class BbsSession
     private function setEcho($conn, array &$state, bool $enable): void
     {
         $state['input_echo'] = $enable;
-        if (!$this->isSsh) {
+        if (!$this->isSsh && empty($state['is_rlogin'])) {
             $this->sendTelnetCommand($conn, self::WILL, self::OPT_ECHO);
             $this->sendTelnetCommand($conn, self::DONT, self::OPT_ECHO);
         }
@@ -1727,6 +1837,29 @@ class BbsSession
     }
 
     /**
+     * Key reader for editable line input (the shared line editor / text fields).
+     *
+     * Same idle-timeout looping and token set as {@see readKeyWithIdleCheck()},
+     * but over {@see readKeyWithTimeout()}, which does NOT apply the menu-style
+     * "swallow a queued line terminator after a printable" peek. That peek is
+     * right for single-key menus ("L<Enter>") but wrong for a text field: it
+     * eats an LF that should have submitted the line, so a multi-line paste runs
+     * on forever instead of ending at the first newline. `readKeyWithTimeout()`
+     * still collapses a real CR-LF pair into one ENTER.
+     *
+     * @return string|null a normalised token, or null on disconnect
+     */
+    public function readLineKeyWithIdleCheck($conn, array &$state): ?string
+    {
+        while (true) {
+            [$key, $timedOut, $shouldDisconnect] = $this->readKeyWithTimeout($conn, $state, 30000);
+            if ($shouldDisconnect) { return null; }
+            if ($timedOut || $key === null) { continue; }
+            return $key;
+        }
+    }
+
+    /**
      * Read a single key token with an upper-bound timeout.
      *
      * Returns [string|null $key, bool $timedOut, bool $shouldDisconnect].
@@ -1735,6 +1868,9 @@ class BbsSession
      */
     public function readKeyWithTimeout($conn, array &$state, int $timeoutMs): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed   = time() - ($state['last_activity'] ?? time());
         $warnAt    = (int)($state['idle_warning_timeout'] ?? 300);
         $disconnAt = (int)($state['idle_disconnect_timeout'] ?? 420);
@@ -1774,6 +1910,13 @@ class BbsSession
         if ($char === null) {
             return [null, false, true];
         }
+        // Protocol chatter (negotiation, device reports, bracketed-paste
+        // markers) that readRawChar folded away. Not a keypress — let the
+        // caller's loop re-read rather than surfacing an empty token that a
+        // text field would mistake for Esc/cancel.
+        if ($char === "\x00") {
+            return ['', true, false];
+        }
 
         $state['last_activity'] = time();
         $state['idle_warned'] = false;
@@ -1788,6 +1931,10 @@ class BbsSession
         if ($char === self::KEY_PGDOWN || $char === self::KEY_PGDOWN_ALT) { return ['PGDOWN', false, false]; }
         if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
         if ($char === self::KEY_DELETE) { return ['DELETE', false, false]; }
+        // Standalone ESC. readRawChar() returns a bare 0x1B only when no escape
+        // sequence followed within its disambiguation window; real sequences
+        // come back multi-byte. Report it as 'ESC' rather than an empty token.
+        if (strlen($char) === 1 && ord($char) === 27) { return ['ESC', false, false]; }
 
         $ord = ord($char[0]);
         if ($ord === 9) { return ['TAB', false, false]; }
@@ -1805,6 +1952,8 @@ class BbsSession
         if ($ord === 10) { return ['ENTER', false, false]; }
         if ($ord === 8 || $ord === 127) { return ['BACKSPACE', false, false]; }
         if ($ord >= 32 && $ord < 127) { return ['CHAR:' . $char, false, false]; }
+        // A reassembled UTF-8 codepoint (readRawChar returns the whole sequence).
+        if (strlen($char) > 1 && ($ord & 0xC0) === 0xC0) { return ['CHAR:' . $char, false, false]; }
         if ($ord === 3) { return ['CTRL_C', false, false]; }
         if ($ord === 5) { return ['CTRL_E', false, false]; }
         if ($ord === 11) { return ['CTRL_K', false, false]; }
@@ -1814,7 +1963,82 @@ class BbsSession
         return ['', false, false];
     }
 
-    // ===== TELNET PROTOCOL =====
+    // ===== PROTOCOL NEGOTIATION (TELNET / RLOGIN) =====
+
+    /**
+     * Detect and consume RFC 1282 RLogin client handshake if present.
+     * An RLogin client initiates the session by sending:
+     *   \0 client_username \0 server_username \0 terminal_type/speed \0
+     * Unlike Telnet (which begins with nothing or IAC 0xFF), RLogin always starts with 0x00.
+     */
+    private function detectRloginHandshake($conn, array &$state): bool
+    {
+        $read = [$conn];
+        $write = $except = null;
+        if (@stream_select($read, $write, $except, 0, 200000) < 1) {
+            return false;
+        }
+
+        $peek = @stream_socket_recvfrom($conn, 1, STREAM_PEEK);
+        if ($peek !== "\x00") {
+            return false;
+        }
+
+        // Consume leading null byte
+        @fread($conn, 1);
+
+        $fields = [];
+        $current = '';
+        $deadline = microtime(true) + 1.0;
+        while (count($fields) < 3 && microtime(true) < $deadline) {
+            $char = @fread($conn, 1);
+            if ($char === false || $char === '') {
+                $r = [$conn];
+                if (@stream_select($r, $write, $except, 0, 50000) < 1) {
+                    break;
+                }
+                continue;
+            }
+            if ($char === "\x00") {
+                $fields[] = $current;
+                $current = '';
+            } else {
+                $current .= $char;
+            }
+        }
+        if ($current !== '' && count($fields) < 3) {
+            $fields[] = $current;
+        }
+
+        $clientUser = $fields[0] ?? '';
+        $serverUser = $fields[1] ?? '';
+        $termSpeed  = $fields[2] ?? '';
+
+        $termParts = explode('/', $termSpeed);
+        $termType = strtoupper(trim($termParts[0] ?? 'ANSI'));
+        if ($termType === '') {
+            $termType = 'ANSI';
+        }
+
+        $state['terminal_type'] = $termType;
+        $state['is_rlogin'] = true;
+        if ($clientUser !== '') {
+            $state['rlogin_client_user'] = $clientUser;
+        }
+        $this->recordTerminalType($conn, $state, $termType);
+
+        // Send the RFC 1282 single null-byte ACK
+        $this->safeWrite($conn, "\x00");
+
+        $this->ansiColorEnabled = true;
+        TelnetUtils::setAnsiColorEnabled(true);
+
+        if ($this->debug) {
+            $this->log("RLogin handshake accepted: client='{$clientUser}' server='{$serverUser}' term='{$termType}'");
+        }
+
+        return true;
+    }
 
     /**
      * Send initial TELNET option negotiations to the client.
@@ -2261,7 +2485,7 @@ class BbsSession
                     continue;
                 }
             }
-            if ($byte === self::IAC) {
+            if (!$this->isSsh && empty($state['is_rlogin']) && $byte === self::IAC) {
                 $cmd = fread($conn, 1);
                 if ($cmd !== false) {
                     $cmdByte = ord($cmd);
@@ -2820,11 +3044,58 @@ class BbsSession
     // ===== READ WITH IDLE TIMEOUT =====
 
     /**
+     * Pre-authentication idle timeout, in seconds.
+     *
+     * {@see PREAUTH_IDLE_TIMEOUT_DEFAULT}, overridable via the
+     * `TELNET_PREAUTH_IDLE_TIMEOUT` env var. Values below 15s are rejected as a
+     * misconfiguration (they would cut off a human mid-login) and fall back to
+     * the default.
+     */
+    public static function preAuthIdleTimeoutSeconds(): int
+    {
+        $seconds = (int) Config::env(
+            'TELNET_PREAUTH_IDLE_TIMEOUT',
+            (string) self::PREAUTH_IDLE_TIMEOUT_DEFAULT
+        );
+
+        return $seconds >= 15 ? $seconds : self::PREAUTH_IDLE_TIMEOUT_DEFAULT;
+    }
+
+    /**
+     * Apply the short pre-auth idle window to the session state. Called only on
+     * the interactive-login path (never for an SSH protocol-authenticated
+     * session). Warning and disconnect deadlines are set equal so the pre-auth
+     * phase disconnects in one clean step with the existing idle message.
+     */
+    private function applyPreAuthIdleDefaults(array &$state): void
+    {
+        $seconds = self::preAuthIdleTimeoutSeconds();
+        $state['idle_warned']             = false;
+        $state['idle_warning_timeout']    = $seconds;
+        $state['idle_disconnect_timeout'] = $seconds;
+    }
+
+    /**
+     * Restore the normal authenticated-session idle deadlines. Called once at
+     * the start of post-login setup, before any idle-aware read; a server-side
+     * session-init response may subsequently override these values.
+     */
+    private function applyAuthenticatedIdleDefaults(array &$state): void
+    {
+        $state['idle_warned']             = false;
+        $state['idle_warning_timeout']    = self::AUTH_IDLE_WARNING_DEFAULT;
+        $state['idle_disconnect_timeout'] = self::AUTH_IDLE_DISCONNECT_DEFAULT;
+    }
+
+    /**
      * Read a line from the socket with idle-timeout management.
      * Returns [string|null $line, bool $timedOut, bool $shouldDisconnect].
      */
     private function readTelnetLineWithTimeout($conn, array &$state): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed    = time() - $state['last_activity'];
         $warnAt     = $state['idle_warning_timeout'];
         $disconnAt  = $state['idle_disconnect_timeout'];
@@ -2853,6 +3124,11 @@ class BbsSession
         if ($hasData === 0)     { return ['', true, false]; }
 
         $line = $this->readTelnetLine($conn, $state);
+        if ($line === self::LINE_CHATTER_ONLY) {
+            // Only Telnet protocol chatter was available — not user input. Loop
+            // back to the idle-deadline check without refreshing last_activity.
+            return ['', true, false];
+        }
         if ($line !== null) {
             $state['last_activity'] = time();
             $state['idle_warned']   = false;
@@ -2866,6 +3142,9 @@ class BbsSession
      */
     private function readTelnetKeyWithTimeout($conn, array &$state): array
     {
+        if ($this->authSessionRevoked()) {
+            return $this->disconnectRevokedSession($conn, $state);
+        }
         $elapsed   = time() - $state['last_activity'];
         $warnAt    = $state['idle_warning_timeout'];
         $disconnAt = $state['idle_disconnect_timeout'];
@@ -2895,6 +3174,9 @@ class BbsSession
 
         $char = $this->readRawChar($conn, $state);
         if ($char === null) { return [null, false, true]; }
+        // Protocol chatter folded away by readRawChar (negotiation, device
+        // reports, bracketed-paste markers) — not a keypress; re-read.
+        if ($char === "\x00") { return ['', true, false]; }
 
         $state['last_activity'] = time();
         $state['idle_warned']   = false;
@@ -2924,6 +3206,9 @@ class BbsSession
         }
         if ($ord === 10)                         { return ['ENTER',     false, false]; }
         if ($ord === 8 || $ord === 127)          { return ['BACKSPACE', false, false]; }
+        // A reassembled UTF-8 codepoint (readRawChar returns the whole sequence).
+        // No line-terminator peek: multibyte input only occurs in text fields.
+        if (strlen($char) > 1 && ($ord & 0xC0) === 0xC0) { return ['CHAR:' . $char, false, false]; }
         if ($ord >= 32 && $ord < 127) {
             // Menu hotkeys are often typed as "L<Enter>" or similar. Swallow an
             // immediately queued line terminator so prompt-driven submenu screens
@@ -2975,36 +3260,56 @@ class BbsSession
                 return null;
             }
             if ($char === "\x00") {
+                // Telnet protocol chatter, not user input. If no line has begun
+                // and nothing more is waiting, yield to the idle-aware caller
+                // instead of blocking on the next byte — the idle deadline is
+                // only re-checked between lines, so a client that streams
+                // chatter but never presses Enter would otherwise sit past it.
+                if ($line === '' && ($state['pushback'] ?? '') === '') {
+                    $r = [$conn]; $w = $e = null;
+                    if (@stream_select($r, $w, $e, 0, 0) < 1) {
+                        return self::LINE_CHATTER_ONLY;
+                    }
+                }
                 continue;
             }
 
             $byte = ord($char[0]);
 
-            if ($byte === 10) {
+            if ($byte === 10 || $byte === 13) {
+                if ($byte === 13) { $state['skip_lf_once'] = true; }
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
-                return $line;
-            }
-            if ($byte === 13) {
-                $state['skip_lf_once'] = true;
-                if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
+                // A multi-line paste ends here; anything still queued behind the
+                // terminator belongs to no prompt on this screen. Drop it so it
+                // cannot execute against the next menu / prompt / password field.
+                $this->drainPendingInput($conn, $state);
                 return $line;
             }
             if ($byte === 3) {
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "^C\r\n"); }
+                $this->drainPendingInput($conn, $state);
                 return null;
             }
             if ($byte === 8 || $byte === 127) {
                 if ($line !== '') {
-                    $line = substr($line, 0, -1);
+                    $line = mb_substr($line, 0, max(0, mb_strlen($line, 'UTF-8') - 1), 'UTF-8');
                     if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\x08 \x08"); }
                 }
                 continue;
             }
             if ($byte === 0) { continue; }
 
-            // Ignore ANSI escape sequences and other multi-byte key tokens in
-            // line mode instead of echoing terminal control bytes back out.
-            if (strlen($char) > 1 || $byte === 27) {
+            // A reassembled UTF-8 codepoint: keep it (append + echo the whole
+            // sequence). Other multi-byte tokens (ANSI key sequences) and ESC are
+            // not text and are ignored in line mode.
+            if (strlen($char) > 1) {
+                if (($byte & 0xC0) === 0xC0) {
+                    $line .= $char;
+                    if (!empty($state['input_echo'])) { $this->safeWrite($conn, $char); }
+                }
+                continue;
+            }
+            if ($byte === 27 || $byte < 32) {
                 continue;
             }
 
@@ -3624,6 +3929,66 @@ class BbsSession
      * Read one character from the socket, handling TELNET IAC and ANSI escape sequences.
      * Returns null on disconnect.
      */
+    /**
+     * Discard input that is queued *right now* — pushback plus whatever is
+     * already sitting in the socket buffer — without blocking.
+     *
+     * Called at the submit / cancel boundary of a line reader: a multi-line
+     * paste (or a "hotkey<Enter>" burst) leaves trailing bytes that belong to no
+     * field on the current screen, and if left queued they run as keystrokes
+     * against the next menu, prompt or — worst — a password field. This is the
+     * correct place to drop them: the caller has just accepted one line of input
+     * and nothing else on this screen is waiting to read.
+     *
+     * It never blocks and never waits for new bytes, so genuine typed-ahead
+     * input that arrives *after* this call is unaffected.
+     */
+    /**
+     * True when another input byte is available *right now* (pushback or the
+     * socket buffer), without blocking. A line-input widget uses this to
+     * coalesce a paste burst: process every queued key first, redraw once,
+     * instead of once per character (a per-char full-box redraw storm makes a
+     * paste look like it vanished on some clients).
+     */
+    public function hasBufferedInput($conn, array &$state): bool
+    {
+        if (($state['pushback'] ?? '') !== '') {
+            return true;
+        }
+        if (!is_resource($conn) || feof($conn)) {
+            return false;
+        }
+        $r = [$conn]; $w = $ex = null;
+
+        return @stream_select($r, $w, $ex, 0, 0) > 0;
+    }
+
+    public function drainPendingInput($conn, array &$state): void
+    {
+        $state['skip_lf_once'] = false;
+
+        if (!is_resource($conn) || feof($conn)) {
+            $state['pushback'] = '';
+            return;
+        }
+        // Drain through readRawChar so IAC / NAWS / CHARSET negotiation that is
+        // interleaved with the pasted bytes is still processed (readRawChar
+        // returns "\x00" for that) — only real input tokens are discarded.
+        // Bounded so a hostile flood cannot spin here forever.
+        for ($i = 0; $i < 8192; $i++) {
+            if (($state['pushback'] ?? '') === '') {
+                $r = [$conn]; $w = $ex = null;
+                if (@stream_select($r, $w, $ex, 0, 0) < 1) {
+                    return;
+                }
+            }
+            $c = $this->readRawChar($conn, $state);
+            if ($c === null) {
+                return;
+            }
+        }
+    }
+
     public function readRawChar($conn, array &$state): ?string
     {
         if (!is_resource($conn) || feof($conn)) { return null; }
@@ -3642,7 +4007,7 @@ class BbsSession
         }
 
         // Handle TELNET IAC sequences
-        if ($byte === self::IAC) {
+        if (!$this->isSsh && empty($state['is_rlogin']) && $byte === self::IAC) {
             $cmd = $this->nextByte($conn, $state);
             if ($cmd === null) { return null; }
             $cmdByte = ord($cmd);
@@ -3651,6 +4016,14 @@ class BbsSession
                 $opt = $this->nextByte($conn, $state); // consume option byte
                 if ($opt !== null && $cmdByte === self::WILL && ord($opt) === self::OPT_TTYPE) {
                     $this->requestTerminalType($conn);
+                }
+                // Mirror the SB branch: if nothing else is waiting, return the
+                // protocol-chatter marker rather than blocking on the next byte.
+                if (($state['pushback'] ?? '') === '') {
+                    $rr = [$conn]; $rw = $rex = null;
+                    if (@stream_select($rr, $rw, $rex, 0, 0) < 1) {
+                        return "\x00";
+                    }
                 }
                 return $this->readRawChar($conn, $state); // skip negotiation; return next real char
             }
@@ -3743,13 +4116,27 @@ class BbsSession
                         }
 
                         if ($next === '~') {
+                            // Bracketed-paste markers (DECSET 2004): many clients
+                            // emit ESC[200~ / ESC[201~ around a paste even when
+                            // the server has not enabled the mode. Treat them as
+                            // protocol chatter; the pasted text flows through.
+                            if ($seq === '200' || $seq === '201') {
+                                return "\x00";
+                            }
                             return chr(27) . '[' . $seq . '~';
                         }
 
                         $seq .= $next;
-                        if (preg_match('/^[0-9;]*[A-Za-z]$/', $seq)) {
-                            // Device reports like CPR (ESC[row;colR) are not
-                            // keypresses and should not enter the input stream.
+                        if (preg_match('/^[0-9;]*([A-Za-z])$/', $seq, $m)) {
+                            // Parametrised / modified cursor and navigation keys
+                            // (e.g. ESC[1D for Left, ESC[1;5D for Ctrl-Left)
+                            // behave as the bare ESC[D arrow; normalise them so
+                            // the key readers decode them. Anything else ending
+                            // in a letter (CPR ESC[..R, DSR, DA, SGR ...) is a
+                            // terminal-generated report, not a keypress.
+                            if (in_array($m[1], ['A', 'B', 'C', 'D', 'H', 'F'], true)) {
+                                return chr(27) . '[' . $m[1];
+                            }
                             return "\x00";
                         }
 
@@ -3760,11 +4147,50 @@ class BbsSession
                 }
                 return chr(27) . '[' . $next2;
             }
+            if ($next1 === 'O') {
+                // SS3 - application cursor-key mode (DECCKM). A terminal in that
+                // mode sends ESC O A/B/C/D for the arrows and ESC O H/F for
+                // Home/End; normalise to the bare CSI form the key readers know.
+                $next2 = $this->nextByte($conn, $state, 50000);
+                if ($next2 !== null && in_array($next2, ['A', 'B', 'C', 'D', 'H', 'F'], true)) {
+                    return chr(27) . '[' . $next2;
+                }
+                // Not an SS3 cursor key: hand the bytes back in order and report
+                // the bare ESC (same as the generic fall-through below).
+                $state['pushback'] = 'O' . ($next2 ?? '') . ($state['pushback'] ?? '');
+                return chr(27);
+            }
             // Preserve ordering: put the unconsumed byte back at the front of
             // pushback, since it may itself have come from pushback ahead of
             // other still-buffered bytes.
             $state['pushback'] = $next1 . ($state['pushback'] ?? '');
             return chr(27);
+        }
+
+        // UTF-8 multi-byte lead byte (0xC2-0xF4). Reassemble the whole codepoint
+        // so callers see one character, not raw continuation bytes. Only the
+        // input readers benefit — IAC (0xFF) and ESC (0x1B) are handled above and
+        // are never valid lead bytes, and arrow/key sequences are pure ASCII, so
+        // this cannot disturb them. On a truncated / invalid sequence the bytes
+        // read are pushed back and the lead byte is returned alone.
+        if ($byte >= 0xC2 && $byte <= 0xF4) {
+            $need = $byte >= 0xF0 ? 3 : ($byte >= 0xE0 ? 2 : 1);
+            $seq  = $char;
+            for ($i = 0; $i < $need; $i++) {
+                $cont = $this->nextByte($conn, $state, 50000);
+                if ($cont === null || (ord($cont) & 0xC0) !== 0x80) {
+                    if ($cont !== null) {
+                        $state['pushback'] = $cont . ($state['pushback'] ?? '');
+                    }
+                    if (strlen($seq) > 1) {
+                        $state['pushback'] = substr($seq, 1) . ($state['pushback'] ?? '');
+                    }
+                    return $char;
+                }
+                $seq .= $cont;
+            }
+
+            return $seq;
         }
 
         return chr($byte);
@@ -3848,7 +4274,7 @@ class BbsSession
             // shared terminal secret) on every request. This keeps the session's
             // recorded IP — and registration screening — pointed at the user, not
             // the server. See Auth::resolveClientIp().
-            $terminalSecret = trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+            $terminalSecret = Config::terminalRegistrationSecret();
             if ($terminalSecret !== ''
                 && $this->peerIp !== null
                 && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
