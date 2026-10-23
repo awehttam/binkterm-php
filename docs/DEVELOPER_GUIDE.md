@@ -736,6 +736,7 @@ When adding features, **you must update the corresponding documentation file** f
 | Add or change a PacketBBS command, chat feature, output profile, or bridge API endpoint | `docs/PacketBBS.md` |
 | Change NNTP server behaviour, commands, newsgroup mapping, or article numbering (`src/Nntp/`, `scripts/nntp_server.php`) | `docs/NNTP.md` |
 | Change netmail storage, mailbox ownership/visibility, sending, receiving, or deletion (`MessageHandler` netmail methods, `BinkdProcessor::storeNetmail()`) | `docs/Netmail.md` |
+| Add or change a door data parser, the parser registry, or the leaderboard sync (`src/DoorData/`, `scripts/door_data_sync.php`) | `docs/DoorDataParsers.md` |
 | Add a new documentation file to `docs/` (excluding `docs/proposals/`) | `docs/index.md` (in operational priority order) |
 | Create a new `UPGRADING_x.y.z.md` file | `docs/index.md` Upgrading section (newest-first) and `README.md` |
 | Add a root-level Markdown file that a `docs/` page links to with `../` | Two places in `src/Web/DocsController.php`: `$specialBases` in `resolveDocPath()` and the `in_array` list in `rewriteLinks()` |
@@ -752,5 +753,6 @@ When adding features, **you must update the corresponding documentation file** f
 - **WebDoor Tutorial**: See [WebDoor-Tutorial.md](WebDoor-Tutorial.md) to build your first WebDoor end-to-end
 - **WebDoor API**: See [WebDoors.md](WebDoors.md) for the full WebDoor specification
 - **Door Games**: See [Doors.md](Doors.md) for the multiplexing bridge and door types
+- **Door Data Parsers**: See [DoorDataParsers.md](DoorDataParsers.md) to read a DOS door's data files into leaderboards
 - **Localization**: See [Localization.md](Localization.md) for the full i18n workflow
 - **Upgrade Guides**: Check the `docs/UPGRADING_x.x.x.md` files for version-specific changes

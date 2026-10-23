@@ -696,7 +696,7 @@ A door can expose its players to the BBS by naming a registered parser in its ma
 
 When a door with a `data_parser` exits, the bridge runs `scripts/door_data_sync.php`, which copies each player's score into the `/games` Top Scores leaderboard. Players are matched to BBS users by the real name stored in the game record (against username or real name); unmatched players are skipped. A row is added only when a player's score changed since their last row. Restart the bridge after upgrading, and set `DOSDOOR_PHP_PATH` in `.env` if `php` is not on the bridge's PATH.
 
-To support another game, see `docs/proposals/DoorGameDataParsers.md`.
+To support another game, see [DoorDataParsers.md](DoorDataParsers.md).
 
 ### Macro Replacements in launch_command
 

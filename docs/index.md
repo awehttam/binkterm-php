@@ -65,6 +65,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 - [Doors Overview](Doors.md) — Overview of door types and how to install them
 - [DOS Doors](DOSDoors.md) — Running classic DOS door games
+- [Door Data Parsers](DoorDataParsers.md) — Developer guide for reading DOS door game data files into leaderboards
 - [Native Doors](NativeDoors.md) — Native Linux/Unix door games
 - [RLogin Doors](RLoginDoors.md) — Connect out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol
 - [PubTerm](PubTerm.md) — Built-in browser terminal door: setup, terminal size, guest access, and known limitations
