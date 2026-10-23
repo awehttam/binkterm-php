@@ -372,7 +372,19 @@ SimpleRouter::get('/games', function() {
 
     if ($doorsGroupBy === 'category') {
         // Priority order for category tabs:
-        // 1. Door Servers
+        // 1. Local doors (immediately after All)
+        if (!empty($categoryCounts[\BinktermPHP\DoorCategoryHelper::LOCAL])) {
+            $tabs[] = [
+                'id' => 'cat-local',
+                'label' => \BinktermPHP\DoorCategoryHelper::LOCAL,
+                'count' => $categoryCounts[\BinktermPHP\DoorCategoryHelper::LOCAL],
+                'filter_type' => 'category',
+                'filter_value' => \BinktermPHP\DoorCategoryHelper::LOCAL
+            ];
+            unset($categoryCounts[\BinktermPHP\DoorCategoryHelper::LOCAL]);
+        }
+
+        // 2. Door Servers
         if (!empty($categoryCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS])) {
             $tabs[] = [
                 'id' => 'cat-door-servers',
@@ -384,7 +396,7 @@ SimpleRouter::get('/games', function() {
             unset($categoryCounts[\BinktermPHP\DoorCategoryHelper::DOOR_SERVERS]);
         }
 
-        // 2. Network tabs (DoorParty, BBSLink, A-Net)
+        // 3. Network tabs (DoorParty, BBSLink, A-Net)
         $priorityNetworks = [\BinktermPHP\DoorCategoryHelper::NET_DOORPARTY, \BinktermPHP\DoorCategoryHelper::NET_BBSLINK, \BinktermPHP\DoorCategoryHelper::NET_ANET];
         foreach ($priorityNetworks as $netName) {
             if (!empty($categoryCounts[$netName])) {

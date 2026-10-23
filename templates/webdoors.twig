@@ -112,7 +112,9 @@
                         <div class="door-tags mb-2 d-flex flex-wrap align-items-center gap-1">
                             {% if doors_group_by == 'category' %}
                                 {% for cat in game.effective_categories %}
-                                    {% if cat == 'Door Servers' %}
+                                    {% if cat == 'Local' %}
+                                        <span class="badge bg-success text-white" style="font-size: 0.65rem;">{{ cat }}</span>
+                                    {% elseif cat == 'Door Servers' %}
                                         <span class="badge bg-dark text-white" style="font-size: 0.65rem;">{{ cat }}</span>
                                     {% elseif cat == 'DoorParty' %}
                                         <span class="badge bg-info text-white" style="font-size: 0.65rem;">{{ cat }}</span>
