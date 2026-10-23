@@ -18,6 +18,7 @@ BinktermPHP is designed to be customized without touching core files, so your ch
   - [SEO Settings](#seo-settings)
   - [Message Reader](#message-reader)
   - [File Areas](#file-areas)
+  - [Default Door Icon](#default-door-icon)
 - [Themes](#themes)
 - [Template Overrides](#template-overrides)
 - [Template Resolution Order](#template-resolution-order)
@@ -229,6 +230,14 @@ Example footer content:
 ```
 
 Both fields accept Markdown. Changes take effect immediately after saving.
+
+---
+
+### Default Door Icon
+
+Doors (DOS, native, and RLogin) that do not declare their own icon are shown with a default icon on the `/games` page. By default this is `/favicon.svg`. To use your own default instead, place a PNG file at `public_html/images/dos-door-icon.png` (create the `images` directory if it does not exist). It is used automatically when present, and the server falls back to `/favicon.svg` when it is not, so no missing-file requests are made.
+
+Doors that declare an icon in their manifest are not affected.
 
 ---
 
