@@ -841,23 +841,26 @@ class MessageHandler
     }
 
     /**
-     * Get echomail messages from only subscribed echoareas
+     * Get echomail messages from subscribed or all echoareas, with optional network/sub-area filtering
      */
-    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
+    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc', $network = null, $areaTag = null, $subscribedOnly = true)
     {
         if (!$userId) {
             return ['messages' => [], 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0]];
         }
 
-        $subscriptionManager = new EchoareaSubscriptionManager();
-        $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
+        $subscribedEchoareas = null;
+        if ($subscribedOnly) {
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
 
-        if (empty($subscribedEchoareas) && $filter !== 'saved') {
-            return [
-                'messages' => [],
-                'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
-                'info' => 'You are not subscribed to any echoareas. Visit /subscriptions to subscribe to echoareas.'
-            ];
+            if (empty($subscribedEchoareas) && $filter !== 'saved') {
+                return [
+                    'messages' => [],
+                    'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
+                    'info' => 'You are not subscribed to any echoareas. Visit /subscriptions to subscribe to echoareas.'
+                ];
+            }
         }
 
         // Get user's messages_per_page setting if limit not specified
@@ -868,7 +871,7 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedEchomailFromSubscribedAreas($userId, $page, $limit, $filter, $subscribedEchoareas, $sort);
+            return $this->getThreadedEchomailFromSubscribedAreas($userId, $page, $limit, $filter, $subscribedEchoareas, $sort, $network, $areaTag, $subscribedOnly);
         }
 
         $offset = ($page - 1) * $limit;
@@ -924,16 +927,35 @@ class MessageHandler
             $filterParams[] = $p;
         }
 
+        // Network & sub-area scoping
+        $networkFilterSql = "";
+        $networkFilterParams = [];
+        if ($network && $network !== 'all') {
+            if ($network === '__local__' || $network === 'local') {
+                $networkFilterSql .= " AND (ea.is_local = TRUE OR ea.domain IS NULL OR ea.domain = '')";
+            } else {
+                $networkFilterSql .= " AND LOWER(ea.domain) = LOWER(?)";
+                $networkFilterParams[] = $network;
+            }
+        }
+        if ($areaTag && $areaTag !== 'all') {
+            $networkFilterSql .= " AND LOWER(ea.tag) = LOWER(?)";
+            $networkFilterParams[] = $areaTag;
+        }
+
         // Saved messages are an explicit user action, so show them regardless of
         // current subscription state instead of restricting to subscribed echoareas.
         if ($filter === 'saved') {
-            $areaScopeClause = "1=1";
-            $areaScopeParams = [];
-        } else {
+            $areaScopeClause = "1=1" . $networkFilterSql;
+            $areaScopeParams = $networkFilterParams;
+        } elseif ($subscribedOnly && !empty($subscribedEchoareas)) {
             $echoareaIds = array_column($subscribedEchoareas, 'id');
             $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
-            $areaScopeClause = "em.echoarea_id IN ($placeholders)";
-            $areaScopeParams = $echoareaIds;
+            $areaScopeClause = "em.echoarea_id IN ($placeholders)" . $networkFilterSql;
+            $areaScopeParams = array_merge($echoareaIds, $networkFilterParams);
+        } else {
+            $areaScopeClause = "1=1" . $networkFilterSql;
+            $areaScopeParams = $networkFilterParams;
         }
 
         $dateField = $this->getEchomailDateField($userId);
@@ -2311,8 +2333,10 @@ class MessageHandler
      * Get echomail statistics and tab counts using the same visibility rules as message list queries.
      *
      * @param int|null    $userId
-     * @param string|null $echoareaTag Optional echoarea tag. Null means all subscribed echoareas.
+     * @param string|null $echoareaTag Optional echoarea tag. Null means all echoareas matching network/subscription.
      * @param string|null $domain      Optional echoarea domain. Empty string means local/no-domain area.
+     * @param string|null $network     Optional network filter ('all', '__local__', or domain name).
+     * @param bool        $subscribedOnly Whether to restrict counts to subscribed areas (default: true).
      * @return array{
      *     total:int,
      *     recent:int,
@@ -2321,7 +2345,7 @@ class MessageHandler
      *     filter_counts:array{all:int,unread:int,read:int,tome:int,saved:int,drafts:int}
      * }
      */
-    public function getEchomailStats(?int $userId, ?string $echoareaTag = null, ?string $domain = null): array
+    public function getEchomailStats(?int $userId, ?string $echoareaTag = null, ?string $domain = null, ?string $network = null, bool $subscribedOnly = true): array
     {
         $user = $userId ? $this->getUserById($userId) : null;
         $isAdmin = $user && !empty($user['is_admin']);
@@ -2345,8 +2369,17 @@ class MessageHandler
                 $where[] = 'ea.domain = ?';
                 $params[] = $domain;
             }
-        } elseif ($userId) {
+        } elseif ($userId && $subscribedOnly) {
             $where[] = 'ues.is_active = TRUE';
+        }
+
+        if ($network && $network !== 'all') {
+            if ($network === '__local__' || $network === 'local') {
+                $where[] = "(ea.is_local = TRUE OR ea.domain IS NULL OR ea.domain = '')";
+            } else {
+                $where[] = "LOWER(ea.domain) = LOWER(?)";
+                $params[] = $network;
+            }
         }
 
         $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
@@ -2367,7 +2400,7 @@ class MessageHandler
 
         $toMeUser = $user['username'] ?? '';
         $toMeRealName = $user['real_name'] ?? '';
-        $joinSubscription = ($echoareaTag === null && $userId)
+        $joinSubscription = ($echoareaTag === null && $userId && $subscribedOnly)
             ? 'JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?'
             : '';
 
@@ -2387,7 +2420,7 @@ class MessageHandler
             WHERE " . implode(' AND ', $where);
 
         $queryParams = [$toMeUser, $toMeRealName];
-        if ($echoareaTag === null && $userId) {
+        if ($echoareaTag === null && $userId && $subscribedOnly) {
             $queryParams[] = $userId;
         }
         $queryParams[] = $userId;
@@ -2400,16 +2433,36 @@ class MessageHandler
 
         $areas = null;
         if ($echoareaTag === null && $userId) {
-            $areaWhere = ['ea.is_active = TRUE', 'ues.is_active = TRUE'];
+            $areaWhere = ['ea.is_active = TRUE'];
+            $areaParams = [];
+            if ($subscribedOnly) {
+                $areaWhere[] = 'ues.is_active = TRUE';
+            }
             if (!$isAdmin) {
                 $areaWhere[] = 'COALESCE(ea.is_sysop_only, FALSE) = FALSE';
             }
+            if ($network && $network !== 'all') {
+                if ($network === '__local__' || $network === 'local') {
+                    $areaWhere[] = "(ea.is_local = TRUE OR ea.domain IS NULL OR ea.domain = '')";
+                } else {
+                    $areaWhere[] = "LOWER(ea.domain) = LOWER(?)";
+                    $areaParams[] = $network;
+                }
+            }
+            $areaJoin = $subscribedOnly
+                ? 'JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?'
+                : '';
             $areasStmt = $this->db->prepare("
                 SELECT COUNT(*) AS count
                 FROM echoareas ea
-                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
+                {$areaJoin}
                 WHERE " . implode(' AND ', $areaWhere));
-            $areasStmt->execute([$userId]);
+            $finalAreaParams = [];
+            if ($subscribedOnly) {
+                $finalAreaParams[] = $userId;
+            }
+            $finalAreaParams = array_merge($finalAreaParams, $areaParams);
+            $areasStmt->execute($finalAreaParams);
             $areas = (int)$areasStmt->fetchColumn();
         }
 
@@ -5921,17 +5974,17 @@ class MessageHandler
     }
 
     /**
-     * Get threaded echomail messages from subscribed echoareas using MSGID/REPLY relationships
+     * Get threaded echomail messages from subscribed or all echoareas using MSGID/REPLY relationships
      */
-    private function getThreadedEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $subscribedEchoareas = null, $sort = 'date_desc')
+    private function getThreadedEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $subscribedEchoareas = null, $sort = 'date_desc', $network = null, $areaTag = null, $subscribedOnly = true)
     {
-        // Get subscribed echoareas if not provided
-        if ($subscribedEchoareas === null) {
+        // Get subscribed echoareas if not provided and subscribedOnly is true
+        if ($subscribedOnly && $subscribedEchoareas === null) {
             $subscriptionManager = new EchoareaSubscriptionManager();
             $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
         }
 
-        if (empty($subscribedEchoareas) && $filter !== 'saved') {
+        if ($subscribedOnly && empty($subscribedEchoareas) && $filter !== 'saved') {
             return [
                 'messages' => [],
                 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
@@ -5998,16 +6051,35 @@ class MessageHandler
             $filterParams[] = $p;
         }
 
+        // Network & sub-area scoping
+        $networkFilterSql = "";
+        $networkFilterParams = [];
+        if ($network && $network !== 'all') {
+            if ($network === '__local__' || $network === 'local') {
+                $networkFilterSql .= " AND (ea.is_local = TRUE OR ea.domain IS NULL OR ea.domain = '')";
+            } else {
+                $networkFilterSql .= " AND LOWER(ea.domain) = LOWER(?)";
+                $networkFilterParams[] = $network;
+            }
+        }
+        if ($areaTag && $areaTag !== 'all') {
+            $networkFilterSql .= " AND LOWER(ea.tag) = LOWER(?)";
+            $networkFilterParams[] = $areaTag;
+        }
+
         // Saved messages are an explicit user action, so show them regardless of
         // current subscription state instead of restricting to subscribed echoareas.
         if ($filter === 'saved') {
-            $areaScopeClause = "1=1";
-            $areaScopeParams = [];
-        } else {
+            $areaScopeClause = "1=1" . $networkFilterSql;
+            $areaScopeParams = $networkFilterParams;
+        } elseif ($subscribedOnly && !empty($subscribedEchoareas)) {
             $echoareaIds = array_column($subscribedEchoareas, 'id');
             $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
-            $areaScopeClause = "em.echoarea_id IN ($placeholders)";
-            $areaScopeParams = $echoareaIds;
+            $areaScopeClause = "em.echoarea_id IN ($placeholders)" . $networkFilterSql;
+            $areaScopeParams = array_merge($echoareaIds, $networkFilterParams);
+        } else {
+            $areaScopeClause = "1=1" . $networkFilterSql;
+            $areaScopeParams = $networkFilterParams;
         }
 
         // Get messages for current page using standard pagination
