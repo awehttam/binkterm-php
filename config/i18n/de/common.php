@@ -1958,7 +1958,7 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.door_manifest_editor.ai_fill_success' => 'KI hat {count} Feld(er) ausgefüllt. Bitte prüfen und speichern.',
     'ui.admin.door_manifest_editor.ai_fill_no_files' => 'Keine lesbaren Dateien im Door-Verzeichnis gefunden.',
     'ui.admin.door_manifest_editor.ai_fill_failed' => 'KI-Ausfüllung fehlgeschlagen.',
-    'ui.admin.door_manifest_editor.unmanaged_notice' => 'Dieses Manifest wird nicht vom Web verwaltet. Entfernen oder ändern Sie das Feld "managed" auf "web", um die Bearbeitung zu aktivieren.',
+    'ui.admin.door_manifest_editor.unmanaged_notice' => 'Dieses Manifest ist nicht als web-verwaltet markiert und wird daher vermutlich mit BinktermPHP ausgeliefert. Sie können es hier bearbeiten, beim Speichern wird es jedoch als web-verwaltet markiert, und ein künftiges Upgrade kann Ihre Änderungen überschreiben. Es wird empfohlen, das Door-Verzeichnis unter einem neuen Namen zu kopieren und stattdessen diese Kopie zu bearbeiten.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Warnung: Native Doors führen Host-Binärdateien direkt aus. Installieren Sie nur native Doors aus vertrauenswürdigen Quellen.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Ressourcen für diesen Door-Typ werden öffentlich aus public_html/ bereitgestellt. Hochgeladene Dateien können von jedermann heruntergeladen werden.',
 
@@ -2001,7 +2001,7 @@ Dies ist eine **eigene Splash-Nachricht**.',
 
     'ui.admin.door_manifest_editor.status.no_manifest' => 'Kein Manifest',
     'ui.admin.door_manifest_editor.status.web_managed' => 'Web-verwaltet',
-    'ui.admin.door_manifest_editor.status.unmanaged' => 'Nur lesen (nicht verwaltet)',
+    'ui.admin.door_manifest_editor.status.unmanaged' => 'Nicht verwaltet (Änderungen können überschrieben werden)',
 
     'ui.admin.door_manifest_editor.field.game_name' => 'Anzeigename',
     'ui.admin.door_manifest_editor.field.game_short_name' => 'Kurzname',

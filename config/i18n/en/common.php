@@ -1973,7 +1973,7 @@ return [
     'ui.admin.door_manifest_editor.ai_fill_success' => 'AI filled {count} field(s). Review and save.',
     'ui.admin.door_manifest_editor.ai_fill_no_files' => 'No readable files found in door directory.',
     'ui.admin.door_manifest_editor.ai_fill_failed' => 'AI fill failed.',
-    'ui.admin.door_manifest_editor.unmanaged_notice' => 'This manifest is not web-managed. Remove or change the "managed" field to "web" to enable editing.',
+    'ui.admin.door_manifest_editor.unmanaged_notice' => 'This manifest is not marked as web-managed, so it is likely one that ships with BinktermPHP. You can edit it here, but saving marks it as web-managed and a future upgrade may overwrite your changes. It is recommended to copy the door directory to a new name and edit that copy instead.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Warning: Native doors run host binaries directly. Only install native doors from trusted sources.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Assets for this door type are served publicly from public_html/. Uploaded files may be downloadable by anyone.',
     // Sections
@@ -2016,7 +2016,7 @@ return [
     // Status badges
     'ui.admin.door_manifest_editor.status.no_manifest' => 'No Manifest',
     'ui.admin.door_manifest_editor.status.web_managed' => 'Web-Managed',
-    'ui.admin.door_manifest_editor.status.unmanaged' => 'Read-Only (Unmanaged)',
+    'ui.admin.door_manifest_editor.status.unmanaged' => 'Unmanaged (edits may be overwritten)',
     // Shared field labels
     'ui.admin.door_manifest_editor.field.game_name' => 'Display Name',
     'ui.admin.door_manifest_editor.field.game_short_name' => 'Short Name',

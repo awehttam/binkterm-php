@@ -2006,7 +2006,7 @@ return [
     'ui.admin.door_manifest_editor.ai_fill_success' => 'La IA rellenó {count} campo(s). Revise y guarde.',
     'ui.admin.door_manifest_editor.ai_fill_no_files' => 'No se encontraron archivos legibles en el directorio de la puerta.',
     'ui.admin.door_manifest_editor.ai_fill_failed' => 'Error al autocompletar con IA.',
-    'ui.admin.door_manifest_editor.unmanaged_notice' => 'Este manifiesto no es gestionado por web. Elimine o cambie el campo "managed" a "web" para habilitar la edicion.',
+    'ui.admin.door_manifest_editor.unmanaged_notice' => 'Este manifiesto no esta marcado como gestionado por web, por lo que probablemente se distribuye con BinktermPHP. Puede editarlo aqui, pero al guardar se marca como gestionado por web y una actualizacion futura podria sobrescribir sus cambios. Se recomienda copiar el directorio de la puerta con un nombre nuevo y editar esa copia.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Advertencia: Las puertas nativas ejecutan binarios del host directamente. Instale solo puertas nativas de fuentes confiables.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Los recursos de este tipo de puerta se sirven publicamente desde public_html/. Cualquier archivo subido puede ser descargado por cualquiera.',
 
@@ -2049,7 +2049,7 @@ return [
 
     'ui.admin.door_manifest_editor.status.no_manifest' => 'Sin manifiesto',
     'ui.admin.door_manifest_editor.status.web_managed' => 'Gestionado por web',
-    'ui.admin.door_manifest_editor.status.unmanaged' => 'Solo lectura (no gestionado)',
+    'ui.admin.door_manifest_editor.status.unmanaged' => 'No gestionado (los cambios pueden sobrescribirse)',
 
     'ui.admin.door_manifest_editor.field.game_name' => 'Nombre para mostrar',
     'ui.admin.door_manifest_editor.field.game_short_name' => 'Nombre corto',

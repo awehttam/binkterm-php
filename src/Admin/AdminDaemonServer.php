@@ -2297,7 +2297,7 @@ class AdminDaemonServer
             if ($manifestExists) {
                 $data = json_decode((string)file_get_contents($manifestPath), true);
                 if (is_array($data)) {
-                    $editable = ($data['managed'] ?? null) === 'web';
+                    $editable = true;
                     $displayName = $data['game']['name'] ?? $data['name'] ?? $entry;
                 }
             }
@@ -2316,7 +2316,7 @@ class AdminDaemonServer
     /**
      * Return the manifest data, editability status, and form metadata for one door.
      *
-     * @return array{manifest:array,editable:bool,exists:bool,field_sections:array,picker_profiles:array,root_directory:string,manifest_filename:string,runtime_config_path:string|null,admin_page_url:string,admin_page_title_key:string}
+     * @return array{manifest:array,editable:bool,unmanaged:bool,exists:bool,field_sections:array,picker_profiles:array,root_directory:string,manifest_filename:string,runtime_config_path:string|null,admin_page_url:string,admin_page_title_key:string}
      */
     private function getDoorManifest(string $doorType, string $doorId): array
     {
@@ -2338,13 +2338,17 @@ class AdminDaemonServer
         $manifestPath = $doorPath . '/' . $typeDef->getManifestFilename();
         $exists = file_exists($manifestPath);
         $editable = !$exists; // new manifests are always editable
+        $unmanaged = false;
         $manifest = $typeDef->getDefaultManifest($doorId);
 
         if ($exists) {
             $data = json_decode((string)file_get_contents($manifestPath), true);
             if (is_array($data)) {
                 $manifest = $data;
-                $editable = ($data['managed'] ?? null) === 'web';
+                $editable = true;
+                // Shipped manifests lack managed:"web"; they stay editable but a
+                // later upgrade may overwrite the edits.
+                $unmanaged = ($data['managed'] ?? null) !== 'web';
             }
         }
 
@@ -2355,6 +2359,7 @@ class AdminDaemonServer
             'manifest'              => $manifest,
             'runtime'               => $this->readDoorRuntimeEntry($typeDef->getRuntimeConfigPath(), $doorId),
             'editable'              => $editable,
+            'unmanaged'             => $unmanaged,
             'exists'                => $exists,
             'field_sections'        => $fieldSections,
             'picker_profiles'       => $typeDef->getFilePickerProfiles(),
@@ -2386,16 +2391,14 @@ class AdminDaemonServer
             throw new \RuntimeException("Door directory not found: {$doorId}");
         }
 
-        // Ownership gate: cannot take ownership of unmanaged manifests.
+        // Unmanaged (shipped) manifests may be edited too; the editor warns that
+        // an upgrade can overwrite them, and the save marks them managed: "web".
         $manifestPath = $doorPath . '/' . $typeDef->getManifestFilename();
         $existingManifest = null;
         if (file_exists($manifestPath)) {
             $data = json_decode((string)file_get_contents($manifestPath), true);
             if (!is_array($data)) {
                 throw new \RuntimeException('Existing manifest contains invalid JSON');
-            }
-            if (($data['managed'] ?? null) !== 'web') {
-                throw new \RuntimeException('Manifest is not web-managed; cannot save via editor');
             }
             $existingManifest = $data;
         }

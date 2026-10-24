@@ -759,7 +759,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'picker_profiles'      => $result['picker_profiles'],
                 'picker_profiles_json' => json_encode($result['picker_profiles'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 'editable'             => $result['editable'],
-                'exists'               => $result['exists'],
+                'unmanaged'            => !empty($result['unmanaged']),
+                'exists'             => $result['exists'],
             ]);
         } catch (\Throwable $e) {
             http_response_code(404);

@@ -64,6 +64,8 @@
                     <small class="text-muted d-block">{{ t('ui.admin.door_manifest_editor.overview.status', {}, locale, ['common']) }}</small>
                     {% if not exists %}
                         <span class="badge bg-secondary">{{ t('ui.admin.door_manifest_editor.status.no_manifest', {}, locale, ['common']) }}</span>
+                    {% elseif unmanaged %}
+                        <span class="badge bg-warning text-dark">{{ t('ui.admin.door_manifest_editor.status.unmanaged', {}, locale, ['common']) }}</span>
                     {% elseif editable %}
                         <span class="badge bg-success">{{ t('ui.admin.door_manifest_editor.status.web_managed', {}, locale, ['common']) }}</span>
                     {% else %}
@@ -80,9 +82,9 @@
         </div>
     </div>
 
-    {% if not editable and exists %}
+    {% if unmanaged and exists %}
     <div class="alert alert-warning">
-        <i class="fas fa-lock"></i>
+        <i class="fas fa-exclamation-triangle"></i>
         {{ t('ui.admin.door_manifest_editor.unmanaged_notice', {}, locale, ['common']) }}
     </div>
     {% endif %}

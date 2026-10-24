@@ -1953,7 +1953,7 @@ return [
     'ui.admin.door_manifest_editor.ai_fill_success' => 'L\'AI ha compilato {count} campo/i. Verificare e salvare.',
     'ui.admin.door_manifest_editor.ai_fill_no_files' => 'Nessun file leggibile trovato nella directory della porta.',
     'ui.admin.door_manifest_editor.ai_fill_failed' => 'Compilazione automatica con AI non riuscita.',
-    'ui.admin.door_manifest_editor.unmanaged_notice' => 'Questo manifesto non e\' gestito via web. Rimuovere o modificare il campo "managed" in "web" per abilitare la modifica.',
+    'ui.admin.door_manifest_editor.unmanaged_notice' => 'Questo manifesto non e\' contrassegnato come gestito via web, quindi probabilmente e\' fornito con BinktermPHP. Puoi modificarlo qui, ma il salvataggio lo contrassegna come gestito via web e un aggiornamento futuro potrebbe sovrascrivere le modifiche. Si consiglia di copiare la directory della porta con un nuovo nome e modificare quella copia.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Attenzione: le porte native eseguono direttamente binari dell\'host. Installare solo porte native da fonti affidabili.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Le risorse per questo tipo di porta sono servite pubblicamente da public_html/. I file caricati potrebbero essere scaricati da chiunque.',
 
@@ -1996,7 +1996,7 @@ return [
 
     'ui.admin.door_manifest_editor.status.no_manifest' => 'Nessun manifesto',
     'ui.admin.door_manifest_editor.status.web_managed' => 'Gestito via web',
-    'ui.admin.door_manifest_editor.status.unmanaged' => 'Sola lettura (non gestito)',
+    'ui.admin.door_manifest_editor.status.unmanaged' => 'Non gestito (le modifiche possono essere sovrascritte)',
 
     'ui.admin.door_manifest_editor.field.game_name' => 'Nome visualizzato',
     'ui.admin.door_manifest_editor.field.game_short_name' => 'Nome breve',

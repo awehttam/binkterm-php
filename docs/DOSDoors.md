@@ -491,7 +491,7 @@ The manifest is saved as `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`. For ref
 - `max_nodes`: Maximum concurrent players (1–100)
 - `ansi_required`: Whether door requires ANSI support
 - `fossil_required`: Load FOSSIL driver (default: `true`). Set to `false` for doors with internal comm routines (faster)
-- `managed`: Set to `"web"` by the manifest editor. Manifests without this field (or with another value) are treated as read-only in the admin UI.
+- `managed`: Set to `"web"` by the manifest editor. Manifests without this field (or with another value) can still be edited in the admin UI, but the editor shows a warning and saving marks them `"web"`. Manifests that ship with BinktermPHP may be overwritten by an upgrade, so copy the door directory to a new name and edit that copy instead.
 
 ### Step 4: Enable the Door
 
