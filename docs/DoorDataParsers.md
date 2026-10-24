@@ -68,7 +68,7 @@ Add two optional keys to the door's `dosdoor.jsn`:
 | `data_parser` | Parser id, as returned by the parser's `getId()`. Case-insensitive. |
 | `data_dir` | Directory holding the data files, relative to the door's directory. Defaults to `.`. |
 
-`DosBoxDoorManifest::parseManifest()` exposes these as `data_parser` and `data_dir` in the normalized manifest. `DoorDataService` resolves the directory with `realpath()` and rejects anything outside `dosbox-bridge/dos/DOORS/`.
+Native doors use the same two keys at the top level of `nativedoor.json`. `DosBoxDoorManifest::parseManifest()` and `NativeDoorManifest::parseManifest()` expose these as `data_parser` and `data_dir` in the normalized manifest. `DoorDataService` resolves the directory with `realpath()` and rejects anything outside `dosbox-bridge/dos/DOORS/` (DOS doors) or `native-doors/doors/` (native doors).
 
 ## Normalized Player Shape
 
@@ -194,7 +194,7 @@ Every read is bounds-checked and throws `DoorDataParseException` instead of read
 
 ## Leaderboard Sync
 
-`DoorLeaderboardSync::syncDoor($doorId)` copies scores into `webdoor_leaderboards` so they appear in the `/games` Top Scores table. `scripts/door_data_sync.php <door_id>` wraps it, and the bridge (`scripts/dosbox-bridge/multiplexing-server.js`, `syncDoorData()`) runs it in the background when a DOS door's emulator exits, for doors whose manifest names a `data_parser`. The PHP binary comes from `DOSDOOR_PHP_PATH`, default `php`.
+`DoorLeaderboardSync::syncDoor($doorId)` copies scores into `webdoor_leaderboards` so they appear in the `/games` Top Scores table. `scripts/door_data_sync.php <door_id>` wraps it, and the bridge (`scripts/dosbox-bridge/multiplexing-server.js`, `syncDoorData()`) runs it in the background when a DOS or native door exits, for doors whose manifest names a `data_parser`. The PHP binary comes from `DOSDOOR_PHP_PATH`, default `php`.
 
 Rules:
 

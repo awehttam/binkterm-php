@@ -1326,7 +1326,10 @@ class SessionManager {
             if (!doorId || !/^[A-Za-z0-9_-]+$/.test(doorId)) {
                 return;
             }
-            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', doorId.toUpperCase(), 'dosdoor.jsn');
+            const isNative = session.emulator && session.emulator.getName() === 'Native';
+            const manifestPath = isNative
+                ? path.join(BASE_PATH, 'native-doors', 'doors', doorId, 'nativedoor.json')
+                : path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', doorId.toUpperCase(), 'dosdoor.jsn');
             if (!fs.existsSync(manifestPath) || !JSON.parse(fs.readFileSync(manifestPath, 'utf8')).data_parser) {
                 return;
             }

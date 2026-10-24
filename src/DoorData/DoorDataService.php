@@ -3,12 +3,13 @@
 namespace BinktermPHP\DoorData;
 
 use BinktermPHP\DosBoxDoorManifest;
+use BinktermPHP\NativeDoorManifest;
 
 /**
- * Resolves a DOS door's data directory and runs its registered parser.
+ * Resolves a DOS or native door's data directory and runs its registered parser.
  *
  * A door opts in by setting "data_parser" (and optionally "data_dir") in
- * its dosdoor.jsn manifest.
+ * its dosdoor.jsn or nativedoor.json manifest.
  *
  * @package BinktermPHP
  */
@@ -16,6 +17,7 @@ class DoorDataService
 {
     private string $basePath;
     private DosBoxDoorManifest $manifests;
+    private NativeDoorManifest $nativeManifests;
 
     /**
      * @param string|null $basePath BinktermPHP base path
@@ -26,6 +28,19 @@ class DoorDataService
             ? BINKTERMPHP_BASEDIR
             : dirname(__DIR__, 2));
         $this->manifests = new DosBoxDoorManifest($this->basePath);
+        $this->nativeManifests = new NativeDoorManifest($this->basePath);
+    }
+
+    /**
+     * Load a door manifest, preferring DOS doors and falling back to native doors.
+     *
+     * @param string $doorId Door identifier
+     * @return array|null Normalized manifest or null if not installed
+     */
+    private function getManifest(string $doorId): ?array
+    {
+        return $this->manifests->getDoorManifest($doorId)
+            ?? $this->nativeManifests->getDoorManifest($doorId);
     }
 
     /**
@@ -36,7 +51,7 @@ class DoorDataService
      */
     public function isSupported(string $doorId): bool
     {
-        $manifest = $this->manifests->getDoorManifest($doorId);
+        $manifest = $this->getManifest($doorId);
         return $manifest !== null
             && !empty($manifest['data_parser'])
             && DoorDataParserRegistry::get((string)$manifest['data_parser']) !== null;
@@ -51,7 +66,7 @@ class DoorDataService
      */
     public function getPlayers(string $doorId): array
     {
-        $manifest = $this->manifests->getDoorManifest($doorId);
+        $manifest = $this->getManifest($doorId);
         if ($manifest === null || empty($manifest['data_parser'])) {
             throw new DoorDataParseException("Door '$doorId' has no data parser configured");
         }
@@ -73,11 +88,12 @@ class DoorDataService
      *
      * @param array $manifest Normalized door manifest
      * @return string Absolute directory path
-     * @throws DoorDataParseException If the path escapes the DOS doors directory
+     * @throws DoorDataParseException If the path escapes the door type's doors directory
      */
     private function resolveDataDir(array $manifest): string
     {
-        $root = realpath($this->basePath . '/dosbox-bridge/dos/DOORS');
+        $isNative = ($manifest['type'] ?? '') === 'nativedoor';
+        $root = realpath($this->basePath . ($isNative ? '/native-doors/doors' : '/dosbox-bridge/dos/DOORS'));
         $dir = realpath($this->basePath . '/' . $manifest['directory'] . '/' . ($manifest['data_dir'] ?? '.'));
         if ($root === false || $dir === false || !is_dir($dir)
             || ($dir !== $root && strpos($dir, $root . DIRECTORY_SEPARATOR) !== 0)) {

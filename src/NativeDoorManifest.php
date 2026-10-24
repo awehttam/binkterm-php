@@ -172,6 +172,10 @@ class NativeDoorManifest
             'ansi_required' => $data['door']['ansi_required'] ?? true,
             'time_per_day' => $data['door']['time_per_day'] ?? 30,
 
+            // Optional game data parser (see src/DoorData)
+            'data_parser' => $data['data_parser'] ?? null,
+            'data_dir' => $data['data_dir'] ?? '.',
+
             // Requirements
             'requirements' => $data['requirements'] ?? [],
             'admin_only' => !empty($data['requirements']['admin_only']),
