@@ -2043,6 +2043,11 @@ return [
     'ui.admin.door_manifest_editor.field.max_nodes' => 'Max Nodes',
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Time Per Day (min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Maximum minutes a user can play per day.',
+    'ui.admin.door_manifest_editor.field.data_parser' => 'Game Data Parser',
+    'ui.admin.door_manifest_editor.field.data_parser_help' => 'Reads the game\x27s own player files so scores appear in the door leaderboard and Top Scores. Leave as None if the game has no parser.',
+    'ui.admin.door_manifest_editor.field.data_dir' => 'Data Directory',
+    'ui.admin.door_manifest_editor.field.data_dir_help' => 'Directory holding the game data files, relative to the door directory. Must stay inside the door type\x27s doors folder.',
+    'ui.admin.door_manifest_editor.data_parser.none' => 'None',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Requires DOSBox',
     // Native-specific
     'ui.admin.door_manifest_editor.field.native_executable' => 'Executable',

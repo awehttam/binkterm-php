@@ -2076,6 +2076,11 @@ return [
     'ui.admin.door_manifest_editor.field.max_nodes' => 'Nodos maximos',
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Tiempo por dia (min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Minutos maximos que un usuario puede jugar por dia.',
+    'ui.admin.door_manifest_editor.field.data_parser' => 'Analizador de datos del juego',
+    'ui.admin.door_manifest_editor.field.data_parser_help' => 'Lee los archivos de jugadores del propio juego para que las puntuaciones aparezcan en la clasificacion de la puerta y en Mejores puntuaciones. Deje Ninguno si el juego no tiene analizador.',
+    'ui.admin.door_manifest_editor.field.data_dir' => 'Directorio de datos',
+    'ui.admin.door_manifest_editor.field.data_dir_help' => 'Directorio con los archivos de datos del juego, relativo al directorio de la puerta. Debe permanecer dentro de la carpeta de puertas de este tipo.',
+    'ui.admin.door_manifest_editor.data_parser.none' => 'Ninguno',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Requiere DOSBox',
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Ejecutable',

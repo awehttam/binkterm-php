@@ -1786,6 +1786,11 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.door_manifest_editor.field.max_nodes' => 'Nœuds maximum',
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Temps par jour (min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Minutes maximum qu\'un utilisateur peut jouer par jour.',
+    'ui.admin.door_manifest_editor.field.data_parser' => 'Analyseur de données du jeu',
+    'ui.admin.door_manifest_editor.field.data_parser_help' => 'Lit les fichiers joueurs du jeu afin que les scores apparaissent dans le classement de la porte et dans Meilleurs scores. Laissez Aucun si le jeu n\x27a pas d\x27analyseur.',
+    'ui.admin.door_manifest_editor.field.data_dir' => 'Répertoire de données',
+    'ui.admin.door_manifest_editor.field.data_dir_help' => 'Répertoire contenant les fichiers de données du jeu, relatif au répertoire de la porte. Doit rester dans le dossier des portes de ce type.',
+    'ui.admin.door_manifest_editor.data_parser.none' => 'Aucun',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Nécessite DOSBox',
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Exécutable',

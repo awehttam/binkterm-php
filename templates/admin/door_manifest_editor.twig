@@ -160,7 +160,7 @@
                         {% for opt in field.options %}
                         <option value="{{ opt.value }}"
                             {% if (field.value is not null and field.value == opt.value) or (field.value is null and field.default == opt.value) %}selected{% endif %}>
-                            {{ t(opt.label_key, {}, locale, ['common']) }}
+                            {{ opt.label is defined ? opt.label : t(opt.label_key, {}, locale, ['common']) }}
                         </option>
                         {% endfor %}
                     </select>

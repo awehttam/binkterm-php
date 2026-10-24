@@ -68,7 +68,7 @@ Add two optional keys to the door's `dosdoor.jsn`:
 | `data_parser` | Parser id, as returned by the parser's `getId()`. Case-insensitive. |
 | `data_dir` | Directory holding the data files, relative to the door's directory. Defaults to `.`. |
 
-Native doors use the same two keys at the top level of `nativedoor.json`. `DosBoxDoorManifest::parseManifest()` and `NativeDoorManifest::parseManifest()` expose these as `data_parser` and `data_dir` in the normalized manifest. `DoorDataService` resolves the directory with `realpath()` and rejects anything outside `dosbox-bridge/dos/DOORS/` (DOS doors) or `native-doors/doors/` (native doors).
+Both keys can also be set in the Door Manifest Editor (Game Data Parser and Data Directory, under door setup), which builds the parser list from `DoorDataParserRegistry`. Native doors use the same two keys at the top level of `nativedoor.json`. `DosBoxDoorManifest::parseManifest()` and `NativeDoorManifest::parseManifest()` expose these as `data_parser` and `data_dir` in the normalized manifest. `DoorDataService` resolves the directory with `realpath()` and rejects anything outside `dosbox-bridge/dos/DOORS/` (DOS doors) or `native-doors/doors/` (native doors).
 
 ## Normalized Player Shape
 

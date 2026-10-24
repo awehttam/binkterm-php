@@ -219,6 +219,7 @@ class DosDoorManifestDefinition implements DoorManifestTypeDefinition
                         'default'   => 30,
                         'help_key'  => 'ui.admin.door_manifest_editor.field.time_per_day_help',
                     ],
+                    ...DoorDataFields::getFields(),
                 ],
             ],
             [
