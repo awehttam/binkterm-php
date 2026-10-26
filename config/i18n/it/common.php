@@ -4049,11 +4049,17 @@ return [
     'ui.webdoors.errors.system_disabled' => 'Spiacenti, il sistema di gioco non è abilitato.',
     'ui.webdoors.errors.admin_only' => 'Questa door è riservata agli amministratori.',
     'ui.webdoors.errors.requirements_not_met' => 'Questo gioco richiede funzionalità attualmente non abilitate su questo sistema.',
+    'ui.webdoors.errors.archive_login_required' => 'Devi effettuare l\'accesso per giocare a questo gioco.',
+    'ui.webdoors.errors.archive_insufficient_credits' => 'Non hai abbastanza crediti per giocare a questo gioco.',
     'ui.webdoor_play.page_title_suffix' => 'Door e giochi',
     'ui.webdoor_play.back_to_doors' => 'Torna alle door',
     'ui.webdoor_play.admin_config' => 'Configurazione admin',
     'ui.webdoor_play.fullscreen' => 'Schermo intero',
     'ui.webdoor_play.play_mode' => 'Modalità gioco',
+    'ui.webdoor_play.time_remaining' => 'Tempo rimanente: {time}',
+    'ui.webdoor_play.time_expired' => 'Il tuo tempo di gioco è terminato.',
+    'ui.webdoor_play.play_again' => 'Gioca di nuovo',
+    'ui.webdoor_play.credits_charged' => 'Addebitati {cost} crediti',
 
     // Shared File Page
     'ui.shared_file.shared_file' => 'File condiviso',

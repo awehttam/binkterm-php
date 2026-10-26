@@ -8,6 +8,7 @@
 - [Why Archive Doors Are Database-Backed](#why-archive-doors-are-database-backed)
 - [Adding a Game](#adding-a-game)
 - [Door Fields](#door-fields)
+- [Credits, Time Limits and Anonymous Access](#credits-time-limits-and-anonymous-access)
 - [Icons and Screenshots](#icons-and-screenshots)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
@@ -54,7 +55,15 @@ The item must be one the Internet Archive can run in its in-browser emulator. Op
 | Description | Shown on the game card. |
 | Enabled | Disabled games are hidden and cannot be opened. |
 | Hide from Web | Keeps the game out of the `/games` listing. |
-| Credit Cost, Max Time, Allow Anonymous | Stored with the game. See [Limitations](#limitations). |
+| Credit Cost | Credits charged each time a play session starts. `0` is free. Only charged when the credits system is enabled. |
+| Max Time (minutes) | Length of a play session. When it runs out the game is closed and the player can start a new session. `0` means no limit. |
+| Allow Anonymous | Lets visitors who are not logged in play. Only applies to free games (Credit Cost `0`). |
+
+## Credits, Time Limits and Anonymous Access
+
+Opening a game starts a play session. If the door has a Credit Cost and the credits system is enabled, the cost is deducted when the session starts, and a player without enough credits sees an error instead of the game. Reloading the page during the session does not charge again. When Max Time runs out, the game is closed and a **Play again** button starts a new session, which charges again.
+
+With **Allow Anonymous** on and a Credit Cost of `0`, visitors who are not logged in can open `/games/{door_id}` directly. These games are also listed on the public `/guest-doors` page when the guest doors page feature is enabled. Anonymous visitors are sent to the login page for any game that is not open to them.
 
 ## Icons and Screenshots
 
@@ -65,7 +74,7 @@ Upload an icon and optional screenshot with the form, or let the fetch button pu
 - The game is run and hosted by the Internet Archive. If archive.org is slow, down, or the item is removed or restricted, the game will not load.
 - Players' browsers must be able to reach `archive.org`.
 - Games are web only, with no telnet/SSH launch.
-- The Credit Cost, Max Time and Allow Anonymous settings are saved with the game, but launching a game currently does not charge credits, end the session after the time limit, or change who can open it. Players must be logged in to reach `/games/{door_id}`.
+- The time limit is enforced in the player's browser, which closes the embedded game when time is up. The server also tracks the session, so reloading the page inside the time window does not charge again or reset the clock, but a determined player can still keep an already-loaded game open by blocking the page script.
 - The Internet Archive player manages its own saves and controls. BinktermPHP does not sync save files or record scores for these games.
 
 ## Troubleshooting

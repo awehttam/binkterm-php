@@ -385,6 +385,62 @@ class ArchiveDoorManager
         ];
     }
 
+    /**
+     * Start (or resume) a play window for an archive door, enforcing the door's
+     * anonymous-access, credit cost and time limit settings.
+     *
+     * The game itself runs on archive.org, so a play window is tracked in the PHP
+     * session: reloading the page inside the window neither charges again nor resets
+     * the clock. Credits are only ever debited here, server-side.
+     *
+     * @param array    $door   Door as returned by getDoor()
+     * @param int|null $userId Logged-in user ID, or null for an anonymous visitor
+     * @return array{ok: bool, error_code?: string, seconds_remaining: ?int, credits_charged: int}
+     *         seconds_remaining is null when the door has no time limit
+     */
+    public function startPlay(array $door, ?int $userId): array
+    {
+        $config = $door['config'] ?? [];
+        $cost = max(0, (int)($config['credit_cost'] ?? 0));
+        $maxMinutes = max(0, (int)($config['max_time_minutes'] ?? 0));
+        $doorId = (string)$door['door_id'];
+        $now = time();
+
+        if ($userId === null && (empty($config['allow_anonymous']) || $cost > 0)) {
+            return ['ok' => false, 'error_code' => 'ui.webdoors.errors.archive_login_required', 'seconds_remaining' => null, 'credits_charged' => 0];
+        }
+
+        // A door with no time limit still needs a payment window so reloads do not re-charge
+        $windowSeconds = $maxMinutes > 0 ? $maxMinutes * 60 : 14400;
+        $owner = $userId ?? 0;
+
+        $existing = $_SESSION['archive_door_play'][$doorId] ?? null;
+        if (is_array($existing) && ($existing['user'] ?? null) === $owner && (int)($existing['expires'] ?? 0) > $now) {
+            return [
+                'ok' => true,
+                'seconds_remaining' => $maxMinutes > 0 ? (int)$existing['expires'] - $now : null,
+                'credits_charged' => 0,
+            ];
+        }
+
+        $charged = 0;
+        if ($userId !== null && $cost > 0 && UserCredit::isEnabled()) {
+            if (UserCredit::getBalance($userId) < $cost
+                || !UserCredit::debit($userId, $cost, 'Played archive door: ' . $doorId)) {
+                return ['ok' => false, 'error_code' => 'ui.webdoors.errors.archive_insufficient_credits', 'seconds_remaining' => null, 'credits_charged' => 0];
+            }
+            $charged = $cost;
+        }
+
+        $_SESSION['archive_door_play'][$doorId] = ['user' => $owner, 'expires' => $now + $windowSeconds];
+
+        return [
+            'ok' => true,
+            'seconds_remaining' => $maxMinutes > 0 ? $windowSeconds : null,
+            'credits_charged' => $charged,
+        ];
+    }
+
     private function mapRow(array $row): array
     {
         $genre = json_decode($row['genre'] ?? '[]', true);

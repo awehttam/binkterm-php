@@ -1146,12 +1146,71 @@ SimpleRouter::post('/api/jsdoor/files/{gameId}', function(string $gameId) {
     }
 });
 
+/**
+ * Render the play page for an Internet Archive door, enforcing its access, credit and time limit settings.
+ *
+ * @param string     $game Door ID
+ * @param array|null $user Current user, or null for an anonymous visitor
+ * @return bool True if the request was handled (page or error rendered), false if $game is not an archive door
+ */
+function renderArchiveDoorPage(string $game, ?array $user): bool
+{
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    $archiveDoor = $archiveDoorManager->getDoor($game);
+    if (!$archiveDoor || empty($archiveDoor['config']['enabled'])) {
+        return false;
+    }
+
+    $template = new Template();
+
+    if (!empty($archiveDoor['admin_only']) && empty($user['is_admin'])) {
+        http_response_code(403);
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
+        ]);
+        return true;
+    }
+
+    $play = $archiveDoorManager->startPlay($archiveDoor, $user ? (int)$user['id'] : null);
+    if (!$play['ok']) {
+        if (!$user) {
+            SimpleRouter::response()->redirect('/login');
+            return true;
+        }
+        http_response_code($play['error_code'] === 'ui.webdoors.errors.archive_insufficient_credits' ? 402 : 403);
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => $play['error_code']
+        ]);
+        return true;
+    }
+
+    $template->renderResponse('webdoor_play.twig', [
+        'game' => [
+            'name' => $archiveDoor['name'],
+            'description' => $archiveDoor['description'] ?? '',
+            'author' => $archiveDoor['author'] ?? '',
+        ],
+        'game_url' => $archiveDoor['embed_url'],
+        'game_id' => $game,
+        'is_archive' => true,
+        'seconds_remaining' => $play['seconds_remaining'],
+        'credits_charged' => $play['credits_charged']
+    ]);
+    return true;
+}
+
 // GET /games/{game} - Play a specific game (DOS door or web door)
 SimpleRouter::get('/games/{game}', function($game) {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
 
     if (!$user) {
+        // Archive doors can be opened to anonymous visitors by the sysop
+        if (GameConfig::isGameSystemEnabled() && renderArchiveDoorPage($game, null)) {
+            return;
+        }
         return SimpleRouter::response()->redirect('/login');
     }
     if(GameConfig::isGameSystemEnabled()==false){
@@ -1296,30 +1355,7 @@ SimpleRouter::get('/games/{game}', function($game) {
     }
 
     // Check if this is an Internet Archive door
-    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
-    $archiveDoor = $archiveDoorManager->getDoor($game);
-    if ($archiveDoor && !empty($archiveDoor['config']['enabled'])) {
-        if (!empty($archiveDoor['admin_only']) && empty($user['is_admin'])) {
-            http_response_code(403);
-            $template = new Template();
-            $template->renderResponse('error.twig', [
-                'error_title_code' => 'ui.error.access_error',
-                'error_code' => 'ui.webdoors.errors.admin_only'
-            ]);
-            return;
-        }
-
-        $template = new Template();
-        $template->renderResponse('webdoor_play.twig', [
-            'game' => [
-                'name' => $archiveDoor['name'],
-                'description' => $archiveDoor['description'] ?? '',
-                'author' => $archiveDoor['author'] ?? '',
-            ],
-            'game_url' => $archiveDoor['embed_url'],
-            'game_id' => $game,
-            'is_archive' => true
-        ]);
+    if (renderArchiveDoorPage($game, $user)) {
         return;
     }
 

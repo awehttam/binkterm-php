@@ -4050,11 +4050,17 @@ return [
     'ui.webdoors.errors.system_disabled' => 'Lo sentimos, el sistema de juegos no esta habilitado.',
     'ui.webdoors.errors.admin_only' => 'Este door esta restringido a administradores.',
     'ui.webdoors.errors.requirements_not_met' => 'Este juego requiere funciones que actualmente no estan habilitadas en este sistema.',
+    'ui.webdoors.errors.archive_login_required' => 'Debes iniciar sesión para jugar a este juego.',
+    'ui.webdoors.errors.archive_insufficient_credits' => 'No tienes suficientes créditos para jugar a este juego.',
     'ui.webdoor_play.page_title_suffix' => 'Puertas y juegos',
     'ui.webdoor_play.back_to_doors' => 'Volver a puertas',
     'ui.webdoor_play.admin_config' => 'Configuracion admin',
     'ui.webdoor_play.fullscreen' => 'Pantalla completa',
     'ui.webdoor_play.play_mode' => 'Modo de juego',
+    'ui.webdoor_play.time_remaining' => 'Tiempo restante: {time}',
+    'ui.webdoor_play.time_expired' => 'Se ha agotado tu tiempo de juego.',
+    'ui.webdoor_play.play_again' => 'Jugar de nuevo',
+    'ui.webdoor_play.credits_charged' => 'Se cobraron {cost} créditos',
 
     // Shared File Page
     'ui.shared_file.shared_file' => 'Archivo compartido',

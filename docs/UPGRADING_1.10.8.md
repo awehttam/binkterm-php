@@ -76,7 +76,7 @@ Enabled games appear on the `/games` page with an **ARCHIVE** badge, in the **In
 
 The games are streamed from `archive.org`, so players' browsers need to reach that site, and availability depends on the Internet Archive.
 
-See `docs/ArchiveDoors.md` for the full field reference and limitations.
+Each game can have a credit cost, a play time limit, and optional anonymous access. See `docs/ArchiveDoors.md` for the full field reference and limitations.
 
 ## Upgrade Instructions
 

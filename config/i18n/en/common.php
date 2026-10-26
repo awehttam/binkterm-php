@@ -4068,11 +4068,17 @@ return [
     'ui.webdoors.errors.system_disabled' => 'Sorry, the game system is not enabled.',
     'ui.webdoors.errors.admin_only' => 'This door is restricted to administrators.',
     'ui.webdoors.errors.requirements_not_met' => 'This game requires features that are not currently enabled on this system.',
+    'ui.webdoors.errors.archive_login_required' => 'You must be logged in to play this game.',
+    'ui.webdoors.errors.archive_insufficient_credits' => 'You do not have enough credits to play this game.',
     'ui.webdoor_play.page_title_suffix' => 'Doors and Games',
     'ui.webdoor_play.back_to_doors' => 'Back to Doors',
     'ui.webdoor_play.admin_config' => 'Admin Config',
     'ui.webdoor_play.fullscreen' => 'Fullscreen',
     'ui.webdoor_play.play_mode' => 'Play Mode',
+    'ui.webdoor_play.time_remaining' => 'Time remaining: {time}',
+    'ui.webdoor_play.time_expired' => 'Your play time has ended.',
+    'ui.webdoor_play.play_again' => 'Play again',
+    'ui.webdoor_play.credits_charged' => 'Charged {cost} credits',
 
     // Shared File Page
     'ui.shared_file.shared_file' => 'Shared File',

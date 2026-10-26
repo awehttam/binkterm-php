@@ -212,9 +212,8 @@ SimpleRouter::post('/api/door/launch', function() {
             $creditCost = (int)$doorConfig['credit_cost'];
 
             // Check if credits system is enabled
-            $userCredit = new \BinktermPHP\UserCredit($userId);
-            if ($userCredit->isEnabled()) {
-                $currentBalance = $userCredit->getBalance();
+            if (\BinktermPHP\UserCredit::isEnabled()) {
+                $currentBalance = \BinktermPHP\UserCredit::getBalance($userId);
 
                 if ($currentBalance < $creditCost) {
                     getDoorLogger()->warning("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
@@ -226,13 +225,12 @@ SimpleRouter::post('/api/door/launch', function() {
                 }
 
                 // Deduct credits
-                $creditReason = $doorType === 'rlogin' ? 'rlogindoor_launch' : 'dosdoor_launch';
-                if (!$userCredit->deductCredits($creditCost, $creditReason, "Launched door: $doorName")) {
+                if (!\BinktermPHP\UserCredit::debit($userId, $creditCost, "Launched $doorType door: $doorName")) {
                     getDoorLogger()->error("DOSDOOR: [API] Failed to deduct credits for $doorName");
                     throw new \Exception("Failed to process credit payment. Please try again.");
                 }
 
-                getDoorLogger()->info("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . $userCredit->getBalance());
+                getDoorLogger()->info("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . \BinktermPHP\UserCredit::getBalance($userId));
             }
         }
 
@@ -647,6 +645,18 @@ SimpleRouter::get('/guest-doors', function() {
             $guestDoors[] = $door;
         }
     }
+
+    // Internet Archive doors opened to anonymous visitors (free, played at /games/{id})
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    foreach ($archiveDoorManager->getEnabledDoors() as $door) {
+        if (!empty($door['config']['allow_anonymous']) && empty($door['config']['hide_from_web'])
+            && (int)($door['config']['credit_cost'] ?? 0) === 0) {
+            $door['play_url'] = '/games/' . $door['door_id'];
+            $guestDoors[] = $door;
+        }
+    }
+
+    usort($guestDoors, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 
     $template = new \BinktermPHP\Template();
     $template->renderResponse('guest_doors.twig', ['doors' => $guestDoors]);

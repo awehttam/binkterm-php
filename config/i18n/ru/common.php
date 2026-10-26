@@ -4072,11 +4072,17 @@ return [
     'ui.webdoors.errors.system_disabled' => 'К сожалению, игровая система отключена.',
     'ui.webdoors.errors.admin_only' => 'Эта дверь доступна только администраторам.',
     'ui.webdoors.errors.requirements_not_met' => 'Для этой игры требуются функции, которые в данный момент отключены в системе.',
+    'ui.webdoors.errors.archive_login_required' => 'Чтобы играть в эту игру, необходимо войти в систему.',
+    'ui.webdoors.errors.archive_insufficient_credits' => 'У вас недостаточно кредитов для игры.',
     'ui.webdoor_play.page_title_suffix' => 'Двери и игры',
     'ui.webdoor_play.back_to_doors' => 'Назад к дверям',
     'ui.webdoor_play.admin_config' => 'Админ-конфигурация',
     'ui.webdoor_play.fullscreen' => 'Полноэкранный режим',
     'ui.webdoor_play.play_mode' => 'Режим игры',
+    'ui.webdoor_play.time_remaining' => 'Осталось времени: {time}',
+    'ui.webdoor_play.time_expired' => 'Ваше игровое время истекло.',
+    'ui.webdoor_play.play_again' => 'Играть снова',
+    'ui.webdoor_play.credits_charged' => 'Списано кредитов: {cost}',
 
     // Страница общего файла
     'ui.shared_file.shared_file' => 'Общий файл',
