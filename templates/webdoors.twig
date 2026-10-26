@@ -137,6 +137,8 @@
                                     <span class="badge bg-danger text-white" style="font-size: 0.65rem;">RLOGIN</span>
                                 {% elseif game.type == 'jsdosdoor' %}
                                     <span class="badge bg-primary text-white" style="font-size: 0.65rem;">{{ t('ui.webdoors.type_jsdos', {}, locale, ['common']) }}</span>
+                                {% elseif game.type == 'archivedoor' %}
+                                    <span class="badge bg-secondary text-white" style="font-size: 0.65rem;">ARCHIVE</span>
                                 {% else %}
                                     <span class="badge bg-success text-white" style="font-size: 0.65rem;">WEB</span>
                                 {% endif %}
@@ -148,7 +150,7 @@
                         <p class="card-text text-muted small mb-2">{{ game.description }}</p>
                         <div class="mt-auto pt-2 d-flex justify-content-between align-items-end gap-2">
                             <small class="text-muted text-break me-auto" style="font-size: 0.75rem; line-height: 1.25;">
-                                {% if game.type == 'dosdoor' or game.type == 'nativedoor' or game.type == 'rlogindoor' %}
+                                {% if game.type == 'dosdoor' or game.type == 'nativedoor' or game.type == 'rlogindoor' or game.type == 'archivedoor' %}
                                     {% if game.players %}{{ t('ui.webdoors.players_count', {'count': game.players}, locale, ['common']) }}{% endif %}
                                     {% if game.version or game.author %}
                                         {% if game.players %} | {% endif %}

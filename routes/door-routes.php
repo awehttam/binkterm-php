@@ -740,6 +740,35 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
         return;
     }
 
+    // Archive doors have no filesystem footprint — icon/screenshot are stored
+    // as BYTEA blobs in the archive_doors table.
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    if ($archiveDoorManager->getDoor($doorid)) {
+        $blob = $asset === 'icon'
+            ? $archiveDoorManager->getIconBlob($doorid)
+            : $archiveDoorManager->getScreenshotBlob($doorid);
+
+        if (!$blob) {
+            http_response_code(404);
+            echo doorLocalizedText('errors.door.asset.not_defined', 'Asset not defined in manifest');
+            return;
+        }
+
+        $etag = '"' . md5($blob['data']) . '"';
+        header('ETag: ' . $etag);
+        header('Content-Type: ' . $blob['mime']);
+        header('Content-Length: ' . $blob['size']);
+        header('Cache-Control: public, max-age=604800, stale-while-revalidate=86400');
+
+        if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && trim($_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+            http_response_code(304);
+            return;
+        }
+
+        echo $blob['data'];
+        return;
+    }
+
     // Load door manifest — check native doors, then DOS doors
     $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
     $door = $nativeDoorManager->getDoor($doorid);

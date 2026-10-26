@@ -342,6 +342,35 @@ SimpleRouter::get('/games', function() {
         }
     }
 
+    // Get Internet Archive Doors
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    $archiveDoors = $archiveDoorManager->getEnabledDoors();
+    foreach ($archiveDoors as $doorId => $door) {
+        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            continue;
+        }
+        if (!empty($door['config']['hide_from_web'])) {
+            continue;
+        }
+        $iconUrl = getDefaultDoorIconUrl();
+        if (!empty($door['icon'])) {
+            $iconUrl = "/door-assets/{$doorId}/icon";
+        }
+
+        $games[] = [
+            'id' => $doorId,
+            'name' => $door['name'],
+            'description' => $door['description'] ?? '',
+            'author' => $door['author'] ?? null,
+            'version' => $door['game_version'] ?? null,
+            'path' => $doorId,
+            'icon_url' => $iconUrl,
+            'type' => 'archivedoor',
+            'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? [\BinktermPHP\DoorCategoryHelper::INTERNET_ARCHIVE]),
+            'players' => $door['players'] ?? null
+        ];
+    }
+
     // Sort all games by name
     usort($games, function($a, $b) {
         return strcasecmp($a['name'], $b['name']);
@@ -1262,6 +1291,33 @@ SimpleRouter::get('/games/{game}', function($game) {
             'secondary_url' => $secondaryUrl,
             'secondary_label_key' => $secondaryLabelKey,
             'show_fullscreen_button' => false,
+        ]);
+        return;
+    }
+
+    // Check if this is an Internet Archive door
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    $archiveDoor = $archiveDoorManager->getDoor($game);
+    if ($archiveDoor && !empty($archiveDoor['config']['enabled'])) {
+        if (!empty($archiveDoor['admin_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('error.twig', [
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'ui.webdoors.errors.admin_only'
+            ]);
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('webdoor_play.twig', [
+            'game' => [
+                'name' => $archiveDoor['name'],
+                'description' => $archiveDoor['description'] ?? '',
+                'author' => $archiveDoor['author'] ?? '',
+            ],
+            'game_url' => $archiveDoor['embed_url'],
+            'game_id' => $game
         ]);
         return;
     }

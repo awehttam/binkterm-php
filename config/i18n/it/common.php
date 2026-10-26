@@ -312,6 +312,7 @@ return [
     'ui.base.admin.doors_dos' => 'Doors DOS',
     'ui.base.admin.doors_native' => 'Doors nativi',
     'ui.base.admin.doors_rlogin' => 'Doors RLogin',
+    'ui.base.admin.doors_archive' => 'Giochi Archive.org',
     'ui.base.admin.doors_web' => 'Doors web',
     'ui.base.admin.doors_jsdos' => 'Doors JS-DOS',
     'ui.base.admin.analytics' => 'Analisi',

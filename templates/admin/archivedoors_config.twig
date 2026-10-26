@@ -1,0 +1,526 @@
+{% extends "base.twig" %}
+
+{% block title %}Internet Archive Games - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <div>
+            <h1 class="h2"><i class="fas fa-university me-2 text-primary"></i>Internet Archive Games</h1>
+            <p class="text-muted small mb-0">Stream classic MS-DOS games directly inside the browser using Internet Archive's EM-DOSBox engine. Zero host disk storage required.</p>
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-primary" id="addDoorBtn">
+                <i class="fas fa-plus"></i> Add Game from Archive.org
+            </button>
+        </div>
+    </div>
+
+    <div id="statusAlert"></div>
+
+    <div class="card shadow">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="fas fa-gamepad me-1"></i>Installed Archive Games</h6>
+            <span class="badge bg-secondary" id="doorCountBadge">0</span>
+        </div>
+        <div class="card-body" id="doorsList">
+            <div class="text-center text-muted py-4">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                Loading games...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Game Modal -->
+<div class="modal fade" id="doorModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <form id="doorForm" enctype="multipart/form-data" style="display: contents;">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="doorModalTitle">Add Game from Internet Archive</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalAlert"></div>
+
+                    <input type="hidden" name="existing_door_id" id="fieldExistingDoorId" value="">
+                    <input type="hidden" name="remote_icon_url" id="fieldRemoteIconUrl" value="">
+
+                    <!-- Quick Fetch Box -->
+                    <div class="card border-primary mb-3 bg-light-subtle">
+                        <div class="card-body">
+                            <label class="form-label fw-bold"><i class="fas fa-bolt text-warning me-1"></i>Quick Import from Archive.org</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="archiveFetchInput" placeholder="Paste URL (e.g. https://archive.org/details/msdos_Oregon_Trail_The_1990) or Item ID">
+                                <button class="btn btn-outline-primary" type="button" id="fetchMetadataBtn">
+                                    <i class="fas fa-magic"></i> Fetch Details
+                                </button>
+                            </div>
+                            <div class="form-text">Paste any MS-DOS game link from <a href="https://archive.org/details/softwarelibrary_msdos_games" target="_blank" rel="noopener">archive.org/details/softwarelibrary_msdos_games</a> to auto-fill title, description, year, author, and cover art.</div>
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted border-bottom pb-1">Game Details</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Door Identifier <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="door_id" id="fieldDoorId" pattern="[A-Za-z0-9_-]+" required>
+                            <div class="form-text">Unique URL key (e.g. <code>oregon-trail</code>)</div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Archive Item ID / URL <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="archive_item_id" id="fieldArchiveItemId" required placeholder="msdos_Oregon_Trail_The_1990">
+                            <div class="form-text">Identifier from archive.org</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Game Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="name" id="fieldName" required>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Short Name</label>
+                            <input type="text" class="form-control" name="short_name" id="fieldShortName">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Developer / Creator</label>
+                            <input type="text" class="form-control" name="author" id="fieldAuthor">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Release Year</label>
+                            <input type="number" class="form-control" name="release_year" id="fieldReleaseYear" min="1970" max="2099">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Categories / Tags</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="genre" id="fieldGenre" placeholder="Internet Archive Games, Classic">
+                                <select class="form-select" style="max-width: 140px;" onchange="onCategorySelect(this)">
+                                    <option value="">+ Add Tag</option>
+                                    <option value="Classic">Classic</option>
+                                    <option value="Adventure">Adventure</option>
+                                    <option value="RPG">RPG</option>
+                                    <option value="Strategy">Strategy</option>
+                                    <option value="Simulation">Simulation</option>
+                                    <option value="Action">Action</option>
+                                    <option value="Arcade">Arcade</option>
+                                    <option value="Sci-Fi">Sci-Fi</option>
+                                    <option value="Fantasy">Fantasy</option>
+                                    <option value="Space">Space</option>
+                                    <option value="Trivia">Trivia</option>
+                                    <option value="Sports">Sports</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="description" id="fieldDescription" rows="2"></textarea>
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted border-bottom pb-1">Media & Visuals</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Game Icon / Box Art</label>
+                            <div class="d-flex align-items-start gap-2">
+                                <div id="iconPreviewContainer" class="border rounded p-1 bg-light text-center" style="width: 80px; height: 80px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                                    <img id="iconPreview" src="" alt="Icon" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;">
+                                    <i id="iconPlaceholder" class="fas fa-image fa-2x text-muted"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <input type="file" class="form-control form-control-sm mb-1" name="icon" id="fieldIcon" accept="image/*" onchange="previewImage(this, 'iconPreview', 'iconPlaceholder')">
+                                    <div class="form-check form-check-inline" id="removeIconCheck" style="display: none;">
+                                        <input class="form-check-input" type="checkbox" name="remove_icon" id="fieldRemoveIcon">
+                                        <label class="form-check-label small" for="fieldRemoveIcon">Remove icon</label>
+                                    </div>
+                                    <div class="form-text small">PNG, JPEG, WebP, or SVG. Automatically populated when fetching metadata.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Screenshot (Optional)</label>
+                            <div class="d-flex align-items-start gap-2">
+                                <div id="screenshotPreviewContainer" class="border rounded p-1 bg-light text-center" style="width: 80px; height: 80px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                                    <img id="screenshotPreview" src="" alt="Screenshot" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;">
+                                    <i id="screenshotPlaceholder" class="fas fa-desktop fa-2x text-muted"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <input type="file" class="form-control form-control-sm mb-1" name="screenshot" id="fieldScreenshot" accept="image/*" onchange="previewImage(this, 'screenshotPreview', 'screenshotPlaceholder')">
+                                    <div class="form-check form-check-inline" id="removeScreenshotCheck" style="display: none;">
+                                        <input class="form-check-input" type="checkbox" name="remove_screenshot" id="fieldRemoveScreenshot">
+                                        <label class="form-check-label small" for="fieldRemoveScreenshot">Remove screenshot</label>
+                                    </div>
+                                    <div class="form-text small">Optional in-game screenshot preview.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted border-bottom pb-1">Availability & Access</h6>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Credit Cost</label>
+                            <input type="number" class="form-control" name="credit_cost" id="fieldCreditCost" min="0" value="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Max Play Time (Minutes)</label>
+                            <input type="number" class="form-control" name="max_time_minutes" id="fieldMaxTime" min="1" max="1440" value="60">
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end gap-3 pb-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="enabled" id="fieldEnabled" checked>
+                                <label class="form-check-label" for="fieldEnabled">Enabled</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="allow_anonymous" id="fieldAllowAnonymous">
+                                <label class="form-check-label" for="fieldAllowAnonymous">Allow Guests</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="hide_from_web" id="fieldHideFromWeb">
+                                <label class="form-check-label" for="fieldHideFromWeb">Hide from Game List</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveDoorBtn">
+                        <i class="fas fa-save"></i> Save Game
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let doorsData = [];
+let modalInstance = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    modalInstance = new bootstrap.Modal(document.getElementById('doorModal'));
+    loadDoors();
+
+    document.getElementById('addDoorBtn').addEventListener('click', openAddModal);
+    document.getElementById('fetchMetadataBtn').addEventListener('click', fetchArchiveMetadata);
+    document.getElementById('archiveFetchInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            fetchArchiveMetadata();
+        }
+    });
+
+    document.getElementById('doorForm').addEventListener('submit', handleSaveDoor);
+});
+
+function showAlert(type, msg) {
+    const el = document.getElementById('statusAlert');
+    el.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${msg}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function showModalAlert(type, msg) {
+    const el = document.getElementById('modalAlert');
+    el.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${msg}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function onCategorySelect(selectEl) {
+    const val = selectEl.value;
+    if (!val) return;
+    const input = document.getElementById('fieldGenre');
+    const existing = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (!existing.includes(val)) {
+        existing.push(val);
+        input.value = existing.join(', ');
+    }
+    selectEl.value = '';
+}
+
+function previewImage(input, imgId, placeholderId) {
+    const file = input.files && input.files[0];
+    const img = document.getElementById(imgId);
+    const placeholder = document.getElementById(placeholderId);
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+            img.style.display = 'block';
+            if (placeholder) placeholder.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function loadDoors() {
+    fetch('/admin/api/archive-doors')
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) throw new Error(res.error || 'Failed to load doors');
+            doorsData = res.doors || [];
+            renderDoorsList();
+        })
+        .catch(err => {
+            showAlert('danger', 'Error loading archive games: ' + err.message);
+        });
+}
+
+function renderDoorsList() {
+    const listEl = document.getElementById('doorsList');
+    const countBadge = document.getElementById('doorCountBadge');
+    countBadge.textContent = doorsData.length;
+
+    if (doorsData.length === 0) {
+        listEl.innerHTML = `<div class="text-center text-muted py-4">
+            <i class="fas fa-university fa-3x mb-3 text-secondary"></i>
+            <p>No Internet Archive games configured yet.</p>
+            <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Add Your First Game
+            </button>
+        </div>`;
+        return;
+    }
+
+    let html = '<div class="table-responsive"><table class="table table-hover align-middle mb-0">';
+    html += '<thead class="table-light"><tr>';
+    html += '<th style="width: 50px;"></th>';
+    html += '<th>Title</th>';
+    html += '<th>Item ID</th>';
+    html += '<th>Year / Author</th>';
+    html += '<th>Tags</th>';
+    html += '<th class="text-center">Status</th>';
+    html += '<th class="text-end" style="width: 180px;">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    doorsData.forEach(d => {
+        const iconSrc = d.icon_url || '/favicon.svg';
+        const isEnabled = d.config && d.config.enabled;
+        const tags = Array.isArray(d.genre) ? d.genre : [];
+
+        html += `<tr>
+            <td>
+                <img src="${iconSrc}" alt="" style="width: 36px; height: 36px; object-fit: contain; border-radius: 4px; background: #222;" class="p-1">
+            </td>
+            <td>
+                <div class="fw-bold">${escHtml(d.name)}</div>
+                <div class="small text-muted text-truncate" style="max-width: 300px;">${escHtml(d.description || '')}</div>
+            </td>
+            <td>
+                <a href="${escHtml(d.embed_url)}" target="_blank" rel="noopener" class="font-monospace small">
+                    ${escHtml(d.archive_item_id)} <i class="fas fa-external-link-alt ms-1" style="font-size: 0.7rem;"></i>
+                </a>
+            </td>
+            <td class="small">
+                ${d.release_year ? `<span class="badge bg-light text-dark border me-1">${d.release_year}</span>` : ''}
+                ${escHtml(d.author || 'Unknown')}
+            </td>
+            <td>
+                ${tags.map(t => `<span class="badge bg-secondary-subtle text-dark border me-1 small">${escHtml(t)}</span>`).join('')}
+            </td>
+            <td class="text-center">
+                ${isEnabled ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Disabled</span>'}
+            </td>
+            <td class="text-end">
+                <div class="btn-group btn-group-sm">
+                    <a href="/games/${d.id}" target="_blank" class="btn btn-outline-primary" title="Play game in new tab">
+                        <i class="fas fa-play"></i>
+                    </a>
+                    <button class="btn btn-outline-secondary" onclick="openEditModal('${d.id}')" title="Edit Game">
+                        <i class="fas fa-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteDoor('${d.id}')" title="Delete Game">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    listEl.innerHTML = html;
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function openAddModal() {
+    document.getElementById('doorForm').reset();
+    document.getElementById('fieldExistingDoorId').value = '';
+    document.getElementById('fieldRemoteIconUrl').value = '';
+    document.getElementById('fieldDoorId').readOnly = false;
+    document.getElementById('doorModalTitle').textContent = 'Add Game from Internet Archive';
+    document.getElementById('modalAlert').innerHTML = '';
+
+    document.getElementById('iconPreview').style.display = 'none';
+    document.getElementById('iconPlaceholder').style.display = 'block';
+    document.getElementById('screenshotPreview').style.display = 'none';
+    document.getElementById('screenshotPlaceholder').style.display = 'block';
+    document.getElementById('removeIconCheck').style.display = 'none';
+    document.getElementById('removeScreenshotCheck').style.display = 'none';
+
+    document.getElementById('fieldGenre').value = 'Internet Archive Games, Classic';
+    modalInstance.show();
+}
+
+function openEditModal(doorId) {
+    document.getElementById('doorForm').reset();
+    document.getElementById('fieldExistingDoorId').value = doorId;
+    document.getElementById('fieldRemoteIconUrl').value = '';
+    document.getElementById('fieldDoorId').readOnly = true;
+    document.getElementById('doorModalTitle').textContent = 'Edit Archive Game';
+    document.getElementById('modalAlert').innerHTML = '';
+
+    fetch(`/admin/api/archive-doors/${doorId}`)
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) throw new Error(res.error || 'Door not found');
+            const d = res.door;
+
+            document.getElementById('fieldDoorId').value = d.door_id;
+            document.getElementById('fieldArchiveItemId').value = d.archive_item_id;
+            document.getElementById('fieldName').value = d.name;
+            document.getElementById('fieldShortName').value = d.short_name || '';
+            document.getElementById('fieldAuthor').value = d.author || '';
+            document.getElementById('fieldReleaseYear').value = d.release_year || '';
+            document.getElementById('fieldDescription').value = d.description || '';
+            document.getElementById('fieldGenre').value = Array.isArray(d.genre) ? d.genre.join(', ') : 'Internet Archive Games';
+            document.getElementById('fieldCreditCost').value = d.config ? d.config.credit_cost : 0;
+            document.getElementById('fieldMaxTime').value = d.config ? d.config.max_time_minutes : 60;
+            document.getElementById('fieldEnabled').checked = !!(d.config && d.config.enabled);
+            document.getElementById('fieldAllowAnonymous').checked = !!(d.config && d.config.allow_anonymous);
+            document.getElementById('fieldHideFromWeb').checked = !!(d.config && d.config.hide_from_web);
+
+            // Icon preview
+            const iconImg = document.getElementById('iconPreview');
+            const iconPl = document.getElementById('iconPlaceholder');
+            if (d.icon_url) {
+                iconImg.src = d.icon_url;
+                iconImg.style.display = 'block';
+                iconPl.style.display = 'none';
+                document.getElementById('removeIconCheck').style.display = 'inline-block';
+            } else {
+                iconImg.style.display = 'none';
+                iconPl.style.display = 'block';
+                document.getElementById('removeIconCheck').style.display = 'none';
+            }
+
+            modalInstance.show();
+        })
+        .catch(err => {
+            showAlert('danger', err.message);
+        });
+}
+
+function fetchArchiveMetadata() {
+    const input = document.getElementById('archiveFetchInput');
+    const val = input.value.trim();
+    if (!val) {
+        showModalAlert('warning', 'Please enter an Internet Archive URL or Item ID.');
+        return;
+    }
+
+    const btn = document.getElementById('fetchMetadataBtn');
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Fetching...';
+    btn.disabled = true;
+
+    fetch(`/admin/api/archive-doors/fetch-metadata?item_id=${encodeURIComponent(val)}`)
+        .then(r => r.json())
+        .then(res => {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+            if (!res.success) throw new Error(res.error || 'Failed to fetch details');
+            const data = res.data;
+
+            if (!document.getElementById('fieldExistingDoorId').value) {
+                document.getElementById('fieldDoorId').value = data.suggested_door_id || '';
+            }
+            document.getElementById('fieldArchiveItemId').value = data.archive_item_id || '';
+            document.getElementById('fieldName').value = data.name || '';
+            document.getElementById('fieldShortName').value = data.short_name || '';
+            document.getElementById('fieldAuthor').value = data.author || '';
+            document.getElementById('fieldReleaseYear').value = data.release_year || '';
+            document.getElementById('fieldDescription').value = data.description || '';
+            document.getElementById('fieldGenre').value = Array.isArray(data.genre) ? data.genre.join(', ') : 'Internet Archive Games';
+
+            if (data.thumbnail_url) {
+                document.getElementById('fieldRemoteIconUrl').value = data.thumbnail_url;
+                const iconImg = document.getElementById('iconPreview');
+                const iconPl = document.getElementById('iconPlaceholder');
+                iconImg.src = data.thumbnail_url;
+                iconImg.style.display = 'block';
+                iconPl.style.display = 'none';
+            }
+
+            showModalAlert('success', `Found "${data.name}"! Review the details below and click Save.`);
+        })
+        .catch(err => {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+            showModalAlert('danger', err.message);
+        });
+}
+
+function handleSaveDoor(e) {
+    e.preventDefault();
+    const form = document.getElementById('doorForm');
+    const formData = new FormData(form);
+    const existingId = document.getElementById('fieldExistingDoorId').value;
+    const url = existingId ? `/admin/api/archive-doors/${existingId}` : '/admin/api/archive-doors';
+
+    const saveBtn = document.getElementById('saveDoorBtn');
+    const origHtml = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+    saveBtn.disabled = true;
+
+    fetch(url, {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        saveBtn.innerHTML = origHtml;
+        saveBtn.disabled = false;
+        if (!res.success) throw new Error(res.error || 'Failed to save');
+        modalInstance.hide();
+        showAlert('success', res.message || 'Game saved successfully!');
+        loadDoors();
+    })
+    .catch(err => {
+        saveBtn.innerHTML = origHtml;
+        saveBtn.disabled = false;
+        showModalAlert('danger', err.message);
+    });
+}
+
+function deleteDoor(doorId) {
+    if (!confirm(`Are you sure you want to delete the game "${doorId}"?`)) {
+        return;
+    }
+
+    fetch(`/admin/api/archive-doors/${doorId}/delete`, {
+        method: 'POST'
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (!res.success) throw new Error(res.error || 'Failed to delete');
+        showAlert('success', res.message || 'Game deleted successfully.');
+        loadDoors();
+    })
+    .catch(err => {
+        showAlert('danger', err.message);
+    });
+}
+</script>
+{% endblock %}
