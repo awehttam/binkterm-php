@@ -31,7 +31,7 @@ class ArchiveDoorManager
     public static function cleanArchiveItemId(string $input): string
     {
         $input = trim($input);
-        if (preg_match('#archive\.org/(?:details|embed)/([^/?#]+)#i', $input, $m)) {
+        if (preg_match('~archive\.org/(?:details|embed)/([^/?#]+)~i', $input, $m)) {
             return trim($m[1]);
         }
         return trim($input);
