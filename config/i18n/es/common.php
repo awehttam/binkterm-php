@@ -312,6 +312,7 @@ return [
     'ui.base.admin.doors_dos' => 'Puertas DOS',
     'ui.base.admin.doors_native' => 'Puertas nativas',
     'ui.base.admin.doors_rlogin' => 'Puertas RLogin',
+    'ui.base.admin.doors_archive' => 'Juegos Archive.org',
     'ui.base.admin.doors_web' => 'Puertas web',
     'ui.base.admin.doors_jsdos' => 'Puertas JS-DOS',
     'ui.base.admin.analytics' => 'Analitica',

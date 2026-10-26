@@ -312,6 +312,7 @@ return [
     'ui.base.admin.doors_dos' => 'DOS Doors',
     'ui.base.admin.doors_native' => 'Native Doors',
     'ui.base.admin.doors_rlogin' => 'RLogin Doors',
+    'ui.base.admin.doors_archive' => 'Archive.org Games',
     'ui.base.admin.doors_web' => 'Web Doors',
     'ui.base.admin.doors_jsdos' => 'JS-DOS Doors',
     'ui.base.admin.analytics' => 'Analytics',
