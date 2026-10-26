@@ -8,13 +8,14 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Web Doors](#web-doors)
   - [Leaderboards Read From DOS and Native Door Game Data](#leaderboards-read-from-dos-and-native-door-game-data)
   - [Door Manifest Editor Changes](#door-manifest-editor-changes)
+  - [Internet Archive Games](#internet-archive-games)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP.
+BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page.
 
 ## Web Doors
 
@@ -60,6 +61,20 @@ The Door Manifest Editor, reached from the door admin pages, has two changes.
 **Unmanaged manifests can be edited.** Previously, a manifest without `"managed": "web"` could not be changed in the editor. This covers the manifests that ship with BinktermPHP. These manifests now open for editing, with a warning banner and an **Unmanaged (edits may be overwritten)** status badge. Saving a manifest marks it `"managed": "web"`. Because a later BinktermPHP upgrade can replace the manifests that ship with it, changes made to one of them may be lost. To keep your changes, copy the door directory to a new name, such as `LORD2`, and edit the copy instead.
 
 The Admin Daemon caches its code, so restart it after upgrading for the editor changes to take effect. `scripts/restart_daemons.sh` does this.
+
+### Internet Archive Games
+
+A new admin page, **Admin -> Doors -> Archive.org Games** (`/admin/archive-doors`), lets you add games that the Internet Archive streams in the browser. The game runs in an embedded `archive.org` player on its own page, so nothing is installed or run on your server.
+
+To add a game:
+
+1. Click to add a new game and paste the Internet Archive item ID or URL, for example `https://archive.org/details/<item>`.
+2. Use the fetch button to fill in the title, author, year, description and icon from the Internet Archive. You can adjust any field before saving.
+3. Set a Door ID (letters, numbers, hyphens and underscores only), the genre, player count, and whether the game is enabled, open to anonymous visitors, or hidden from the web.
+
+Enabled games appear on the `/games` page with an **ARCHIVE** badge, in the **Internet Archive Games** category unless you choose other genres. Icons and screenshots are stored in the database rather than on disk.
+
+The games are streamed from `archive.org`, so players' browsers need to reach that site, and availability depends on the Internet Archive.
 
 ## Upgrade Instructions
 
