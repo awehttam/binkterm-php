@@ -19,12 +19,23 @@
     </div>
 
     <div class="game-container{% if is_archive %} archive-container{% endif %}">
+        {% if is_archive %}
+        <div class="archive-scaler-wrap">
+            <iframe id="game-frame"
+                    src="{{ game_url }}"
+                    class="game-frame archive-frame"
+                    allowfullscreen
+                    allow="autoplay; fullscreen">
+            </iframe>
+        </div>
+        {% else %}
         <iframe id="game-frame"
                 src="{{ game_url }}"
-                class="game-frame{% if is_archive %} archive-frame{% endif %}"
+                class="game-frame"
                 allowfullscreen
                 allow="autoplay; fullscreen">
         </iframe>
+        {% endif %}
     </div>
 </div>
 
@@ -46,21 +57,31 @@
     display: block;
 }
 
-/* Internet Archive embed responsive 4:3 box styling */
+/* Internet Archive embed responsive scaling */
 .game-container.archive-container {
     display: flex;
     justify-content: center;
     align-items: center;
     background: #000;
+    overflow: hidden;
 }
 
-.game-container.archive-container .archive-frame {
-    width: min(100%, calc((100vh - 150px) * 4 / 3));
-    height: min(calc(100vh - 150px), calc(100vw * 3 / 4));
-    aspect-ratio: 4 / 3;
-    max-width: 100%;
-    max-height: 100%;
-    margin: auto;
+.archive-scaler-wrap {
+    position: relative;
+    width: 640px;
+    height: 480px;
+    flex-shrink: 0;
+    transform-origin: center center;
+}
+
+.archive-scaler-wrap .archive-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 640px;
+    height: 480px;
+    border: 0;
+    display: block;
 }
 
 /* Fullscreen styles */
@@ -73,17 +94,30 @@
 .game-container:fullscreen .game-frame {
     height: 100vh;
 }
-
-.game-container.archive-container:fullscreen .archive-frame {
-    width: min(100vw, calc(100vh * 4 / 3));
-    height: min(100vh, calc(100vw * 3 / 4));
-    aspect-ratio: 4 / 3;
-    max-width: 100vw;
-    max-height: 100vh;
-}
 </style>
 
 <script>
+function resizeArchiveFrame() {
+    const container = document.querySelector('.game-container.archive-container');
+    const wrap = document.querySelector('.archive-scaler-wrap');
+    if (!container || !wrap) return;
+
+    const contWidth = container.clientWidth;
+    const contHeight = container.clientHeight;
+    if (!contWidth || !contHeight) return;
+
+    // Scale 640x480 frame to fill container while keeping 4:3 aspect ratio
+    const scale = Math.min(contWidth / 640, contHeight / 480);
+    wrap.style.transform = `scale(${scale})`;
+}
+
+window.addEventListener('resize', resizeArchiveFrame);
+document.addEventListener('fullscreenchange', resizeArchiveFrame);
+document.addEventListener('webkitfullscreenchange', resizeArchiveFrame);
+document.addEventListener('DOMContentLoaded', resizeArchiveFrame);
+// Call once on immediate load
+resizeArchiveFrame();
+
 document.getElementById('fullscreen-btn').addEventListener('click', function() {
     const container = document.querySelector('.game-container');
     if (container.requestFullscreen) {
