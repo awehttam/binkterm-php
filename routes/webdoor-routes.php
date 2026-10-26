@@ -1317,7 +1317,8 @@ SimpleRouter::get('/games/{game}', function($game) {
                 'author' => $archiveDoor['author'] ?? '',
             ],
             'game_url' => $archiveDoor['embed_url'],
-            'game_id' => $game
+            'game_id' => $game,
+            'is_archive' => true
         ]);
         return;
     }
