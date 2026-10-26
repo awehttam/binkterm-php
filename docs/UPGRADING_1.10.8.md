@@ -76,6 +76,8 @@ Enabled games appear on the `/games` page with an **ARCHIVE** badge, in the **In
 
 The games are streamed from `archive.org`, so players' browsers need to reach that site, and availability depends on the Internet Archive.
 
+See `docs/ArchiveDoors.md` for the full field reference and limitations.
+
 ## Upgrade Instructions
 
 ### From Git

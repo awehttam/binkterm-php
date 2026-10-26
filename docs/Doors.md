@@ -1,17 +1,18 @@
 # Door Games - Sysop Documentation
 
-BinktermPHP supports three types of door games, each suited to different use cases.
+BinktermPHP supports several types of door games, each suited to different use cases.
 
 | Type | Description | Doc |
 |------|-------------|-----|
 | **DOS Doors** | Classic DOS games (LORD, TradeWars, etc.) running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
 | **Native Doors** | Linux/Windows binaries or scripts running via PTY | [NativeDoors.md](NativeDoors.md) |
+| **Internet Archive Doors** | Games streamed in the browser from archive.org | [ArchiveDoors.md](ArchiveDoors.md) |
 | **RLogin Doors** | Connects out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol | [RLoginDoors.md](RLoginDoors.md) |
 | **WebDoors** | Browser-based HTML5/PHP games embedded in an iframe | [WebDoors.md](WebDoors.md) |
 | **JS-DOS Doors** | 3D/graphical DOS games running in the browser via js-dos (DOSBox WASM) | [JSDOSDoors.md](JSDOSDoors.md) |
 | **C64 Doors** | Commodore 64 PRG/D64/ROM programs running in the jsc64 emulator | [C64Doors.md](C64Doors.md) |
 
-C64 Doors, WebDoors, and JS-DOS Doors run entirely in the browser and require no additional server-side components. DOS Doors, Native Doors, and RLogin Doors all require the **multiplexing bridge** described below.
+C64 Doors, WebDoors, Internet Archive Doors, and JS-DOS Doors run entirely in the browser and require no additional server-side components. DOS Doors, Native Doors, and RLogin Doors all require the **multiplexing bridge** described below.
 
 ## Table of Contents
 
@@ -418,6 +419,7 @@ All gamepad UI buttons, status badges, and layout picker labels are fully locali
 
 - [DOS Doors](DOSDoors.md) — Setup, DOSBox configuration, adding door games, drop file format, troubleshooting
 - [Native Doors](NativeDoors.md) — Manifest format, environment variables, platform notes, test doors
+- [Internet Archive Doors](ArchiveDoors.md) — Adding archive.org games, fields, and limitations
 - [RLogin Doors](RLoginDoors.md) — Database-backed door fields, BBS Type presets, pre-login command contract
 - [WebDoors](WebDoors.md) — Manifest format, iframe integration, BBS API, credits system
 - [JS-DOS Doors](JSDOSDoors.md) — Browser-side DOS game emulation, manifest format, save state sync, multiplayer

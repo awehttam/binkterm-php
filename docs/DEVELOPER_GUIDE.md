@@ -28,6 +28,7 @@ FidoNet is a worldwide network of BBSs that exchange mail and files using store-
 - **File Areas**: FTN TIC file distribution with pluggable antivirus scanning (ClamAV, VirusTotal)
 - **WebDoors**: Drop-in game/application system (see `docs/WebDoors.md`)
 - **Native Doors & DOS Doors**: PTY and DOSBox-backed door games (see `docs/Doors.md`)
+- **Internet Archive Doors**: Browser-streamed games hosted on archive.org (see `docs/ArchiveDoors.md`)
 - **RLogin Doors**: Connects out to a remote BBS or service over the rlogin protocol (see `docs/RLoginDoors.md`)
 - **Credits System**: Configurable in-world currency (see below)
 - **Webshare**: Share echomail messages via secure links with expiration
@@ -635,13 +636,14 @@ Several features require additional background daemons or services beyond the co
 
 ### Door Games
 
-BinktermPHP supports four door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
+BinktermPHP supports five door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
 
 | Type | Description | Doc |
 |------|-------------|-----|
 | **WebDoors** | HTML5/JavaScript games in a browser iframe — no extra server-side process required | [WebDoors.md](WebDoors.md) |
 | **Native Doors** | Linux binaries or Windows executables launched via PTY | [NativeDoors.md](NativeDoors.md) |
 | **DOS Doors** | Classic DOS games running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
+| **Internet Archive Doors** | Games streamed in the browser from archive.org, stored in the `archive_doors` table | [ArchiveDoors.md](ArchiveDoors.md) |
 | **RLogin Doors** | Connects out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol | [RLoginDoors.md](RLoginDoors.md) |
 
 #### Multiplexing Bridge (Node.js)
