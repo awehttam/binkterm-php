@@ -320,11 +320,11 @@ function renderDoorsList() {
                 </a>
             </td>
             <td class="small">
-                ${d.release_year ? `<span class="badge bg-light text-dark border me-1">${d.release_year}</span>` : ''}
+                ${d.release_year ? `<span class="badge bg-secondary me-1">${d.release_year}</span>` : ''}
                 ${escHtml(d.author || 'Unknown')}
             </td>
             <td>
-                ${tags.map(t => `<span class="badge bg-secondary-subtle text-dark border me-1 small">${escHtml(t)}</span>`).join('')}
+                ${tags.map(t => `<span class="badge bg-primary me-1 small">${escHtml(t)}</span>`).join('')}
             </td>
             <td class="text-center">
                 ${isEnabled ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Disabled</span>'}
