@@ -1564,7 +1564,10 @@ function toggleThreading() {
     loadMessages();
 }
 
-function setFilter(filter) {
+function setFilter(filter, e) {
+    if (e && typeof e.preventDefault === 'function') {
+        e.preventDefault();
+    }
     currentFilter = filter;
     currentPage = 1;
     updateFilterTabs();
