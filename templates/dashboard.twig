@@ -257,6 +257,25 @@
                         </div>
                     </div>
                 </div>
+                {% if doors_enabled %}
+                <div class="mt-3 pt-3 border-top">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="fw-semibold small text-uppercase">
+                            <i class="fas fa-gamepad me-1"></i>
+                            {{ t('ui.dashboard.door_activity.title', {}, locale, ['common']) }}
+                        </div>
+                        <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="/games" title="{{ t('ui.dashboard.door_activity.view_all', {}, locale, ['common']) }}">
+                            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                            <span class="visually-hidden">{{ t('ui.dashboard.door_activity.view_all', {}, locale, ['common']) }}</span>
+                        </a>
+                    </div>
+                    <div id="doorActivityBody">
+                        <div class="text-center text-muted small">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         </div>{# /dash-card-wrapper unread #}
@@ -682,6 +701,9 @@ $(document).ready(function() {
     loadVotingBooth();
     {% endif %}
     loadEchoareas();
+    {% if doors_enabled %}
+    loadDoorActivity();
+    {% endif %}
     {% if bbs_feature_enabled('shoutbox') %}
     loadShoutbox();
     {% endif %}
@@ -1040,6 +1062,51 @@ function loadEchoareas() {
                 html = `<p class="text-muted">${uiT('ui.dashboard.echoareas.none_available', 'No echo areas available')}</p>`;
             }
             $('#echoareaList').html(html);
+        });
+}
+
+function loadDoorActivity() {
+    $.get('/api/dashboard/door-activity')
+        .done(function(data) {
+            const popular = data.popular || [];
+            const players = data.recent_players || [];
+            if (popular.length === 0 && players.length === 0) {
+                $('#doorActivityBody').html(`<p class="text-muted small mb-0">${uiT('ui.dashboard.door_activity.none', 'No recent door activity.')}</p>`);
+                return;
+            }
+
+            let html = '';
+            if (popular.length > 0) {
+                html += `<div class="fw-semibold small text-uppercase mb-1">${uiT('ui.dashboard.door_activity.popular', 'Most Popular')}</div>`;
+                popular.forEach(function(door) {
+                    html += `
+                        <div class="d-flex justify-content-between align-items-center py-1">
+                            <a href="/games/${encodeURIComponent(door.door_id)}" class="text-decoration-none">${escapeHtml(door.name)}</a>
+                            <span class="badge bg-secondary" title="${escapeHtml(uiT('ui.dashboard.door_activity.plays_title', 'Plays in the past 30 days'))}">${door.plays}</span>
+                        </div>
+                    `;
+                });
+            }
+            if (players.length > 0) {
+                html += `<div class="fw-semibold small text-uppercase mb-1 ${popular.length > 0 ? 'mt-3 pt-3 border-top' : ''}">${uiT('ui.dashboard.door_activity.recent_players', 'Recent Players')}</div>`;
+                players.forEach(function(player) {
+                    const playedAt = new Date(player.played_at);
+                    const when = Number.isNaN(playedAt.getTime()) ? '' : playedAt.toLocaleDateString();
+                    html += `
+                        <div class="d-flex justify-content-between align-items-start py-1">
+                            <div class="me-2">
+                                <a href="/profile/${encodeURIComponent(player.username)}" class="text-decoration-none fw-semibold">${escapeHtml(player.username)}</a>
+                                <div class="small"><a href="/games/${encodeURIComponent(player.door_id)}" class="text-decoration-none text-muted">${escapeHtml(player.name)}</a></div>
+                            </div>
+                            <span class="text-muted small text-nowrap">${escapeHtml(when)}</span>
+                        </div>
+                    `;
+                });
+            }
+            $('#doorActivityBody').html(html);
+        })
+        .fail(function() {
+            $('#doorActivityBody').html(`<p class="text-danger small mb-0">${uiT('ui.dashboard.door_activity.load_failed', 'Failed to load door activity.')}</p>`);
         });
 }
 

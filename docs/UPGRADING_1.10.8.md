@@ -9,13 +9,15 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Leaderboards Read From DOS and Native Door Game Data](#leaderboards-read-from-dos-and-native-door-game-data)
   - [Door Manifest Editor Changes](#door-manifest-editor-changes)
   - [Internet Archive Games](#internet-archive-games)
+- [Dashboard](#dashboard)
+  - [Door Activity on the Mail, Areas & Doors Card](#door-activity-on-the-mail-areas--doors-card)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page.
+BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity.
 
 ## Web Doors
 
@@ -77,6 +79,19 @@ Enabled games appear on the `/games` page with an **ARCHIVE** badge, in the **In
 The games are streamed from `archive.org`, so players' browsers need to reach that site, and availability depends on the Internet Archive.
 
 Each game can have a credit cost, a play time limit, and optional anonymous access. See `docs/ArchiveDoors.md` for the full field reference and limitations.
+
+## Dashboard
+
+### Door Activity on the Mail, Areas & Doors Card
+
+The dashboard's **Mail & Areas** card is renamed **Mail, Areas & Doors**. Below the new echo areas it has a new door activity section with two lists:
+
+- **Most Popular.** The five doors with the most sessions started in the past 30 days, each with its play count.
+- **Recent Players.** The five most recent players from the door leaderboards, with the door they played and the date. Scores are not shown.
+
+Doors that are disabled, hidden from the web, or admin-only (for non-admin users) are left out. The section does not appear when the games system is disabled. The data comes from the new login-required `GET /api/dashboard/door-activity` endpoint.
+
+Recent Players is drawn from the leaderboard data, so it only lists players of doors that publish scores, such as those described under [Leaderboards Read From DOS and Native Door Game Data](#leaderboards-read-from-dos-and-native-door-game-data).
 
 ## Upgrade Instructions
 

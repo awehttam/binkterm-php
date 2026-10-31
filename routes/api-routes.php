@@ -846,6 +846,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode((new \BinktermPHP\DashboardStatsService($db))->getStats($user));
     });
 
+    SimpleRouter::get('/dashboard/door-activity', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+        $db = Database::getInstance()->getPdo();
+        echo json_encode((new \BinktermPHP\DoorActivityService($db))->getActivity($user));
+    });
+
     SimpleRouter::post('/dashboard/layout', function() {
         $user = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);

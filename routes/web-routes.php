@@ -394,6 +394,7 @@ SimpleRouter::get('/', function() {
         'dashboard_available_cards' => $availableCards,
         'echomail_badge_mode' => $userSettings['echomail_badge_mode'] ?? 'new',
         'packetbbs_nodes_exist' => $packetBbsNodesExist,
+        'doors_enabled' => \BinktermPHP\GameConfig::isGameSystemEnabled(),
     ]);
 });
 

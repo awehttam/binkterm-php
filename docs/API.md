@@ -2335,6 +2335,7 @@ Transfer confirmation with updated balances
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/dashboard/stats`](#get-apidashboardstats) | Yes | Retrieve dashboard statistics for authenticated user. |
+| `GET` | [`/api/dashboard/door-activity`](#get-apidashboarddoor-activity) | Yes | Most played doors and recent door players. |
 | `POST` | [`/api/dashboard/layout`](#post-apidashboardlayout) | Yes | Save or reset user's dashboard card layout. |
 
 #### `GET /api/dashboard/stats`
@@ -2370,6 +2371,34 @@ Dashboard statistics object. All counts are for the authenticated user.
 | `total_files` | integer | Total approved files |
 | `pending_file_approvals` | integer | _(admin only)_ Files pending approval |
 | `pending_echomail_moderation` | integer | _(admin only)_ Echomail messages pending moderation |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+
+---
+
+#### `GET /api/dashboard/door-activity`
+
+**Requires authentication**
+
+Returns the most played doors over the past 30 days and the most recent players seen on door leaderboards. Scores are never included. Admin-only and web-hidden doors are omitted for non-admin users.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `popular` | array | Up to 5 most played doors |
+| `popular[].door_id` | string | Door identifier |
+| `popular[].name` | string | Door display name |
+| `popular[].plays` | integer | Sessions started in the past 30 days |
+| `recent_players` | array | Up to 5 most recent distinct user and door pairs |
+| `recent_players[].username` | string | Player username |
+| `recent_players[].door_id` | string | Door identifier |
+| `recent_players[].name` | string | Door display name |
+| `recent_players[].played_at` | string | ISO 8601 UTC timestamp of the latest leaderboard entry |
 
 **Error Responses**
 
