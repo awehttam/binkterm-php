@@ -2393,7 +2393,7 @@ Returns the most played doors over the past 30 days and the most recent players 
 | `popular` | array | Up to 5 most played doors |
 | `popular[].door_id` | string | Door identifier |
 | `popular[].name` | string | Door display name |
-| `popular[].plays` | integer | Sessions started in the past 30 days |
+| `popular[].plays` | integer | Launches in the past 30 days |
 | `recent_players` | array | Up to 5 most recent distinct user and door pairs |
 | `recent_players[].username` | string | Player username |
 | `recent_players[].door_id` | string | Door identifier |

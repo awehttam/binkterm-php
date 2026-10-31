@@ -35,14 +35,16 @@ class DoorActivityService
                 SELECT game_id AS door_id FROM webdoor_sessions
                 WHERE created_at >= (NOW() AT TIME ZONE 'UTC') - CAST(? AS INTERVAL)
                 UNION ALL
-                SELECT door_id FROM door_sessions
-                WHERE started_at >= NOW() - CAST(? AS INTERVAL)
+                SELECT object_name AS door_id FROM user_activity_log
+                WHERE activity_type_id = ?
+                  AND object_name IS NOT NULL
+                  AND created_at >= NOW() - CAST(? AS INTERVAL)
             ) s
             GROUP BY door_id
             ORDER BY plays DESC, door_id ASC
             LIMIT 50
         ");
-        $stmt->execute([$window, $window]);
+        $stmt->execute([$window, ActivityTracker::TYPE_DOSDOOR_PLAY, $window]);
 
         $popular = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {

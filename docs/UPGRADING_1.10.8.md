@@ -86,7 +86,7 @@ Each game can have a credit cost, a play time limit, and optional anonymous acce
 
 The dashboard's **Mail & Areas** card is renamed **Mail, Areas & Doors**. Below the new echo areas it has a new door activity section with two lists:
 
-- **Most Popular.** The five doors with the most sessions started in the past 30 days, each with its play count.
+- **Most Popular.** The five doors with the most launches in the past 30 days, each with its play count.
 - **Recent Players.** The five most recent players from the door leaderboards, with the door they played and the date. Scores are not shown.
 
 Doors that are disabled, hidden from the web, or admin-only (for non-admin users) are left out. The section does not appear when the games system is disabled. The data comes from the new login-required `GET /api/dashboard/door-activity` endpoint.
