@@ -4200,6 +4200,8 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.dashboard.door_activity.recent_players' => 'Letzte Spieler',
     'ui.dashboard.door_activity.plays_title' => 'Spiele in den letzten 30 Tagen',
     'ui.dashboard.door_activity.load_failed' => 'Door-Aktivität konnte nicht geladen werden.',
+    'ui.dashboard.door_activity.hide' => 'Door-Aktivität ausblenden',
+    'ui.dashboard.door_activity.show' => 'Door-Aktivität anzeigen',
     'ui.dashboard.card.referral' => 'Empfehlungslink',
     'ui.dashboard.card.packetbbs_status' => 'PacketBBS-Knoten',
 

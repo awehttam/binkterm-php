@@ -4203,6 +4203,8 @@ return [
     'ui.dashboard.door_activity.recent_players' => 'Jugadores recientes',
     'ui.dashboard.door_activity.plays_title' => 'Partidas en los últimos 30 días',
     'ui.dashboard.door_activity.load_failed' => 'No se pudo cargar la actividad de las puertas.',
+    'ui.dashboard.door_activity.hide' => 'Ocultar actividad de puertas',
+    'ui.dashboard.door_activity.show' => 'Mostrar actividad de puertas',
     'ui.dashboard.card.referral' => 'Enlace de referido',
     'ui.dashboard.card.packetbbs_status' => 'Nodos PacketBBS',
 

@@ -4202,6 +4202,8 @@ return [
     'ui.dashboard.door_activity.recent_players' => 'Giocatori recenti',
     'ui.dashboard.door_activity.plays_title' => 'Partite negli ultimi 30 giorni',
     'ui.dashboard.door_activity.load_failed' => 'Impossibile caricare l\'attività delle door.',
+    'ui.dashboard.door_activity.hide' => 'Nascondi attività delle door',
+    'ui.dashboard.door_activity.show' => 'Mostra attività delle door',
     'ui.dashboard.card.referral' => 'Link referral',
     'ui.dashboard.card.packetbbs_status' => 'Nodi PacketBBS',
 

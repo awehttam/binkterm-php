@@ -4224,6 +4224,8 @@ return [
     'ui.dashboard.door_activity.recent_players' => 'Недавние игроки',
     'ui.dashboard.door_activity.plays_title' => 'Запусков за последние 30 дней',
     'ui.dashboard.door_activity.load_failed' => 'Не удалось загрузить активность дорсов.',
+    'ui.dashboard.door_activity.hide' => 'Скрыть активность дорсов',
+    'ui.dashboard.door_activity.show' => 'Показать активность дорсов',
     'ui.dashboard.card.referral' => 'Реферальная ссылка',
     'ui.dashboard.card.packetbbs_status' => 'Ноды PacketBBS',
 

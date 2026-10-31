@@ -264,10 +264,22 @@
                             <i class="fas fa-gamepad me-1"></i>
                             {{ t('ui.dashboard.door_activity.title', {}, locale, ['common']) }}
                         </div>
-                        <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="/games" title="{{ t('ui.dashboard.door_activity.view_all', {}, locale, ['common']) }}">
-                            <i class="fas fa-arrow-right" aria-hidden="true"></i>
-                            <span class="visually-hidden">{{ t('ui.dashboard.door_activity.view_all', {}, locale, ['common']) }}</span>
-                        </a>
+                        <div class="d-flex align-items-center gap-2">
+                            <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="/games" title="{{ t('ui.dashboard.door_activity.view_all', {}, locale, ['common']) }}">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span class="visually-hidden">{{ t('ui.dashboard.door_activity.view_all', {}, locale, ['common']) }}</span>
+                            </a>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    id="toggleDoorActivity"
+                                    onclick="toggleDoorActivitySection()"
+                                    aria-expanded="true"
+                                    aria-controls="doorActivityBody"
+                                    title="{{ t('ui.dashboard.door_activity.hide', {}, locale, ['common']) }}">
+                                <i class="fas fa-chevron-up" aria-hidden="true"></i>
+                                <span class="visually-hidden">{{ t('ui.dashboard.door_activity.hide', {}, locale, ['common']) }}</span>
+                            </button>
+                        </div>
                     </div>
                     <div id="doorActivityBody">
                         <div class="text-center text-muted small">
@@ -668,6 +680,7 @@ let votingPollIndex = 0;
 let shoutboxOffset = 0;
 const shoutboxPageSize = 5;
 const NEW_ECHOAREAS_COLLAPSED_KEY = 'dashboardNewEchoareasCollapsed';
+const DOOR_ACTIVITY_COLLAPSED_KEY = 'dashboardDoorActivityCollapsed';
 let latestDashboardStats = null;
 let newEchoareasOffset = 0;
 const newEchoareasPageSize = 8;
@@ -694,8 +707,10 @@ const dashboardAdImpressionsSent = new Set();
 $(document).ready(function() {
     applyDashboardLayout(DASHBOARD_LAYOUT);
     applyNewEchoareasCollapsedState();
+    applyDoorActivityCollapsedState();
     loadI18nNamespaces(['common', 'errors']).then(function() {
     updateNewEchoareasToggle();
+    updateDoorActivityToggle();
     loadDashboardData();
     {% if bbs_feature_enabled('voting_booth') %}
     loadVotingBooth();
@@ -1063,6 +1078,42 @@ function loadEchoareas() {
             }
             $('#echoareaList').html(html);
         });
+}
+
+function isDoorActivityCollapsed() {
+    try {
+        return UserStorage.getItem(DOOR_ACTIVITY_COLLAPSED_KEY) === '1';
+    } catch (_) {
+        return false;
+    }
+}
+
+function applyDoorActivityCollapsedState() {
+    const collapsed = isDoorActivityCollapsed();
+    $('#doorActivityBody').toggleClass('d-none', collapsed);
+    $('#toggleDoorActivity').attr('aria-expanded', collapsed ? 'false' : 'true');
+    updateDoorActivityToggle();
+}
+
+function updateDoorActivityToggle() {
+    const collapsed = isDoorActivityCollapsed();
+    const label = collapsed
+        ? uiT('ui.dashboard.door_activity.show', 'Show door activity')
+        : uiT('ui.dashboard.door_activity.hide', 'Hide door activity');
+    $('#toggleDoorActivity')
+        .attr('title', label)
+        .attr('aria-label', label)
+        .find('i')
+        .toggleClass('fa-chevron-down', collapsed)
+        .toggleClass('fa-chevron-up', !collapsed);
+    $('#toggleDoorActivity .visually-hidden').text(label);
+}
+
+function toggleDoorActivitySection() {
+    try {
+        UserStorage.setItem(DOOR_ACTIVITY_COLLAPSED_KEY, isDoorActivityCollapsed() ? '0' : '1');
+    } catch (_) {}
+    applyDoorActivityCollapsedState();
 }
 
 function loadDoorActivity() {

@@ -4221,6 +4221,8 @@ return [
     'ui.dashboard.door_activity.recent_players' => 'Recent Players',
     'ui.dashboard.door_activity.plays_title' => 'Plays in the past 30 days',
     'ui.dashboard.door_activity.load_failed' => 'Failed to load door activity.',
+    'ui.dashboard.door_activity.hide' => 'Hide door activity',
+    'ui.dashboard.door_activity.show' => 'Show door activity',
     'ui.dashboard.card.referral' => 'Referral Link',
     'ui.dashboard.card.packetbbs_status' => 'PacketBBS Nodes',
 

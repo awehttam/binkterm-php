@@ -3511,6 +3511,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.dashboard.door_activity.recent_players' => 'Joueurs récents',
     'ui.dashboard.door_activity.plays_title' => 'Parties au cours des 30 derniers jours',
     'ui.dashboard.door_activity.load_failed' => 'Impossible de charger l\'activité des portes.',
+    'ui.dashboard.door_activity.hide' => 'Masquer l\'activité des portes',
+    'ui.dashboard.door_activity.show' => 'Afficher l\'activité des portes',
     'ui.dashboard.card.referral' => 'Lien de parrainage',
     'ui.dashboard.card.packetbbs_status' => 'Noeuds PacketBBS',
     'ui.dashboard.networks' => 'Réseaux',
