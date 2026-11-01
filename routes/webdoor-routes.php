@@ -551,14 +551,15 @@ SimpleRouter::get('/games', function() {
     }
 
     // Month boundaries follow the user's timezone; created_at is stored as UTC.
-    $leaderboardTz = new \DateTimeZone('UTC');
+    // Falls back to the server's PHP timezone when the user's setting is empty or invalid.
+    $leaderboardTz = new \DateTimeZone(date_default_timezone_get());
     try {
         $tzSetting = (new \BinktermPHP\MessageHandler())->getUserSettings((int)$user['id'])['timezone'] ?? '';
         if ($tzSetting !== '') {
             $leaderboardTz = new \DateTimeZone($tzSetting);
         }
     } catch (\Throwable $e) {
-        // fall back to UTC
+        // invalid timezone name: keep the server default
     }
     $utc = new \DateTimeZone('UTC');
 
