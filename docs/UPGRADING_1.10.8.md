@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Leaderboards Read From DOS and Native Door Game Data](#leaderboards-read-from-dos-and-native-door-game-data)
   - [Door Manifest Editor Changes](#door-manifest-editor-changes)
   - [Internet Archive Games](#internet-archive-games)
+  - [Top Scores Month Uses Your Timezone](#top-scores-month-uses-your-timezone)
 - [Dashboard](#dashboard)
   - [Door Activity on the Mail, Areas & Doors Card](#door-activity-on-the-mail-areas--doors-card)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -79,6 +80,12 @@ Enabled games appear on the `/games` page with an **ARCHIVE** badge, in the **In
 The games are streamed from `archive.org`, so players' browsers need to reach that site, and availability depends on the Internet Archive.
 
 Each game can have a credit cost, a play time limit, and optional anonymous access. See `docs/ArchiveDoors.md` for the full field reference and limitations.
+
+### Top Scores Month Uses Your Timezone
+
+The **Top Scores (All Games)** list on the `/games` page covers one calendar month. The start and end of that month were previously calculated in UTC, so for users west of UTC the page switched to the next month several hours early. For example, at 5:52 PM Pacific on October 31 it showed "No scores recorded for November" even though October had not ended.
+
+The month now begins and ends at midnight in the viewer's own timezone, taken from their user settings. If a user has no timezone saved, or the saved value is not a valid timezone name, the server's PHP `date.timezone` is used instead. Set `date.timezone` in `php.ini` to your local timezone, for example `America/Vancouver`, so users without a saved timezone see the month roll over at local midnight.
 
 ## Dashboard
 
