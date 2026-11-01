@@ -10,6 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Door Manifest Editor Changes](#door-manifest-editor-changes)
   - [Internet Archive Games](#internet-archive-games)
   - [Top Scores Month Uses Your Timezone](#top-scores-month-uses-your-timezone)
+  - [MeshCore Public Key QR Codes](#meshcore-public-key-qr-codes)
 - [Dashboard](#dashboard)
   - [Door Activity on the Mail, Areas & Doors Card](#door-activity-on-the-mail-areas--doors-card)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -18,7 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity.
+BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity. MeshCore node details now show a QR code beside the node's public key.
 
 ## Web Doors
 
@@ -86,6 +87,13 @@ Each game can have a credit cost, a play time limit, and optional anonymous acce
 The **Top Scores (All Games)** list on the `/games` page covers one calendar month. The start and end of that month were previously calculated in UTC, so for users west of UTC the page switched to the next month several hours early. For example, at 5:52 PM Pacific on October 31 it showed "No scores recorded for November" even though October had not ended.
 
 The month now begins and ends at midnight in the viewer's own timezone, taken from their user settings. If a user has no timezone saved, or the saved value is not a valid timezone name, the server's PHP `date.timezone` is used instead. Set `date.timezone` in `php.ini` to your local timezone, for example `America/Vancouver`, so users without a saved timezone see the month roll over at local midnight.
+
+### MeshCore Public Key QR Codes
+
+Node detail windows now show a QR code directly beneath a MeshCore node's public key and its copy button, so the key can be scanned instead of typed.
+
+- **Community Wireless Node List.** The QR code encodes the node's public key. It is served by a new `qr` action on the door's own `api.php`.
+- **MeshCore Nodes page.** The QR code that was already shown at the bottom of the node window has moved up to sit under the public key. It encodes a MeshCore contact link, so scanning it in a MeshCore app adds the node as a contact.
 
 ## Dashboard
 
