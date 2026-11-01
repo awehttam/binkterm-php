@@ -481,6 +481,9 @@ function displayNetworkDetails(network) {
                     <i class="fas fa-copy"></i>
                 </button>
             </dd>
+            <dd class="col-sm-8 offset-sm-4">
+                <img src="api.php?action=qr&key=${encodeURIComponent(publicKey)}" alt="Public key QR code" class="img-fluid bg-white p-1 rounded" style="max-width:200px;" loading="lazy">
+            </dd>
         `
         : '';
     const meshRows = isMesh
