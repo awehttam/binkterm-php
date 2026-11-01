@@ -550,12 +550,26 @@ SimpleRouter::get('/games', function() {
         }
     }
 
-    $monthStart = new \DateTimeImmutable('first day of this month 00:00:00');
+    // Month boundaries follow the user's timezone; created_at is stored as UTC.
+    $leaderboardTz = new \DateTimeZone('UTC');
+    try {
+        $tzSetting = (new \BinktermPHP\MessageHandler())->getUserSettings((int)$user['id'])['timezone'] ?? '';
+        if ($tzSetting !== '') {
+            $leaderboardTz = new \DateTimeZone($tzSetting);
+        }
+    } catch (\Throwable $e) {
+        // fall back to UTC
+    }
+    $utc = new \DateTimeZone('UTC');
+
+    $monthStart = new \DateTimeImmutable('first day of this month 00:00:00', $leaderboardTz);
     if ($monthOffset > 0) {
         $monthStart = $monthStart->modify("-{$monthOffset} months");
     }
     $monthEnd = $monthStart->modify('+1 month');
     $leaderboardMonthLabel = $monthStart->format('F Y');
+    $monthStart = $monthStart->setTimezone($utc);
+    $monthEnd = $monthEnd->setTimezone($utc);
 
     $leaderboard = [];
     if (!$hideTopScores) {
