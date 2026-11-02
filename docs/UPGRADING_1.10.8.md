@@ -14,14 +14,18 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Dashboard](#dashboard)
   - [Door Activity on the Mail, Areas & Doors Card](#door-activity-on-the-mail-areas--doors-card)
 - [BBS Directory](#bbs-directory)
+  - [Sortable Columns in the Admin Entry List](#sortable-columns-in-the-admin-entry-list)
   - [Entry Source Tags](#entry-source-tags)
+  - [Sources Listed on the Public Directory Page](#sources-listed-on-the-public-directory-page)
+- [File Areas](#file-areas)
+  - [File Counts and Sizes After Moving Files](#file-counts-and-sizes-after-moving-files)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity. MeshCore node details now show a QR code beside the node's public key.
+BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity. MeshCore node details now show a QR code beside the node's public key. The admin BBS Directory list has sortable columns, and each entry records a free-text source tag that importers set.
 
 ## Web Doors
 
@@ -112,6 +116,10 @@ Recent Players is drawn from the leaderboard data, so it only lists players of d
 
 ## BBS Directory
 
+### Sortable Columns in the Admin Entry List
+
+In **Admin > BBS Directory**, click a column heading in the All Entries list to sort by Name, Sysop, Location, Telnet, Source or Last Seen. Click the same heading again to reverse the order. The sort applies to the whole list, not only the current page, and empty values sort last.
+
 ### Entry Source Tags
 
 Each BBS Directory entry now records where it came from as a source tag, instead of only Manual or Auto. In **Admin > BBS Directory**, the **Source** column shows the tag and can be sorted, and the Add/Edit Entry window has a **Source** field. Type any tag you like, or pick one already in use. Tags are lowercased and limited to letters, digits, underscores, dots and hyphens.
@@ -119,6 +127,16 @@ Each BBS Directory entry now records where it came from as a source tag, instead
 Importers set their own tag: `telnet_bbs_guide` for `scripts/import_bbslist.php`, `syncdata` for the Syncdata robot and `ibbslastcall` for the IBBS Last Call robot. `import_bbslist.php` accepts `--source=<tag>` to use a different tag. Entries marked `manual` keep that tag when an importer updates them.
 
 Entries imported before this release keep the tag `auto`, because the original importer was not recorded. They receive a specific tag the next time an import or robot updates them.
+
+### Sources Listed on the Public Directory Page
+
+The description at the top of the public BBS Directory page now names the sources in use, for example "automatically discovered through various sources such as Syncdata, Telnet BBS Guide, and supplemented by manually curated entries." The names come from the source tags of publicly listed entries. The `manual` and `auto` tags are not listed. When no entry has a named source, the page shows the previous wording.
+
+## File Areas
+
+### File Counts and Sizes After Moving Files
+
+Moving a file to another file area did not update the file count and total size shown for the old and new area, so an area filled by moving files could show 0 files and 0 B. Moving a file now updates both areas, and an upgrade migration recalculates the counts for every area.
 
 ## Upgrade Instructions
 
