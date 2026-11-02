@@ -116,6 +116,8 @@ BinktermPHP runs in any modern browser across different features and themes.
 ### Doors & Games
 - **DOS Doors** — classic door games via DOSBox-X (headless, no display required)
 - **Native Doors** — Linux/Windows programs via PTY
+- **Door leaderboards** — hosted DOS and native doors can publish scores: a data parser reads the game's own player files (LORD and The Wire included) and feeds the leaderboard API and the Top Scores list on the games page
+- **Internet Archive Doors** — add games streamed by archive.org's in-browser emulator; nothing is installed or run on your server
 - **RLogin Doors** — connect out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol
 - **WebDoors** — HTML5/JavaScript games embedded in the browser, with credit integration and a full SDK
 - **JS-DOS Doors** — browser-side DOS emulation via js-dos/DOSBox WASM (no server process)
@@ -230,6 +232,7 @@ These features are disabled by default and require additional setup:
 |---------|---------------|
 | DOS Doors (DOSBox-X) | [docs/DOSDoors.md](docs/DOSDoors.md) |
 | Native Doors (PTY) | [docs/NativeDoors.md](docs/NativeDoors.md) |
+| Internet Archive Doors (archive.org games) | [docs/ArchiveDoors.md](docs/ArchiveDoors.md) |
 | RLogin Doors (remote BBS via rlogin) | [docs/RLoginDoors.md](docs/RLoginDoors.md) |
 | WebDoors (HTML5 games) | [docs/WebDoors.md](docs/WebDoors.md) |
 | JS-DOS Doors (browser WASM) | [docs/JSDOSDoors.md](docs/JSDOSDoors.md) |
