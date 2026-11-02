@@ -718,6 +718,8 @@ return [
     // Appearance - File Areas tab
     'ui.admin.appearance.file_areas.title' => 'Aree file',
     'ui.admin.appearance.file_areas.help' => 'Aggiungi informazioni personalizzate alle pagine delle aree file. Markdown supportato. Lascia vuoto per non mostrare nulla.',
+    'ui.admin.appearance.file_areas.multiple_area_tabs' => 'Consenti più schede di aree aperte',
+    'ui.admin.appearance.file_areas.multiple_area_tabs_help' => 'Se disattivata, la pagina dei file mostra Aree file, Upload recenti e una scheda per l\'area visualizzata. Se attivata, ogni area aperta ha una propria scheda chiudibile.',
     'ui.admin.appearance.file_areas.sidebar_section' => 'Pannello informazioni laterale',
     'ui.admin.appearance.file_areas.sidebar_info_title' => 'Titolo pannello',
     'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'es. Regole caricamento',

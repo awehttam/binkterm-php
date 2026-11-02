@@ -718,6 +718,8 @@ return [
     // Appearance - File Areas tab
     'ui.admin.appearance.file_areas.title' => 'Areas de archivos',
     'ui.admin.appearance.file_areas.help' => 'Agrega informacion personalizada a las paginas de areas de archivos. Se admite HTML. Deja en blanco para no mostrar nada.',
+    'ui.admin.appearance.file_areas.multiple_area_tabs' => 'Permitir varias pestañas de áreas abiertas',
+    'ui.admin.appearance.file_areas.multiple_area_tabs_help' => 'Sin marcar, la página de archivos muestra Áreas de archivos, Subidas recientes y una pestaña para el área que se está viendo. Marcada, cada área abierta tiene su propia pestaña que se puede cerrar.',
     'ui.admin.appearance.file_areas.sidebar_section' => 'Panel lateral',
     'ui.admin.appearance.file_areas.sidebar_info_title' => 'Titulo del panel',
     'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'p. ej. Politica de subida',

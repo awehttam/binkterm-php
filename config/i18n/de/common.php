@@ -721,6 +721,8 @@ Du kannst einzelne Erinnerungen mit den „Erinnern“-Schaltflächen in der Ben
     // Appearance - File Areas tab
     'ui.admin.appearance.file_areas.title' => 'Dateibereiche',
     'ui.admin.appearance.file_areas.help' => 'Eigene Informationen zu den Dateibereich-Seiten hinzufügen. Markdown wird unterstützt. Leer lassen, um nichts anzuzeigen.',
+    'ui.admin.appearance.file_areas.multiple_area_tabs' => 'Mehrere geöffnete Bereichs-Tabs erlauben',
+    'ui.admin.appearance.file_areas.multiple_area_tabs_help' => 'Ohne Häkchen zeigt die Dateiseite Dateibereiche, Neue Uploads und einen Tab für den aktuell angezeigten Bereich. Mit Häkchen erhält jeder geöffnete Bereich einen eigenen schließbaren Tab.',
     'ui.admin.appearance.file_areas.sidebar_section' => 'Info-Seitenleiste',
     'ui.admin.appearance.file_areas.sidebar_info_title' => 'Panel title',
     'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'z. B. Hochlade-Regeln',

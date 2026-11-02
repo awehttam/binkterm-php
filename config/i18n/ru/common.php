@@ -756,6 +756,8 @@ return [
     // Appearance - File Areas tab
     'ui.admin.appearance.file_areas.title' => 'Файловые области',
     'ui.admin.appearance.file_areas.help' => 'Добавьте пользовательскую информацию на страницы файловых областей. Поддерживается Markdown. Оставьте поле пустым, чтобы ничего не отображать.',
+    'ui.admin.appearance.file_areas.multiple_area_tabs' => 'Разрешить несколько открытых вкладок областей',
+    'ui.admin.appearance.file_areas.multiple_area_tabs_help' => 'Если флажок снят, на странице файлов отображаются Файловые области, Последние загрузки и одна вкладка для просматриваемой области. Если флажок установлен, каждая открытая область получает собственную закрываемую вкладку.',
     'ui.admin.appearance.file_areas.sidebar_section' => 'Панель информации в боковой панели',
     'ui.admin.appearance.file_areas.sidebar_info_title' => 'Заголовок панели',
     'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'например, Правила загрузки',

@@ -688,6 +688,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     // Appearance - File Areas tab
     'ui.admin.appearance.file_areas.title' => 'Zones de fichiers',
     'ui.admin.appearance.file_areas.help' => 'Ajoutez des informations personnalisées aux pages des zones de fichiers. Le HTML est pris en charge. Laissez vide pour ne rien afficher.',
+    'ui.admin.appearance.file_areas.multiple_area_tabs' => 'Autoriser plusieurs onglets de zones ouverts',
+    'ui.admin.appearance.file_areas.multiple_area_tabs_help' => 'Si la case est décochée, la page des fichiers affiche Zones de fichiers, Téléversements récents et un onglet pour la zone consultée. Si elle est cochée, chaque zone ouverte a son propre onglet fermable.',
     'ui.admin.appearance.file_areas.sidebar_section' => 'Panneau latéral',
     'ui.admin.appearance.file_areas.sidebar_info_title' => 'Titre du panneau',
     'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'ex. Politique de téléchargement',

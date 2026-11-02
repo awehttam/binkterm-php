@@ -2832,11 +2832,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $sidebarTitle    = substr(trim((string)($fa['sidebar_info_title'] ?? '')), 0, 200);
                 $sidebarMarkdown = substr((string)($fa['sidebar_info_markdown'] ?? ''), 0, 10000);
                 $footerMarkdown  = substr((string)($fa['footer_markdown'] ?? ''), 0, 10000);
+                $multipleTabs    = !empty($fa['multiple_area_tabs']);
 
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
                 $config['file_areas']['sidebar_info_title']    = $sidebarTitle;
                 $config['file_areas']['sidebar_info_markdown'] = $sidebarMarkdown;
                 $config['file_areas']['footer_markdown']       = $footerMarkdown;
+                $config['file_areas']['multiple_area_tabs']    = $multipleTabs;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);

@@ -738,6 +738,8 @@ return [
     // Appearance - File Areas tab
     'ui.admin.appearance.file_areas.title' => 'File Areas',
     'ui.admin.appearance.file_areas.help' => 'Add custom information to the file area pages. Markdown is supported. Leave blank to show nothing.',
+    'ui.admin.appearance.file_areas.multiple_area_tabs' => 'Allow multiple open area tabs',
+    'ui.admin.appearance.file_areas.multiple_area_tabs_help' => 'When unchecked, the files page shows File Areas, Recent Uploads, and one tab for the area being viewed. When checked, every area a user opens gets its own closable tab.',
     'ui.admin.appearance.file_areas.sidebar_section' => 'Sidebar Info Panel',
     'ui.admin.appearance.file_areas.sidebar_info_title' => 'Panel title',
     'ui.admin.appearance.file_areas.sidebar_info_title_placeholder' => 'e.g. Upload Policy',

@@ -211,6 +211,7 @@ The **Admin → Appearance → File Areas** tab lets you add custom content to t
 
 | Setting | Description |
 |---------|-------------|
+| Allow multiple open area tabs | When unchecked (the default), the files page shows at most three tabs: File Areas, Recent Uploads, and one tab for the area you last opened. When checked, each area you open gets its own closable tab. |
 | Panel title | Optional heading displayed at the top of the sidebar info panel. Leave blank for no heading. |
 | Sidebar content (Markdown) | Markdown rendered in a card on the right-hand sidebar of the file area. Leave blank to hide the panel entirely. |
 | Footer content (Markdown) | Markdown rendered in a card below the file list. Useful for DMCA notices, ratio policies, or other notices. Leave blank to hide the footer entirely. |

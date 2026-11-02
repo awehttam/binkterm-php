@@ -821,6 +821,14 @@
             <div class="card-body">
                 <p class="text-muted mb-4">{{ t('ui.admin.appearance.file_areas.help', {}, locale, ['common']) }}</p>
 
+                <div class="form-check mb-1">
+                    <input class="form-check-input" type="checkbox" id="faMultipleAreaTabs">
+                    <label class="form-check-label" for="faMultipleAreaTabs">{{ t('ui.admin.appearance.file_areas.multiple_area_tabs', {}, locale, ['common']) }}</label>
+                </div>
+                <div class="form-text mb-4">{{ t('ui.admin.appearance.file_areas.multiple_area_tabs_help', {}, locale, ['common']) }}</div>
+
+                <hr>
+
                 <h6 class="fw-semibold mb-3">{{ t('ui.admin.appearance.file_areas.sidebar_section', {}, locale, ['common']) }}</h6>
 
                 <div class="mb-3">
@@ -1242,6 +1250,7 @@ function loadAppearanceConfig() {
             $('#faInfoTitle').val(fa.sidebar_info_title || '');
             $('#faInfoMarkdown').val(fa.sidebar_info_markdown || '');
             $('#faFooterMarkdown').val(fa.footer_markdown || '');
+            $('#faMultipleAreaTabs').prop('checked', !!fa.multiple_area_tabs);
 
             // Doors
             const doorsConf = config.doors || {};
@@ -2119,7 +2128,8 @@ function saveFileAreas() {
         file_areas: {
             sidebar_info_title: $('#faInfoTitle').val().trim(),
             sidebar_info_markdown: $('#faInfoMarkdown').val(),
-            footer_markdown: $('#faFooterMarkdown').val()
+            footer_markdown: $('#faFooterMarkdown').val(),
+            multiple_area_tabs: $('#faMultipleAreaTabs').is(':checked')
         }
     };
     $.post('/admin/api/appearance/file-areas', JSON.stringify(payload), null, 'json')

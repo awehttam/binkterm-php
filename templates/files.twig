@@ -702,6 +702,7 @@ function canDeleteFileRecord(file) {
     return file.area_tag === `PRIVATE_USER_${currentUserId}`;
 }
 
+const multipleAreaTabs = {{ (file_areas_appearance is defined and file_areas_appearance.multiple_area_tabs) ? 'true' : 'false' }};
 const isPublicAreaGuest = {{ (is_public_area is defined and is_public_area and not current_user) ? 'true' : 'false' }};
 const guestIndexPath = {{ current_user ? '"/files"' : '"/public-files"' }};
 
@@ -1163,6 +1164,10 @@ function currentViewKey() {
  */
 function setAreaTab(icon, label, view) {
     const key = view.type === 'my_uploads' ? 'my_uploads' : 'area:' + view.areaId;
+    if (!multipleAreaTabs) {
+        // Single-tab mode: entering a new area replaces the previous area tab.
+        areaTabs = areaTabs.filter(t => t.key === key);
+    }
     const existing = areaTabs.find(t => t.key === key);
     if (existing) {
         existing.label = label;

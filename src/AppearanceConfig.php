@@ -170,6 +170,7 @@ class AppearanceConfig
                 'sidebar_info_title'    => '',
                 'sidebar_info_markdown' => '',
                 'footer_markdown'       => '',
+                'multiple_area_tabs'    => false,
             ],
             'dashboard' => [
                 'default_layout' => null,
@@ -575,7 +576,8 @@ class AppearanceConfig
     // -------------------------------------------------------------------------
 
     /**
-     * File areas appearance configuration (sidebar info panel and footer).
+     * File areas appearance configuration (sidebar info panel, footer, and
+     * whether the files page may keep several area tabs open at once).
      */
     public static function getFileAreasConfig(): array
     {
@@ -589,6 +591,7 @@ class AppearanceConfig
             'sidebar_info_html'     => $sidebarMd !== '' ? \BinktermPHP\MarkdownRenderer::toHtml($sidebarMd) : '',
             'footer_markdown'       => $footerMd,
             'footer_html'           => $footerMd !== '' ? \BinktermPHP\MarkdownRenderer::toHtml($footerMd) : '',
+            'multiple_area_tabs'    => !empty($cfg['multiple_area_tabs']),
         ];
     }
 
