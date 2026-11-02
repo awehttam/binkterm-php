@@ -13,6 +13,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [MeshCore Public Key QR Codes](#meshcore-public-key-qr-codes)
 - [Dashboard](#dashboard)
   - [Door Activity on the Mail, Areas & Doors Card](#door-activity-on-the-mail-areas--doors-card)
+- [BBS Directory](#bbs-directory)
+  - [Entry Source Tags](#entry-source-tags)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -107,6 +109,16 @@ The dashboard's **Mail & Areas** card is renamed **Mail, Areas & Doors**. Below 
 Doors that are disabled, hidden from the web, or admin-only (for non-admin users) are left out. The section does not appear when the games system is disabled. The data comes from the new login-required `GET /api/dashboard/door-activity` endpoint.
 
 Recent Players is drawn from the leaderboard data, so it only lists players of doors that publish scores, such as those described under [Leaderboards Read From DOS and Native Door Game Data](#leaderboards-read-from-dos-and-native-door-game-data).
+
+## BBS Directory
+
+### Entry Source Tags
+
+Each BBS Directory entry now records where it came from as a source tag, instead of only Manual or Auto. In **Admin > BBS Directory**, the **Source** column shows the tag and can be sorted, and the Add/Edit Entry window has a **Source** field. Type any tag you like, or pick one already in use. Tags are lowercased and limited to letters, digits, underscores, dots and hyphens.
+
+Importers set their own tag: `telnet_bbs_guide` for `scripts/import_bbslist.php`, `syncdata` for the Syncdata robot and `ibbslastcall` for the IBBS Last Call robot. `import_bbslist.php` accepts `--source=<tag>` to use a different tag. Entries marked `manual` keep that tag when an importer updates them.
+
+Entries imported before this release keep the tag `auto`, because the original importer was not recorded. They receive a specific tag the next time an import or robot updates them.
 
 ## Upgrade Instructions
 

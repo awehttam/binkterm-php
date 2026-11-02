@@ -1210,6 +1210,7 @@ php scripts/import_bbslist.php /path/to/bbslist.zip --quiet
 Options:
 - `--dry-run` — Parse and display rows without writing to the database
 - `--quiet` — Suppress per-row output (summary still printed)
+- `--source=<tag>` — Source tag stored on imported entries (default: `telnet_bbs_guide`)
 - `--help, -h` — Show usage
 
 The ZIP must contain a file named `bbslist.csv` (case-insensitive). Expected CSV columns:

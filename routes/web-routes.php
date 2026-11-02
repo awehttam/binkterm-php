@@ -2224,7 +2224,10 @@ SimpleRouter::get('/bbs-directory', function() {
     unset($entry);
 
     $template = new Template();
-    $template->renderResponse('bbs_directory.twig', ['entries' => $entries]);
+    $template->renderResponse('bbs_directory.twig', [
+        'entries' => $entries,
+        'source_names' => $directory->getPublicSourceNames(),
+    ]);
 });
 
 // Individual BBS detail page

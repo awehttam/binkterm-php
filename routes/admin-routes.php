@@ -8792,14 +8792,18 @@ SimpleRouter::get('/admin/api/bbs-directory/entries', function() {
     $search  = trim($_GET['search'] ?? '');
 
     $directory = new \BinktermPHP\BbsDirectory($db);
-    $entries   = $directory->getAllEntries($page, $perPage, $search);
+    $sort      = (string)($_GET['sort'] ?? 'name');
+    $dir       = (string)($_GET['dir'] ?? 'asc');
+    $entries   = $directory->getAllEntries($page, $perPage, $search, $sort, $dir);
     $total     = $directory->getTotalCount($search);
 
     echo json_encode([
-        'entries'  => $entries,
-        'total'    => $total,
-        'page'     => $page,
-        'per_page' => $perPage,
+        'entries'        => $entries,
+        'total'          => $total,
+        'page'           => $page,
+        'per_page'       => $perPage,
+        'sources'        => $directory->getKnownSources(),
+        'source_labels'  => \BinktermPHP\BbsDirectory::SOURCE_LABELS,
     ]);
 });
 

@@ -4933,6 +4933,7 @@ return [
     'ui.bbs_directory.page_title' => 'Directory BBS — Sistemi bulletin board Telnet',
     'ui.bbs_directory.heading' => 'Directory BBS',
     'ui.bbs_directory.description' => 'Una lista di sistemi BBS noti a questa BBS, scoperti automaticamente tramite varie fonti e integrati con voci curate manualmente.',
+    'ui.bbs_directory.description_sources' => 'Una lista di sistemi BBS noti a questa BBS, scoperti automaticamente tramite varie fonti come {sources} e integrati con voci curate manualmente.',
     'ui.bbs_directory.og_title' => 'Lista di sistemi bulletin board di {name}',
     'ui.bbs_directory.og_description' => 'Sfoglia sistemi bulletin board (BBS) telnet da tutto il mondo. Scopri sistemi BBS attivi, sysop, località e dettagli di connessione.',
     'ui.bbs_directory.col_name' => 'Nome BBS',

@@ -4970,6 +4970,7 @@ return [
     'ui.bbs_directory.page_title' => 'BBS Directory — Telnet Bulletin Board Systems',
     'ui.bbs_directory.heading' => 'BBS Directory',
     'ui.bbs_directory.description' => 'A list of BBS systems known to this BBS, automatically discovered through various sources and supplemented by manually curated entries.',
+    'ui.bbs_directory.description_sources' => 'A list of BBS systems known to this BBS, automatically discovered through various sources such as {sources}, and supplemented by manually curated entries.',
     'ui.bbs_directory.og_title' => '{name}\'s List of Bulletin Board Systems',
     'ui.bbs_directory.og_description' => 'Browse telnet bulletin board systems (BBS) from around the world. Discover active BBS systems, their sysops, locations, and connection details.',
     'ui.bbs_directory.col_name' => 'BBS Name',

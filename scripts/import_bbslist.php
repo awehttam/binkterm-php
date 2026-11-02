@@ -56,6 +56,7 @@ Arguments:
 Options:
   --dry-run       Parse and display rows without writing to the database
   --quiet         Suppress per-row output (summary still printed)
+  --source=<tag>  Source tag stored on imported entries (default: telnet_bbs_guide)
   --help, -h      Show this help
 
 CSV columns expected inside bbslist.csv:
@@ -77,12 +78,20 @@ HELP;
 $zipPath = null;
 $dryRun  = false;
 $quiet   = false;
+$source  = BbsDirectory::SOURCE_TELNET_BBS_GUIDE;
 
 foreach ($args as $arg) {
     if ($arg === '--dry-run') {
         $dryRun = true;
     } elseif ($arg === '--quiet') {
         $quiet = true;
+    } elseif (str_starts_with($arg, '--source=')) {
+        $parsed = BbsDirectory::normalizeSource(substr($arg, 9));
+        if ($parsed === null) {
+            fwrite(STDERR, "Error: --source requires a non-empty tag.\n");
+            exit(1);
+        }
+        $source = $parsed;
     } elseif (!str_starts_with($arg, '--')) {
         $zipPath = $arg;
     }
@@ -196,6 +205,7 @@ while (($row = fgetcsv($fh)) !== false) {
         'website'     => $col($row, 'WebAddress'),
         'location'    => $col($row, 'location'),
         'software'    => $col($row, 'software'),
+        'source'      => $source,
         // newLogin (caller login alias) and Modem (phone number) are not stored
     ];
 

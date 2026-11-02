@@ -155,6 +155,7 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
             'os'          => $os ?: null,
             'telnet_host' => $telnetHost,
             'telnet_port' => $telnetPort,
+            'source'      => BbsDirectory::SOURCE_IBBSLASTCALL,
         ]);
 
         return true;

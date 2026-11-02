@@ -121,7 +121,13 @@
             <i class="fas fa-server"></i>
             {{ t('ui.bbs_directory.heading', {}, 'common') }}
         </h1>
-        <p class="text-muted mb-0">{{ t('ui.bbs_directory.description', {}, 'common') }}</p>
+        <p class="text-muted mb-0">
+            {% if source_names %}
+                {{ t('ui.bbs_directory.description_sources', {'sources': source_names|join(', ')}, 'common') }}
+            {% else %}
+                {{ t('ui.bbs_directory.description', {}, 'common') }}
+            {% endif %}
+        </p>
     </div>
     {% if current_user %}
     <button class="btn btn-fidonet ms-3 flex-shrink-0" onclick="showSubmitModal()">

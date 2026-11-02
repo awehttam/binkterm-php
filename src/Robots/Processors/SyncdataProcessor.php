@@ -157,6 +157,7 @@ class SyncdataProcessor implements MessageProcessorInterface
             'telnet_port' => $telnetPort,
             'ssh_port'    => $sshPort,
             'notes'       => $notes,
+            'source'      => BbsDirectory::SOURCE_SYNCDATA,
         ];
 
         if ($this->debugCallback) {

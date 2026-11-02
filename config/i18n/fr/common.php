@@ -4155,6 +4155,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.bbs_directory.heading' => 'Répertoire BBS',
     'ui.bbs_directory.page_title' => 'Répertoire BBS — Systèmes de babillard telnet',
     'ui.bbs_directory.description' => 'Une liste des systèmes BBS connus de ce BBS, découverts automatiquement via diverses sources et complétés par des entrées gérées manuellement.',
+    'ui.bbs_directory.description_sources' => 'Une liste des systèmes BBS connus de ce BBS, découverts automatiquement via diverses sources telles que {sources} et complétés par des entrées gérées manuellement.',
     'ui.bbs_directory.og_title' => 'La liste des systèmes BBS de {name}',
     'ui.bbs_directory.og_description' => 'Parcourez des systèmes de babillard électronique (BBS) telnet du monde entier. Découvrez les BBS actifs, leurs sysops, emplacements et coordonnées de connexion.',
     'ui.bbs_directory.col_name' => 'Nom du BBS',
