@@ -12,6 +12,30 @@
 {% endblock %}
 
 {% block content %}
+<style>
+#filesMainTabs .area-tab-close { opacity: 0.55; }
+#filesMainTabs .area-tab-close:hover { opacity: 1; }
+#fileAreasForum .filearea-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+#fileAreasForum .filearea-title { font-weight: 600; font-size: 1.05rem; overflow-wrap: break-word; }
+#fileAreasForum .filearea-desc { font-size: 0.9rem; color: #6c757d; overflow-wrap: break-word; }
+#fileAreasForum .filearea-row-link { color: inherit; text-decoration: none; min-width: 0; }
+#fileAreasForum .filearea-row-link:hover { color: inherit; }
+#fileAreasForum .list-group-item { overflow: hidden; }
+#fileAreasForum .filearea-stats { flex: 0 1 auto; white-space: nowrap; }
+@media (max-width: 767.98px) {
+    #fileAreasForum .filearea-icon { width: 40px; height: 40px; font-size: 1.2rem; }
+}
+</style>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-file"></i>
@@ -25,7 +49,30 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-9 order-2 order-lg-1">
+    <div class="col-lg-9 order-2 order-lg-1" id="filesMainCol">
+        <ul class="nav nav-tabs mb-3" id="filesMainTabs" role="tablist">
+            <li class="nav-item">
+                <button type="button" class="nav-link active" id="filesTabAreas" onclick="showFilesTab('areas', true)">
+                    <i class="fas fa-folder-open me-1"></i>{{ t('ui.files.tab_areas', {}, 'common') }}
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" class="nav-link" id="filesTabBrowse" onclick="showFilesTab('recent', true)">
+                    <i class="fas fa-clock me-1"></i>{{ t('ui.files.recent_uploads', {}, 'common') }}
+                </button>
+            </li>
+        </ul>
+
+        <div id="fileAreasForumPane">
+            <div id="fileAreasForum">
+                <div class="loading-spinner p-4 text-center text-muted">
+                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    {{ t('ui.common.loading', {}, 'common') }}
+                </div>
+            </div>
+        </div>
+
+        <div id="filesBrowsePane" style="display:none;">
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-start">
@@ -49,6 +96,7 @@
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 
@@ -658,6 +706,10 @@ const isPublicAreaGuest = {{ (is_public_area is defined and is_public_area and n
 const guestIndexPath = {{ current_user ? '"/files"' : '"/public-files"' }};
 
 $(document).ready(function() {
+    let savedFilesTab = null;
+    try { savedFilesTab = UserStorage.getItem('filesMainTab'); } catch (e) {}
+    showFilesTab(savedFilesTab === 'recent' ? 'recent' : 'areas');
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadFileAreas();
         loadStats();
@@ -1055,6 +1107,211 @@ function applyFileAreaFilter() {
         );
     }
     renderFileAreaList(filtered);
+    renderFileAreaForum(filtered);
+}
+
+let suppressTabSwitch = false;
+let areaTabs = [];
+let activeTab = 'areas';
+
+/**
+ * Switch tabs. 'areas' shows the forum-style area list; 'recent' and the
+ * per-area tabs (keys like 'area:12' or 'my_uploads') share the file browser pane.
+ * @param {string} name 'areas', 'recent', or an area tab key
+ * @param {boolean} userClick true when triggered from the tab bar itself
+ */
+function showFilesTab(name, userClick) {
+    activeTab = name;
+    const showAreas = name === 'areas';
+    $('#fileAreasForumPane').toggle(showAreas);
+    $('#filesBrowsePane').toggle(!showAreas);
+    $('#filesTabAreas').toggleClass('active', showAreas);
+    $('#filesTabBrowse').toggleClass('active', name === 'recent');
+    renderAreaTabs();
+    if (!userClick) {
+        return;
+    }
+    if (name === 'areas' || name === 'recent') {
+        try { UserStorage.setItem('filesMainTab', name); } catch (e) {}
+    }
+    if (name === 'recent') {
+        if (currentViewMode !== 'recent') {
+            $('#searchFiles').val('');
+            $('#fileAreasList .list-group-item').removeClass('active');
+            loadRecentFiles();
+        }
+        return;
+    }
+    const tab = areaTabs.find(t => t.key === name);
+    if (tab && currentViewKey() !== name) {
+        if (tab.type === 'my_uploads') {
+            selectMyUploads();
+        } else {
+            selectFileArea(tab.areaId, tab.subfolder);
+        }
+    }
+}
+
+function currentViewKey() {
+    if (currentViewMode === 'my_uploads') return 'my_uploads';
+    if (currentViewMode === 'area' && currentAreaId !== null) return 'area:' + currentAreaId;
+    return null;
+}
+
+/**
+ * Add (or update) the tab for the area / My Uploads view being entered.
+ */
+function setAreaTab(icon, label, view) {
+    const key = view.type === 'my_uploads' ? 'my_uploads' : 'area:' + view.areaId;
+    const existing = areaTabs.find(t => t.key === key);
+    if (existing) {
+        existing.label = label;
+        existing.subfolder = view.subfolder;
+    } else {
+        areaTabs.push({ key: key, icon: icon, label: label, type: view.type, areaId: view.areaId, subfolder: view.subfolder });
+    }
+    renderAreaTabs();
+}
+
+function renderAreaTabs() {
+    const $bar = $('#filesMainTabs');
+    $bar.find('.area-tab-item').remove();
+    areaTabs.forEach(function(tab) {
+        const $close = $('<span class="ms-2 area-tab-close" role="button">')
+            .attr('title', uiT('ui.common.close', 'Close'))
+            .append('<i class="fas fa-times"></i>')
+            .on('click', function(e) { closeAreaTab(e, tab.key); });
+        const $btn = $('<button type="button" class="nav-link">')
+            .toggleClass('active', activeTab === tab.key)
+            .append($('<i>').addClass('fas me-1 ' + tab.icon))
+            .append(document.createTextNode(tab.label))
+            .append($close)
+            .on('click', function() { showFilesTab(tab.key, true); });
+        $('<li class="nav-item area-tab-item">').append($btn).appendTo($bar);
+    });
+}
+
+function closeAreaTab(e, key) {
+    e.stopPropagation();
+    const idx = areaTabs.findIndex(t => t.key === key);
+    if (idx === -1) return;
+    areaTabs.splice(idx, 1);
+    if (activeTab !== key) {
+        renderAreaTabs();
+        return;
+    }
+    const next = areaTabs[idx] || areaTabs[idx - 1];
+    showFilesTab(next ? next.key : 'recent', true);
+}
+
+function buildForumGroup(title, areas, isLocal) {
+    let totalFiles = 0;
+    let totalSize = 0;
+    areas.forEach(a => { totalFiles += parseInt(a.file_count || 0, 10); totalSize += parseInt(a.total_size || 0, 10); });
+    const countLabel = areas.length === 1
+        ? uiT('ui.files.area_count_one', '{count} area', { count: areas.length })
+        : uiT('ui.files.area_count_many', '{count} areas', { count: areas.length });
+    const badgeColor = isLocal ? 'bg-success' : 'bg-primary';
+
+    let html = '<div class="card mb-3">';
+    html += '<div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">';
+    html += `<h6 class="mb-0"><i class="fas fa-folder me-2"></i>${escapeHtml(title)}</h6>`;
+    html += '<div class="d-flex gap-2">';
+    html += `<span class="badge ${badgeColor}">${escapeHtml(countLabel)}</span>`;
+    html += `<span class="badge bg-secondary">${totalFiles} ${uiT('ui.files.files_count_label', 'files')} &middot; ${formatBytes(totalSize)}</span>`;
+    html += '</div></div>';
+    html += '<div class="list-group list-group-flush">';
+    areas.forEach(a => { html += buildForumAreaRow(a, isLocal); });
+    html += '</div></div>';
+    return html;
+}
+
+function buildForumAreaRow(area, isLocal) {
+    const color = isLocal ? '#198754' : '#0d6efd';
+    const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
+    const canUpload = currentUserId !== null && (uploadPermission === 1 || (uploadPermission === 0 && isAdmin));
+
+    let tag = escapeHtml(area.tag);
+    if (!area.is_local && area.domain) {
+        tag += '<span class="text-muted">@' + escapeHtml(area.domain) + '</span>';
+    }
+
+    let html = '<div class="list-group-item">';
+    html += '<div class="d-flex align-items-center gap-3">';
+    html += `<a href="#" class="filearea-row-link d-flex align-items-center gap-3 flex-grow-1" onclick="selectFileArea(${area.id}); return false;">`;
+    html += `<div class="filearea-icon" style="background-color:${color};"><i class="fas fa-folder-open"></i></div>`;
+    html += '<div class="flex-grow-1" style="min-width:0;">';
+    html += `<div class="filearea-title">${tag}</div>`;
+    html += `<div class="filearea-desc">${escapeHtml(area.description || '')}</div>`;
+    html += '</div></a>';
+    html += '<div class="text-end filearea-stats">';
+    if (canUpload) {
+        html += `<div class="mb-1"><span class="badge bg-success"><i class="fas fa-upload me-1"></i>${uiT('ui.files.uploads_badge', 'Uploads')}</span></div>`;
+    }
+    html += `<span class="badge bg-secondary">${parseInt(area.file_count || 0, 10)} ${uiT('ui.files.files_count_label', 'files')}</span> `;
+    html += `<span class="badge bg-secondary">${formatBytes(area.total_size || 0)}</span>`;
+    html += '</div></div></div>';
+    return html;
+}
+
+function renderFileAreaForum(areas) {
+    const publicAreas = areas.filter(a => !privateFileArea || a.id !== privateFileArea.id);
+    if (publicAreas.length === 0 && !privateFileArea && currentUserId === null) {
+        $('#fileAreasForum').html(`<div class="p-4 text-center text-muted">${uiT('ui.files.no_file_areas', 'No file areas available')}</div>`);
+        return;
+    }
+
+    const byTag = (a, b) => (a.tag || '').toLowerCase().localeCompare((b.tag || '').toLowerCase());
+    const isLocalArea = a => a.is_local || !a.domain;
+    const localAreas = publicAreas.filter(isLocalArea).sort(byTag);
+    const networks = {};
+    publicAreas.filter(a => !isLocalArea(a)).forEach(a => {
+        const key = a.domain.toLowerCase();
+        (networks[key] = networks[key] || []).push(a);
+    });
+
+    let html = '';
+
+    if (currentUserId !== null) {
+        const uploadCount = myUploadsSummary ? (myUploadsSummary.total_count || 0) : 0;
+        const uploadSize = formatBytes(myUploadsSummary ? (myUploadsSummary.total_size || 0) : 0);
+        const rows = [{
+            icon: 'fa-upload', color: '#0dcaf0', name: uiT('ui.files.my_uploads', 'My Uploads'),
+            count: uploadCount, size: uploadSize, onclick: 'selectMyUploads()'
+        }];
+        if (privateFileArea) {
+            rows.push({
+                icon: 'fa-user-circle', color: '#0d6efd', name: uiT('ui.files.my_files', 'My Files'),
+                count: privateFileArea.file_count || 0, size: formatBytes(privateFileArea.total_size || 0),
+                onclick: `selectFileArea(${privateFileArea.id})`
+            });
+        }
+        html += '<div class="card mb-3"><div class="card-header"><h6 class="mb-0">'
+            + `<i class="fas fa-folder me-2"></i>${escapeHtml(uiT('ui.files.personal_group', 'Personal'))}</h6></div>`
+            + '<div class="list-group list-group-flush">';
+        rows.forEach(r => {
+            html += '<div class="list-group-item"><div class="d-flex align-items-center gap-3">'
+                + `<a href="#" class="filearea-row-link d-flex align-items-center gap-3 flex-grow-1" onclick="${r.onclick}; return false;">`
+                + `<div class="filearea-icon" style="background-color:${r.color};"><i class="fas ${r.icon}"></i></div>`
+                + `<div class="flex-grow-1"><div class="filearea-title">${escapeHtml(r.name)}</div></div></a>`
+                + `<div class="text-end filearea-stats"><span class="badge bg-secondary">${r.count} ${uiT('ui.files.files_count_label', 'files')}</span> `
+                + `<span class="badge bg-secondary">${r.size}</span></div></div></div>`;
+        });
+        html += '</div></div>';
+    }
+
+    if (localAreas.length > 0) {
+        html += buildForumGroup(uiT('ui.files.local_areas', 'Local Areas'), localAreas, true);
+    }
+    Object.keys(networks).sort().forEach(net => {
+        const list = networks[net].sort(byTag);
+        html += buildForumGroup(uiT('ui.files.network_group', '{network} Network', { network: net.toUpperCase() }), list, false);
+    });
+
+    if (html === '') {
+        html = `<div class="p-4 text-center text-muted">${uiT('ui.files.no_file_areas', 'No file areas available')}</div>`;
+    }
+    $('#fileAreasForum').html(html);
 }
 
 let privateFileArea = null;
@@ -1183,13 +1440,15 @@ function renderFileAreaList(areas) {
     // Preserve the active selection when the area list is refreshed after an
     // in-page action like delete/rename/upload.
     if (currentViewMode === 'my_uploads' && currentUserId !== null) {
-        selectMyUploads();
+        suppressTabSwitch = true;
+        try { selectMyUploads(); } finally { suppressTabSwitch = false; }
         return;
     }
     if (currentViewMode === 'area' && currentAreaId !== null) {
         const activeArea = allFileAreas.find(a => a.id === currentAreaId);
         if (activeArea) {
-            selectFileArea(currentAreaId, currentSubfolder);
+            suppressTabSwitch = true;
+            try { selectFileArea(currentAreaId, currentSubfolder); } finally { suppressTabSwitch = false; }
             return;
         }
     }
@@ -1231,6 +1490,8 @@ function renderFileAreaList(areas) {
 }
 
 function selectMyUploads() {
+    setAreaTab('fa-upload', uiT('ui.files.my_uploads', 'My Uploads'), { type: 'my_uploads' });
+    if (!suppressTabSwitch) showFilesTab('my_uploads');
     $('#searchFiles').val('');
     $('#fileAreasList .list-group-item').removeClass('active');
     $(`#fileAreasList .list-group-item[data-area-id="${MY_UPLOADS_VIEW}"]`).addClass('active');
@@ -1238,6 +1499,7 @@ function selectMyUploads() {
 }
 
 function selectFileArea(areaId, subfolder) {
+    if (!suppressTabSwitch) showFilesTab('area:' + areaId);
     currentViewMode = 'area';
     currentAreaId = areaId;
     currentSubfolder = subfolder !== undefined ? subfolder : null;
@@ -1261,6 +1523,9 @@ function selectFileArea(areaId, subfolder) {
             }
         }
 
+        setAreaTab('fa-folder', (privateFileArea && area.id === privateFileArea.id)
+            ? uiT('ui.files.my_files', 'My Files')
+            : area.tag + (!isLocal && domain ? '@' + domain : ''), { type: 'area', areaId: areaId, subfolder: currentSubfolder });
         $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
         $('#searchFiles').val('');
 
@@ -1315,6 +1580,10 @@ function selectFileArea(areaId, subfolder) {
 function loadFiles(areaId, subfolder) {
     subfolder = subfolder !== undefined ? subfolder : currentSubfolder;
     currentSubfolder = subfolder;
+    const openTab = areaTabs.find(t => t.key === 'area:' + areaId);
+    if (openTab) {
+        openTab.subfolder = subfolder;
+    }
 
     $('#filesContainer').html(`<div class="loading-spinner p-4"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.files.loading_files', 'Loading files...')}</div>`);
 
