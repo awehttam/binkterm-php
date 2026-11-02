@@ -4059,7 +4059,7 @@ return [
     'ui.webdoors.page_title' => 'Двери и игры',
     'ui.webdoors.heading' => 'Двери и игры',
     'ui.webdoors.description' => 'Доступ к классическим DOS-дверям и современным веб-играм.',
-    'ui.webdoors.top_scores_all_games' => 'Лучшие результаты (все игры)',
+    'ui.webdoors.top_scores_all_games' => 'Лучшие результаты (все поддерживаемые игры)',
     'ui.webdoors.leaderboard_month_navigation' => 'Навигация по месяцам в таблице лидеров',
     'ui.webdoors.previous_month' => 'Предыдущий месяц',
     'ui.webdoors.next_month' => 'Следующий месяц',

@@ -4037,7 +4037,7 @@ return [
     'ui.webdoors.page_title' => 'Puertas y juegos',
     'ui.webdoors.heading' => 'Puertas y juegos',
     'ui.webdoors.description' => 'Acceda a juegos de puertas DOS clasicos y juegos web modernos.',
-    'ui.webdoors.top_scores_all_games' => 'Puntuaciones mas altas (todos los juegos)',
+    'ui.webdoors.top_scores_all_games' => 'Puntuaciones mas altas (todos los juegos compatibles)',
     'ui.webdoors.leaderboard_month_navigation' => 'Navegacion mensual del ranking',
     'ui.webdoors.previous_month' => 'Mes anterior',
     'ui.webdoors.next_month' => 'Mes siguiente',

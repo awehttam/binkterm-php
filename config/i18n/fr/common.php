@@ -3376,7 +3376,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.webdoors.page_title' => 'Portes et jeux',
     'ui.webdoors.heading' => 'Portes et jeux',
     'ui.webdoors.description' => 'Accédez aux jeux de portes DOS classiques et aux jeux web modernes.',
-    'ui.webdoors.top_scores_all_games' => 'Meilleurs scores (tous les jeux)',
+    'ui.webdoors.top_scores_all_games' => 'Meilleurs scores (tous les jeux pris en charge)',
     'ui.webdoors.leaderboard_month_navigation' => 'Navigation mensuelle du classement',
     'ui.webdoors.previous_month' => 'Mois précédent',
     'ui.webdoors.next_month' => 'Mois suivant',

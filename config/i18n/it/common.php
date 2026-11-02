@@ -4036,7 +4036,7 @@ return [
     'ui.webdoors.page_title' => 'Door e giochi',
     'ui.webdoors.heading' => 'Door e giochi',
     'ui.webdoors.description' => 'Accedi ai classici giochi door DOS e ai giochi moderni basati sul web.',
-    'ui.webdoors.top_scores_all_games' => 'Punteggi migliori (tutti i giochi)',
+    'ui.webdoors.top_scores_all_games' => 'Punteggi migliori (tutti i giochi supportati)',
     'ui.webdoors.leaderboard_month_navigation' => 'Navigazione mese classifica',
     'ui.webdoors.previous_month' => 'Mese precedente',
     'ui.webdoors.next_month' => 'Mese successivo',
