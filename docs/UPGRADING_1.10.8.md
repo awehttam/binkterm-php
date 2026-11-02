@@ -26,7 +26,27 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity. MeshCore node details now show a QR code beside the node's public key. The admin BBS Directory list has sortable columns, and each entry records a free-text source tag that importers set. The `/files` page is now tabbed, with a forum-style list of file areas and a separate closable tab for each area you open.
+### Web Doors
+
+- **Leaderboards read from DOS and native door game data:** a door can name a data parser that reads the game's own player files, starting with Legend of the Red Dragon (LORD) and The Wire, and publishes each player's score on the `/games` Top Scores leaderboard.
+- **Door Manifest Editor changes:** the editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP.
+- **Internet Archive games:** sysops can add browser-playable games hosted on the Internet Archive to the `/games` page.
+- **Top Scores month uses your timezone:** the monthly Top Scores leaderboard now follows each user's own timezone.
+- **MeshCore public key QR codes:** MeshCore node details now show a QR code beside the node's public key.
+
+### Dashboard
+
+- **Door activity on the Mail, Areas & Doors card:** the dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity.
+
+### BBS Directory
+
+- **Sortable columns in the admin entry list:** the admin BBS Directory list has sortable columns.
+- **Entry source tags:** each entry records a free-text source tag that importers set, and the sources are listed on the public directory page.
+
+### File Areas
+
+- **Tabbed Files page with a forum-style area list:** the `/files` page is now tabbed, with a forum-style list of file areas and a separate closable tab for each area you open.
+- **File counts and sizes after moving files:** file area counts and sizes are now corrected after files are moved between areas.
 
 ## Web Doors
 
@@ -91,7 +111,7 @@ Each game can have a credit cost, a play time limit, and optional anonymous acce
 
 ### Top Scores Month Uses Your Timezone
 
-The **Top Scores (All Games)** list on the `/games` page covers one calendar month. The start and end of that month were previously calculated in UTC, so for users west of UTC the page switched to the next month several hours early. For example, at 5:52 PM Pacific on October 31 it showed "No scores recorded for November" even though October had not ended.
+The **Top Scores (All Supported Games)** list on the `/games` page covers one calendar month. The start and end of that month were previously calculated in UTC, so for users west of UTC the page switched to the next month several hours early. For example, at 5:52 PM Pacific on October 31 it showed "No scores recorded for November" even though October had not ended.
 
 The month now begins and ends at midnight in the viewer's own timezone, taken from their user settings. If a user has no timezone saved, or the saved value is not a valid timezone name, the server's PHP `date.timezone` is used instead. Set `date.timezone` in `php.ini` to your local timezone, for example `America/Vancouver`, so users without a saved timezone see the month roll over at local midnight.
 
