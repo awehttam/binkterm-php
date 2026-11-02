@@ -1201,6 +1201,11 @@ function renderArchiveDoorPage(string $game, ?array $user): bool
         return true;
     }
 
+    // Log one play per payment window so page reloads are not counted again
+    if ($user && !empty($play['new_window'])) {
+        ActivityTracker::track((int)$user['id'], ActivityTracker::TYPE_ARCHIVEDOOR_PLAY, null, $game);
+    }
+
     $template->renderResponse('webdoor_play.twig', [
         'game' => [
             'name' => $archiveDoor['name'],

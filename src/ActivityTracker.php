@@ -46,6 +46,7 @@ class ActivityTracker
     const TYPE_PGP_KEY_GENERATE         = 20;
     const TYPE_PGP_KEY_PRIMARY          = 21;
     const TYPE_PGP_KEY_DELETE           = 22;
+    const TYPE_ARCHIVEDOOR_PLAY         = 23;
 
     /**
      * Record exactly one successful-login event for a caller.

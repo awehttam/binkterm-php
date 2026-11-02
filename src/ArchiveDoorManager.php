@@ -420,6 +420,7 @@ class ArchiveDoorManager
                 'ok' => true,
                 'seconds_remaining' => $maxMinutes > 0 ? (int)$existing['expires'] - $now : null,
                 'credits_charged' => 0,
+                'new_window' => false,
             ];
         }
 
@@ -438,6 +439,7 @@ class ArchiveDoorManager
             'ok' => true,
             'seconds_remaining' => $maxMinutes > 0 ? $windowSeconds : null,
             'credits_charged' => $charged,
+            'new_window' => true,
         ];
     }
 

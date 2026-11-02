@@ -6,7 +6,8 @@ use PDO;
 
 /**
  * Builds the "Recent Door Activity" dashboard data: the most played doors over a
- * recent window and the latest players seen on door leaderboards (no scores).
+ * recent window and the latest players, both drawn from door play events in
+ * user_activity_log (web, DOS/native/rlogin, JS-DOS and Archive.org doors).
  */
 class DoorActivityService
 {
@@ -29,22 +30,24 @@ class DoorActivityService
         $doors = $this->getVisibleDoors(!empty($user['is_admin']));
         $window = self::WINDOW_DAYS . ' days';
 
+        $typeIds = [
+            ActivityTracker::TYPE_WEBDOOR_PLAY,
+            ActivityTracker::TYPE_DOSDOOR_PLAY,
+            ActivityTracker::TYPE_ARCHIVEDOOR_PLAY,
+        ];
+        $typePlaceholders = implode(',', array_fill(0, count($typeIds), '?'));
+
         $stmt = $this->db->prepare("
-            SELECT door_id, COUNT(*) AS plays
-            FROM (
-                SELECT game_id AS door_id FROM webdoor_sessions
-                WHERE created_at >= (NOW() AT TIME ZONE 'UTC') - CAST(? AS INTERVAL)
-                UNION ALL
-                SELECT object_name AS door_id FROM user_activity_log
-                WHERE activity_type_id = ?
-                  AND object_name IS NOT NULL
-                  AND created_at >= NOW() - CAST(? AS INTERVAL)
-            ) s
-            GROUP BY door_id
-            ORDER BY plays DESC, door_id ASC
+            SELECT object_name AS door_id, COUNT(*) AS plays
+            FROM user_activity_log
+            WHERE activity_type_id IN ($typePlaceholders)
+              AND object_name IS NOT NULL
+              AND created_at >= NOW() - CAST(? AS INTERVAL)
+            GROUP BY object_name
+            ORDER BY plays DESC, object_name ASC
             LIMIT 50
         ");
-        $stmt->execute([$window, ActivityTracker::TYPE_DOSDOOR_PLAY, $window]);
+        $stmt->execute(array_merge($typeIds, [$window]));
 
         $popular = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -61,28 +64,35 @@ class DoorActivityService
             }
         }
 
-        $stmt = $this->db->query("
-            SELECT username, game_id, created_at
+        $stmt = $this->db->prepare("
+            SELECT username, door_id, played_at
             FROM (
-                SELECT DISTINCT ON (l.user_id, l.game_id) u.username, l.game_id, l.created_at
-                FROM webdoor_leaderboards l
-                JOIN users u ON u.id = l.user_id
-                ORDER BY l.user_id, l.game_id, l.created_at DESC
+                SELECT DISTINCT ON (a.user_id, a.object_name)
+                    u.username,
+                    a.object_name AS door_id,
+                    a.created_at AT TIME ZONE 'UTC' AS played_at
+                FROM user_activity_log a
+                JOIN users u ON u.id = a.user_id
+                WHERE a.activity_type_id IN ($typePlaceholders)
+                  AND a.object_name IS NOT NULL
+                  AND a.created_at >= NOW() - CAST(? AS INTERVAL)
+                ORDER BY a.user_id, a.object_name, a.created_at DESC
             ) t
-            ORDER BY created_at DESC
+            ORDER BY played_at DESC
             LIMIT 50
         ");
+        $stmt->execute(array_merge($typeIds, [$window]));
 
         $recent = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if (!isset($doors[$row['game_id']])) {
+            if (!isset($doors[$row['door_id']])) {
                 continue;
             }
             $recent[] = [
                 'username' => $row['username'],
-                'door_id' => $row['game_id'],
-                'name' => $doors[$row['game_id']],
-                'played_at' => str_replace(' ', 'T', substr($row['created_at'], 0, 19)) . 'Z',
+                'door_id' => $row['door_id'],
+                'name' => $doors[$row['door_id']],
+                'played_at' => str_replace(' ', 'T', substr($row['played_at'], 0, 19)) . 'Z',
             ];
             if (count($recent) >= $limit) {
                 break;

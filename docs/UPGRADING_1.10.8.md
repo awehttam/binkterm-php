@@ -109,11 +109,11 @@ Node detail windows now show a QR code directly beneath a MeshCore node's public
 The dashboard's **Mail & Areas** card is renamed **Mail, Areas & Doors**. Below the new echo areas it has a new door activity section with two lists:
 
 - **Most Popular.** The five doors with the most launches in the past 30 days, each with its play count.
-- **Recent Players.** The five most recent players from the door leaderboards, with the door they played and the date. Scores are not shown.
+- **Recent Players.** The five most recent players in the past 30 days, with the door they played and the date. Scores are not shown.
 
 Doors that are disabled, hidden from the web, or admin-only (for non-admin users) are left out. The section does not appear when the games system is disabled. The data comes from the new login-required `GET /api/dashboard/door-activity` endpoint.
 
-Recent Players is drawn from the leaderboard data, so it only lists players of doors that publish scores, such as those described under [Leaderboards Read From DOS and Native Door Game Data](#leaderboards-read-from-dos-and-native-door-game-data).
+Both lists are built from recorded door launches, so they cover web, DOS, native, rlogin, JS-DOS and Internet Archive doors whether or not the door publishes scores. Internet Archive games are counted once per play session, so reloading the page does not add another play. Plays by anonymous visitors are not recorded.
 
 ## BBS Directory
 
