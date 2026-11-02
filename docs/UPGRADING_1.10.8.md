@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Entry Source Tags](#entry-source-tags)
   - [Sources Listed on the Public Directory Page](#sources-listed-on-the-public-directory-page)
 - [File Areas](#file-areas)
+  - [Tabbed Files Page With a Forum-Style Area List](#tabbed-files-page-with-a-forum-style-area-list)
   - [File Counts and Sizes After Moving Files](#file-counts-and-sizes-after-moving-files)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -25,7 +26,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity. MeshCore node details now show a QR code beside the node's public key. The admin BBS Directory list has sortable columns, and each entry records a free-text source tag that importers set.
+BinktermPHP 1.10.8 adds the ability to read a DOS door game's own data files, starting with Legend of the Red Dragon (LORD) and The Wire, and publish its player scores on the BBS. The Door Manifest Editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP. Sysops can also add browser-playable games hosted on the Internet Archive to the `/games` page. The dashboard's Mail & Areas card is now Mail, Areas & Doors and shows recent door activity. MeshCore node details now show a QR code beside the node's public key. The admin BBS Directory list has sortable columns, and each entry records a free-text source tag that importers set. The `/files` page is now tabbed, with a forum-style list of file areas and a separate closable tab for each area you open.
 
 ## Web Doors
 
@@ -133,6 +134,16 @@ Entries imported before this release keep the tag `auto`, because the original i
 The description at the top of the public BBS Directory page now names the sources in use, for example "automatically discovered through various sources such as Syncdata, Telnet BBS Guide, and supplemented by manually curated entries." The names come from the source tags of publicly listed entries. The `manual` and `auto` tags are not listed. When no entry has a named source, the page shows the previous wording.
 
 ## File Areas
+
+### Tabbed Files Page With a Forum-Style Area List
+
+The `/files` page now has a tab bar above the main panel:
+
+- **File Areas.** Lists every file area in cards grouped by network, in the same style as the echo area list. Local areas come first, then one card per network in alphabetical order. Each card header shows the number of areas and the total files and size, and each row shows the area tag, its description, the file count and size, and an **Uploads** badge when you are allowed to upload there. Logged-in users also get a Personal card containing My Uploads and My Files. The area search box in the sidebar filters this list as well as the sidebar list.
+- **Recent Uploads.** The existing list of the most recent uploads.
+- **One tab per opened area.** Opening an area, My Files or My Uploads, from either the File Areas tab or the sidebar, adds a tab named after it. Opening an area that already has a tab switches to it. Each tab remembers the subfolder you were viewing, and the **x** on a tab closes it. Closing the active tab moves you to a neighbouring tab, or to Recent Uploads if none remain.
+
+The page opens on the File Areas tab and remembers whether you last used File Areas or Recent Uploads. Opening a direct link such as `/files/<AREA>` or `/files?view=my-uploads` goes straight to that area's tab. Open area tabs are not kept when the page is reloaded.
 
 ### File Counts and Sizes After Moving Files
 
