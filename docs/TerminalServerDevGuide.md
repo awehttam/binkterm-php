@@ -454,7 +454,7 @@ BinktermPHP can simulate authentic dialup connection speeds (e.g. 300 to 57,600 
 ### Configuration & Initialization
 
 - **Sysop settings**: Configured via **Admin → BBS Settings → Terminal Server Settings** (`throttle_speed`, `throttle_baud`, `throttle_ssh`), stored in `data/bbs.json` under `terminal_server`.
-- **Session init**: In `BbsSession::run()`, the session checks `BbsConfig::getTerminalThrottleSpeed()` and baud rate. If enabled for the transport (always enabled for Telnet, gated by `throttle_ssh` for SSH), `TelnetUtils::setThrottleBaud($baud)` activates throttling for that child process.
+- **Session init**: In `BbsSession::run()`, the session checks `BbsConfig::getTerminalThrottleSpeed()` and baud rate. If enabled for the transport (`throttle_speed` for Telnet, `throttle_ssh` for SSH; the two are independent), `TelnetUtils::setThrottleBaud($baud)` activates throttling for that child process.
 
 ### Streaming & Pacing (`TelnetUtils::safeWrite`)
 

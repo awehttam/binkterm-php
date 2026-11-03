@@ -371,7 +371,7 @@ In **Admin → BBS Settings → Terminal Server Settings**, sysops can enable **
 - **Smooth Streaming**: Terminal output is streamed in small chunk bursts (~35 updates/sec) with microsecond pacing, accurately recreating the line-by-line drawing effect of ANSI art without stuttering.
 - **Typing Responsiveness**: Single-character typing echoes bypass the delay so local interactive input has zero latency.
 - **Skip on Keypress**: If a user presses a key while a large screen is actively drawing, the delay is instantly bypassed for the remainder of that screen.
-- **SSH Support**: A companion setting allows applying the same baud rate simulation to SSH connections if desired.
+- **SSH Support**: **Throttle SSH server speed (dialup simulation)** is a separate checkbox that applies the same baud rate to SSH sessions. It is independent of the Telnet checkbox; the baud rate selector is shown when either is enabled. Large output such as Sixel images draws at the emulated speed unless the user presses a key.
 
 ### Login Menu
 
