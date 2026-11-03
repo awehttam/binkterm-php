@@ -914,14 +914,15 @@ class BbsSession
                         $this->logDuration("Disconnected", $username, $loginTime);
                         break 2;
                     }
-                    if ($timedOut) { continue; }
 
-                    // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout)
+                    // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout).
+                    // Checked before the timeout skip: a NAWS-only read surfaces as a timeout.
                     $currentCols = $state['cols'] ?? 80;
                     $currentRows = $state['rows'] ?? 24;
                     if ($currentCols !== $lastRenderCols || $currentRows !== $lastRenderRows) {
                         continue 2; // restart outer loop to re-render menu at new dimensions
                     }
+                    if ($timedOut) { continue; }
 
                     if (str_starts_with($key, 'CHAR:')) {
                         $char = strtolower(substr($key, 5));
@@ -1828,10 +1829,21 @@ class BbsSession
      */
     public function readKeyWithIdleCheck($conn, array &$state): ?string
     {
+        $startRows = $state['rows'] ?? null;
+        $startCols = $state['cols'] ?? null;
         while (true) {
             [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
             if ($shouldDisconnect) { return null; }
-            if ($timedOut) { continue; }
+            if ($timedOut) {
+                // A NAWS update is folded into protocol chatter by readRawChar().
+                // Hand control back to the caller (with an empty token) so its
+                // resize check can repaint immediately instead of waiting for
+                // the next real keypress.
+                if (($state['rows'] ?? null) !== $startRows || ($state['cols'] ?? null) !== $startCols) {
+                    return '';
+                }
+                continue;
+            }
             return $key;
         }
     }
