@@ -20,6 +20,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - [File Areas](#file-areas)
   - [Tabbed Files Page With a Forum-Style Area List](#tabbed-files-page-with-a-forum-style-area-list)
   - [File Counts and Sizes After Moving Files](#file-counts-and-sizes-after-moving-files)
+- [Terminal Server](#terminal-server)
+  - [Status Bar No Longer Scrolls the Screen](#status-bar-no-longer-scrolls-the-screen)
+  - [Menus Repaint Immediately When the Window Is Resized](#menus-repaint-immediately-when-the-window-is-resized)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -47,6 +50,11 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Tabbed Files page with a forum-style area list:** the `/files` page is now tabbed, with a forum-style list of file areas and a separate closable tab for each area you open.
 - **File counts and sizes after moving files:** file area counts and sizes are now corrected after files are moved between areas.
+
+### Terminal Server
+
+- **Status bar no longer scrolls the screen:** drawing the full-width status bar on the last terminal row no longer scrolls the screen up one line, which had pushed screen headers off the top.
+- **Menus repaint immediately when the window is resized:** the main menu and list screens now redraw as soon as the terminal window is resized, instead of waiting for the next keypress.
 
 ## Web Doors
 
@@ -169,6 +177,16 @@ The page opens on the File Areas tab and remembers whether you last used File Ar
 ### File Counts and Sizes After Moving Files
 
 Moving a file to another file area did not update the file count and total size shown for the old and new area, so an area filled by moving files could show 0 files and 0 B. Moving a file now updates both areas, and an upgrade migration recalculates the counts for every area.
+
+## Terminal Server
+
+### Status Bar No Longer Scrolls the Screen
+
+Terminal server screens draw a status bar across the full width of the last terminal row. Some clients, including SyncTERM, wrap the cursor to the next line as soon as the last column is written. On the last row this scrolled the whole screen up one line, which pushed the screen header off the top and left an empty colored line at the bottom. The status bar is now drawn with automatic line wrapping turned off and turned back on afterward, so the screen stays in place. This applies to every Telnet and SSH screen that shows a status bar.
+
+### Menus Repaint Immediately When the Window Is Resized
+
+When a user resized their terminal window, the terminal server received the new size but the main menu and list screens did not redraw until the user pressed a key. The key that triggered the redraw was also easy to lose. These screens now repaint at the new size as soon as the resize is received. Text input fields do not repaint on resize.
 
 ## Upgrade Instructions
 
