@@ -595,8 +595,13 @@ class SshServer
             // When plain→SSH data is queued but the SSH window is full, use a
             // short timeout so we wake up quickly once a WINDOW_ADJUST arrives.
             $windowFull = $toSsh !== '' && $sshSession->getPeerWindowSize() <= 0;
-            $sec  = $windowFull ? 0 : 1;
-            $usec = $windowFull ? 50000 : 0;
+            // Never park for a full second while output is queued or may be
+            // sitting in PHP's stream buffer (stream_select cannot see that);
+            // large bursts such as Sixel images would otherwise stall until
+            // the next keypress woke the loop.
+            $pending = $toSsh !== '' || $toPlain !== '';
+            $sec  = 0;
+            $usec = ($windowFull || $pending) ? 10000 : 50000;
 
             $ready = @stream_select($read, $write, $except, $sec, $usec);
             if ($ready === false) {
@@ -630,10 +635,14 @@ class SshServer
             }
 
             // Read BBS-session output from the plain socket.
-            if (in_array($plainSocket, $read, true)) {
+            // Read unconditionally (socket is non-blocking): data may already be
+            // in PHP's stream buffer where stream_select cannot see it.
+            // Drain until empty, capped so a flood cannot starve the SSH side.
+            for ($i = 0; $i < 16 && strlen($toSsh) < 262144; $i++) {
                 $chunk = @fread($plainSocket, 8192);
-                if ($chunk === false || ($chunk === '' && feof($plainSocket))) { break; }
-                if ($chunk !== '') { $toSsh .= $chunk; }
+                if ($chunk === false || ($chunk === '' && feof($plainSocket))) { break 2; }
+                if ($chunk === '') { break; }
+                $toSsh .= $chunk;
             }
 
             // Forward plain→SSH within the current window.  Unsent remainder
