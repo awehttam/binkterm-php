@@ -59,7 +59,7 @@ Custom shells can be added by placing plugin definition files in
 - BBS Directory (browse other BBSes when enabled)
 - Nodelist browser (browse Fidonet nodelist entries when available)
 - Interests (tag-based content interests when enabled)
-- Door launcher integration (DOS doors, native doors, and configured door menu)
+- Door launcher integration (DOS doors, native doors, and configured door menu), fronted by a hub screen showing recent door activity and the monthly Top Scores leaderboard
 - Who's Online display
 - Reusable public profile viewer for terminal user lookups
 - Full-screen message editor with cursor navigation and line editing controls
@@ -310,6 +310,16 @@ Every action in the terminal main menu can be bound to a different single letter
 If no custom map is saved the built-in defaults above are used. When a custom map is saved, any action with no assigned key is hidden from the menu and its slot is not rendered — remaining items in that section reflow to fill the gap. When every action in a section (Messaging, Community/Explore, or Files/Settings) is unassigned, the section header itself is suppressed. The `quit` key is always required. Sysops are responsible for ensuring their `mainmenu.ans` art matches whatever keys are configured.
 
 The key map is returned as part of the `GET /api/config/session-init` call made immediately after login.
+
+### Door Games
+
+Selecting Door Games opens a hub screen rather than the door list. It shows the same information as the web interface:
+
+- **Most Popular** - the doors played most over the past 30 days, with play counts.
+- **Recent Players** - who most recently played which door, and when (shown in the user's timezone).
+- **Top Scores** - the current month's best WebDoor scores. This section is hidden when Hide Top Scores is enabled under Admin → Appearance.
+
+Press `U`/`D` to scroll, `P` to open the list of playable doors, or `Q` to return to the main menu. Quitting the door list returns to the hub. Admin-only doors are excluded from the activity lists for non-admin users.
 
 ### Local Chat
 

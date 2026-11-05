@@ -107,7 +107,7 @@ class DoorActivityService
      *
      * @return array<string, string>
      */
-    private function getVisibleDoors(bool $isAdmin): array
+    public function getVisibleDoors(bool $isAdmin): array
     {
         $doors = [];
 

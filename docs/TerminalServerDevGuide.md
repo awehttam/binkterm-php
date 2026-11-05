@@ -447,6 +447,22 @@ The admin save route derives its valid action list from `array_keys(AppearanceCo
 
 ---
 
+## Doors Hub
+
+`DoorHandler::show()` is the entry point for the `doors` main menu action. It renders a hub via `showScrollablePanel()` (extra key `p` returns `play`) and loops: `play` calls the private `DoorHandler::showDoorList()` (the door picker and launcher); any other result returns to the main menu.
+
+The hub body is built by `DoorHandler::buildActivityLines()` from shared classes, using direct internal reads rather than API calls:
+
+| Section | Source |
+|---------|--------|
+| Most Popular / Recent Players | `DoorActivityService::getActivity()` (also backs `GET /api/dashboard/door-activity`) |
+| Door display names | `DoorActivityService::getVisibleDoors()` |
+| Top Scores | `WebDoorLeaderboardService::getMonthRange()` and `getLeaderboard()` (also used by the web doors page in `routes/webdoor-routes.php`) |
+
+The Top Scores section is skipped when `AppearanceConfig::shouldHideTopScores()` is true. Timestamps are formatted with `TelnetUtils::formatUserDate()`. Hub strings live under `ui.terminalserver.doors.*` in every locale's `terminalserver.php`.
+
+---
+
 ## Dialup Speed Throttling Architecture
 
 BinktermPHP can simulate authentic dialup connection speeds (e.g. 300 to 57,600 baud) over Telnet and SSH connections to preserve the retro BBS experience where ANSI screens draw line-by-line rather than appearing instantaneously.

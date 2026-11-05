@@ -21,6 +21,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Tabbed Files Page With a Forum-Style Area List](#tabbed-files-page-with-a-forum-style-area-list)
   - [File Counts and Sizes After Moving Files](#file-counts-and-sizes-after-moving-files)
 - [Terminal Server](#terminal-server)
+  - [Door Games Hub With Activity and Top Scores](#door-games-hub-with-activity-and-top-scores)
   - [Status Bar No Longer Scrolls the Screen](#status-bar-no-longer-scrolls-the-screen)
   - [Menus Repaint Immediately When the Window Is Resized](#menus-repaint-immediately-when-the-window-is-resized)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -53,6 +54,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Terminal Server
 
+- **Door Games hub with activity and Top Scores:** the Door Games menu item in the Telnet and SSH terminal server now opens a screen showing the most popular doors, recent players and the monthly Top Scores, with a key to continue to the list of playable doors.
 - **Status bar no longer scrolls the screen:** drawing the full-width status bar on the last terminal row no longer scrolls the screen up one line, which had pushed screen headers off the top.
 - **Menus repaint immediately when the window is resized:** the main menu and list screens now redraw as soon as the terminal window is resized, instead of waiting for the next keypress.
 
@@ -179,6 +181,18 @@ The page opens on the File Areas tab and remembers whether you last used File Ar
 Moving a file to another file area did not update the file count and total size shown for the old and new area, so an area filled by moving files could show 0 files and 0 B. Moving a file now updates both areas, and an upgrade migration recalculates the counts for every area.
 
 ## Terminal Server
+
+### Door Games Hub With Activity and Top Scores
+
+Choosing **Door Games** from the terminal server main menu previously went straight to the list of doors. It now opens a hub screen that shows the same door information as the web interface:
+
+- **Most Popular.** The five doors with the most launches in the past 30 days, with play counts.
+- **Recent Players.** The five most recent players in the past 30 days, with the door they played and when, shown in the user's own timezone.
+- **Top Scores.** The current month's best WebDoor scores, using the same month boundaries as the `/games` page. This section is hidden when **Hide Top Scores** is enabled under **Admin > Appearance**.
+
+Press `U` or `D` to scroll, `P` to open the list of playable doors, or `Q` to return to the main menu. Quitting the door list returns to the hub. Disabled doors, doors hidden from the web, and admin-only doors (for non-admin users) are left out of the activity lists.
+
+The hub works in both the full-screen and line-mode shells. Its text is translated in every installed language.
 
 ### Status Bar No Longer Scrolls the Screen
 

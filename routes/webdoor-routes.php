@@ -541,77 +541,17 @@ SimpleRouter::get('/games', function() {
 
     $monthOffset = 0;
     if (isset($_GET['month_offset'])) {
-        $monthOffset = (int)$_GET['month_offset'];
-        if ($monthOffset < 0) {
-            $monthOffset = 0;
-        }
-        if ($monthOffset > 120) {
-            $monthOffset = 120;
-        }
+        $monthOffset = max(0, min(120, (int)$_GET['month_offset']));
     }
 
-    // Month boundaries follow the user's timezone; created_at is stored as UTC.
-    // Falls back to the server's PHP timezone when the user's setting is empty or invalid.
-    $leaderboardTz = new \DateTimeZone(date_default_timezone_get());
-    try {
-        $tzSetting = (new \BinktermPHP\MessageHandler())->getUserSettings((int)$user['id'])['timezone'] ?? '';
-        if ($tzSetting !== '') {
-            $leaderboardTz = new \DateTimeZone($tzSetting);
-        }
-    } catch (\Throwable $e) {
-        // invalid timezone name: keep the server default
-    }
-    $utc = new \DateTimeZone('UTC');
-
-    $monthStart = new \DateTimeImmutable('first day of this month 00:00:00', $leaderboardTz);
-    if ($monthOffset > 0) {
-        $monthStart = $monthStart->modify("-{$monthOffset} months");
-    }
-    $monthEnd = $monthStart->modify('+1 month');
-    $leaderboardMonthLabel = $monthStart->format('F Y');
-    $monthStart = $monthStart->setTimezone($utc);
-    $monthEnd = $monthEnd->setTimezone($utc);
+    $leaderboardService = new \BinktermPHP\WebDoorLeaderboardService(\BinktermPHP\Database::getInstance()->getPdo());
+    $monthRange = $leaderboardService->getMonthRange((int)$user['id'], $monthOffset);
+    $leaderboardMonthLabel = $monthRange['label'];
 
     $leaderboard = [];
     if (!$hideTopScores) {
         try {
-            $db = \BinktermPHP\Database::getInstance()->getPdo();
-            $limit = 10;
-            $stmt = $db->prepare('
-                WITH best_scores AS (
-                    SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
-                        l.user_id, l.game_id, l.board, l.score, l.created_at
-                    FROM webdoor_leaderboards l
-                    WHERE l.created_at >= ?
-                      AND l.created_at < ?
-                    ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
-                )
-                SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
-                FROM best_scores b
-                JOIN users u ON b.user_id = u.id
-                ORDER BY b.score DESC, b.created_at DESC
-                LIMIT ?
-            ');
-            $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
-            $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
-            $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
-            $stmt->execute();
-            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-            foreach ($rows as $index => $row) {
-                $displayName = $row['username'];
-                $gameInfo = $gameLookup[$row['game_id']] ?? null;
-                $leaderboard[] = [
-                    'rank' => $index + 1,
-                    'display_name' => $displayName,
-                    'score' => (int)$row['score'],
-                    'game_id' => $row['game_id'],
-                    'game_name' => $gameInfo['name'] ?? ucfirst($row['game_id']),
-                    'game_path' => $gameInfo['path'] ?? null,
-                    'board' => $row['board'],
-                    'date' => substr($row['created_at'], 0, 10)
-                ];
-            }
+            $leaderboard = $leaderboardService->getLeaderboard($monthRange['start'], $monthRange['end'], 10, $gameLookup);
         } catch (\Throwable $e) {
             getServerLogger()->error('Failed to load WebDoor leaderboard: ' . $e->getMessage());
         }

@@ -2,10 +2,14 @@
 
 namespace BinktermPHP\TelnetServer;
 
+use BinktermPHP\AppearanceConfig;
 use BinktermPHP\Config;
+use BinktermPHP\Database;
+use BinktermPHP\DoorActivityService;
 use BinktermPHP\DoorManager;
 use BinktermPHP\NativeDoorManager;
 use BinktermPHP\RLoginDoorManager;
+use BinktermPHP\WebDoorLeaderboardService;
 
 /**
  * DoorHandler - DOS door game access via telnet
@@ -34,13 +38,134 @@ class DoorHandler
     }
 
     /**
-     * Show door selection menu and launch the selected door
+     * Show the doors hub: monthly leaderboard and recent door activity, with an
+     * option to continue to the playable door list.
      *
      * @param resource $conn Socket connection to client
      * @param array $state Terminal state array
      * @param string $session Session token for authentication
      */
     public function show($conn, array &$state, string $session): void
+    {
+        $locale = $state['locale'] ?? 'en';
+        $shell = TerminalShellFactory::create($this->server, $state);
+
+        while (true) {
+            $result = $shell->showScrollablePanel(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $locale),
+                $this->buildActivityLines($state),
+                [
+                    'extra_keys' => ['p' => 'play'],
+                    'status_line' => $this->server->t('ui.terminalserver.doors.hub_help', 'U/D Scroll  P Play a door  Q Return', [], $locale),
+                    'status_segments' => [
+                        ['text' => 'U/D', 'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' ' . $this->server->t('ui.terminalserver.doors.hub_scroll', 'Scroll', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'P', 'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' ' . $this->server->t('ui.terminalserver.doors.hub_play', 'Play a door', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' ' . $this->server->t('ui.terminalserver.doors.hub_quit', 'Return', [], $locale), 'color' => TelnetUtils::ANSI_BLUE],
+                    ],
+                ]
+            );
+
+            if ($result !== 'play') {
+                return;
+            }
+            $this->showDoorList($conn, $state, $session);
+        }
+    }
+
+    /**
+     * Build the recent-activity and leaderboard lines for the doors hub.
+     *
+     * Mirrors the dashboard "Recent Door Activity" card and the web doors page
+     * monthly "Top Scores" table.
+     *
+     * @param array $state Terminal state array
+     * @return string[]
+     */
+    private function buildActivityLines(array $state): array
+    {
+        $locale = $state['locale'] ?? 'en';
+        $isAdmin = !empty($state['is_admin']);
+        $activity = ['popular' => [], 'recent_players' => []];
+        $doorNames = [];
+        $db = null;
+
+        try {
+            $db = Database::getInstance()->getPdo();
+            $activityService = new DoorActivityService($db);
+            $activity = $activityService->getActivity(['is_admin' => $isAdmin], 5);
+            $doorNames = $activityService->getVisibleDoors($isAdmin);
+        } catch (\Throwable $e) {
+            // fall through with empty activity
+        }
+
+        $none = $this->server->t('ui.terminalserver.doors.no_activity', 'No recent door activity.', [], $locale);
+        $head = TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD;
+        $lines = [];
+
+        $lines[] = TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.popular', 'Most Popular', [], $locale), $head);
+        if (empty($activity['popular'])) {
+            $lines[] = '  ' . $none;
+        }
+        foreach ($activity['popular'] as $row) {
+            $plays = $this->server->t('ui.terminalserver.doors.plays', '{count} plays', ['count' => $row['plays']], $locale);
+            $lines[] = sprintf('  %-30s %s', $row['name'], $plays);
+        }
+        $lines[] = '';
+
+        $lines[] = TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.recent_players', 'Recent Players', [], $locale), $head);
+        if (empty($activity['recent_players'])) {
+            $lines[] = '  ' . $none;
+        }
+        foreach ($activity['recent_players'] as $row) {
+            $when = TelnetUtils::formatUserDate($row['played_at'], $state, false);
+            $lines[] = sprintf('  %-16s %-24s %s', $row['username'], $row['name'], $when);
+        }
+
+        if ($db !== null && !AppearanceConfig::shouldHideTopScores()) {
+            $leaderboard = [];
+            $monthLabel = '';
+            try {
+                $service = new WebDoorLeaderboardService($db);
+                $range = $service->getMonthRange((int)($state['user_id'] ?? 0), 0);
+                $monthLabel = $range['label'];
+                $lookup = [];
+                foreach ($doorNames as $id => $name) {
+                    $lookup[$id] = ['name' => $name];
+                }
+                $leaderboard = $service->getLeaderboard($range['start'], $range['end'], 10, $lookup);
+            } catch (\Throwable $e) {
+                // leave the leaderboard empty
+            }
+
+            $lines[] = '';
+            $lines[] = TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.doors.top_scores', 'Top Scores - {month}', ['month' => $monthLabel], $locale),
+                $head
+            );
+            if ($leaderboard === []) {
+                $lines[] = '  ' . $this->server->t('ui.terminalserver.doors.no_scores', 'No scores recorded this month.', [], $locale);
+            }
+            foreach ($leaderboard as $row) {
+                $lines[] = sprintf('  %2d. %-16s %-22s %s', $row['rank'], $row['display_name'], $row['game_name'], number_format($row['score']));
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Show door selection menu and launch the selected door
+     *
+     * @param resource $conn Socket connection to client
+     * @param array $state Terminal state array
+     * @param string $session Session token for authentication
+     */
+    private function showDoorList($conn, array &$state, string $session): void
     {
         $shell = TerminalShellFactory::create($this->server, $state);
         $dosDoors = (new DoorManager())->getEnabledDoors();
