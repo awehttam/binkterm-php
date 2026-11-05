@@ -59,7 +59,7 @@ Custom shells can be added by placing plugin definition files in
 - BBS Directory (browse other BBSes when enabled)
 - Nodelist browser (browse Fidonet nodelist entries when available)
 - Interests (tag-based content interests when enabled)
-- Door launcher integration (DOS doors, native doors, and configured door menu), fronted by a hub screen showing recent door activity and the monthly Top Scores leaderboard
+- Door launcher integration (DOS doors, native doors, and configured door menu), fronted by a hub screen showing the monthly Top Scores leaderboard and recent door activity
 - Who's Online display
 - Reusable public profile viewer for terminal user lookups
 - Full-screen message editor with cursor navigation and line editing controls
@@ -315,9 +315,9 @@ The key map is returned as part of the `GET /api/config/session-init` call made 
 
 Selecting Door Games opens a hub screen rather than the door list. It shows the same information as the web interface:
 
+- **Top Scores** - the current month's best WebDoor scores. This section is hidden when Hide Top Scores is enabled under Admin → Appearance.
 - **Most Popular** - the doors played most over the past 30 days, with play counts.
 - **Recent Players** - who most recently played which door, and when (shown in the user's timezone).
-- **Top Scores** - the current month's best WebDoor scores. This section is hidden when Hide Top Scores is enabled under Admin → Appearance.
 
 Press `U`/`D` to scroll, `P` to open the list of playable doors, or `Q` to return to the main menu. Quitting the door list returns to the hub. Admin-only doors are excluded from the activity lists for non-admin users.
 

@@ -186,9 +186,9 @@ Moving a file to another file area did not update the file count and total size 
 
 Choosing **Door Games** from the terminal server main menu previously went straight to the list of doors. It now opens a hub screen that shows the same door information as the web interface:
 
+- **Top Scores.** The current month's best WebDoor scores, using the same month boundaries as the `/games` page. This section is hidden when **Hide Top Scores** is enabled under **Admin > Appearance**.
 - **Most Popular.** The five doors with the most launches in the past 30 days, with play counts.
 - **Recent Players.** The five most recent players in the past 30 days, with the door they played and when, shown in the user's own timezone.
-- **Top Scores.** The current month's best WebDoor scores, using the same month boundaries as the `/games` page. This section is hidden when **Hide Top Scores** is enabled under **Admin > Appearance**.
 
 Press `U` or `D` to scroll, `P` to open the list of playable doors, or `Q` to return to the main menu. Quitting the door list returns to the hub. Disabled doors, doors hidden from the web, and admin-only doors (for non-admin users) are left out of the activity lists.
 

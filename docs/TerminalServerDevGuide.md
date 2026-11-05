@@ -455,11 +455,11 @@ The hub body is built by `DoorHandler::buildActivityLines()` from shared classes
 
 | Section | Source |
 |---------|--------|
+| Top Scores | `WebDoorLeaderboardService::getMonthRange()` and `getLeaderboard()` (also used by the web doors page in `routes/webdoor-routes.php`) |
 | Most Popular / Recent Players | `DoorActivityService::getActivity()` (also backs `GET /api/dashboard/door-activity`) |
 | Door display names | `DoorActivityService::getVisibleDoors()` |
-| Top Scores | `WebDoorLeaderboardService::getMonthRange()` and `getLeaderboard()` (also used by the web doors page in `routes/webdoor-routes.php`) |
 
-The Top Scores section is skipped when `AppearanceConfig::shouldHideTopScores()` is true. Timestamps are formatted with `TelnetUtils::formatUserDate()`. Hub strings live under `ui.terminalserver.doors.*` in every locale's `terminalserver.php`.
+The hub lists Top Scores first, then Most Popular and Recent Players. The Top Scores section is skipped when `AppearanceConfig::shouldHideTopScores()` is true. Timestamps are formatted with `TelnetUtils::formatUserDate()`. Hub strings live under `ui.terminalserver.doors.*` in every locale's `terminalserver.php`.
 
 ---
 

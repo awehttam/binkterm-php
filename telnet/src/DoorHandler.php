@@ -107,6 +107,35 @@ class DoorHandler
         $head = TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD;
         $lines = [];
 
+        if ($db !== null && !AppearanceConfig::shouldHideTopScores()) {
+            $leaderboard = [];
+            $monthLabel = '';
+            try {
+                $service = new WebDoorLeaderboardService($db);
+                $range = $service->getMonthRange((int)($state['user_id'] ?? 0), 0);
+                $monthLabel = $range['label'];
+                $lookup = [];
+                foreach ($doorNames as $id => $name) {
+                    $lookup[$id] = ['name' => $name];
+                }
+                $leaderboard = $service->getLeaderboard($range['start'], $range['end'], 10, $lookup);
+            } catch (\Throwable $e) {
+                // leave the leaderboard empty
+            }
+
+            $lines[] = TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.doors.top_scores', 'Top Scores - {month}', ['month' => $monthLabel], $locale),
+                $head
+            );
+            if ($leaderboard === []) {
+                $lines[] = '  ' . $this->server->t('ui.terminalserver.doors.no_scores', 'No scores recorded this month.', [], $locale);
+            }
+            foreach ($leaderboard as $row) {
+                $lines[] = sprintf('  %2d. %-16s %-22s %s', $row['rank'], $row['display_name'], $row['game_name'], number_format($row['score']));
+            }
+            $lines[] = '';
+        }
+
         $lines[] = TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.popular', 'Most Popular', [], $locale), $head);
         if (empty($activity['popular'])) {
             $lines[] = '  ' . $none;
@@ -124,35 +153,6 @@ class DoorHandler
         foreach ($activity['recent_players'] as $row) {
             $when = TelnetUtils::formatUserDate($row['played_at'], $state, false);
             $lines[] = sprintf('  %-16s %-24s %s', $row['username'], $row['name'], $when);
-        }
-
-        if ($db !== null && !AppearanceConfig::shouldHideTopScores()) {
-            $leaderboard = [];
-            $monthLabel = '';
-            try {
-                $service = new WebDoorLeaderboardService($db);
-                $range = $service->getMonthRange((int)($state['user_id'] ?? 0), 0);
-                $monthLabel = $range['label'];
-                $lookup = [];
-                foreach ($doorNames as $id => $name) {
-                    $lookup[$id] = ['name' => $name];
-                }
-                $leaderboard = $service->getLeaderboard($range['start'], $range['end'], 10, $lookup);
-            } catch (\Throwable $e) {
-                // leave the leaderboard empty
-            }
-
-            $lines[] = '';
-            $lines[] = TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.doors.top_scores', 'Top Scores - {month}', ['month' => $monthLabel], $locale),
-                $head
-            );
-            if ($leaderboard === []) {
-                $lines[] = '  ' . $this->server->t('ui.terminalserver.doors.no_scores', 'No scores recorded this month.', [], $locale);
-            }
-            foreach ($leaderboard as $row) {
-                $lines[] = sprintf('  %2d. %-16s %-22s %s', $row['rank'], $row['display_name'], $row['game_name'], number_format($row['score']));
-            }
         }
 
         return $lines;
