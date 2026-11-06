@@ -545,7 +545,7 @@ SimpleRouter::get('/games', function() {
     }
 
     $leaderboardService = new \BinktermPHP\WebDoorLeaderboardService(\BinktermPHP\Database::getInstance()->getPdo());
-    $monthRange = $leaderboardService->getMonthRange((int)$user['id'], $monthOffset);
+    $monthRange = $leaderboardService->getMonthRange((int)($user['user_id'] ?? $user['id'] ?? 0), $monthOffset);
     $leaderboardMonthLabel = $monthRange['label'];
 
     $leaderboard = [];
@@ -1127,7 +1127,7 @@ function renderArchiveDoorPage(string $game, ?array $user): bool
         return true;
     }
 
-    $play = $archiveDoorManager->startPlay($archiveDoor, $user ? (int)$user['id'] : null);
+    $play = $archiveDoorManager->startPlay($archiveDoor, $user ? (int)($user['user_id'] ?? $user['id'] ?? 0) : null);
     if (!$play['ok']) {
         if (!$user) {
             SimpleRouter::response()->redirect('/login');
@@ -1143,7 +1143,7 @@ function renderArchiveDoorPage(string $game, ?array $user): bool
 
     // Log one play per payment window so page reloads are not counted again
     if ($user && !empty($play['new_window'])) {
-        ActivityTracker::track((int)$user['id'], ActivityTracker::TYPE_ARCHIVEDOOR_PLAY, null, $game);
+        ActivityTracker::track((int)($user['user_id'] ?? $user['id'] ?? 0), ActivityTracker::TYPE_ARCHIVEDOOR_PLAY, null, $game);
     }
 
     $template->renderResponse('webdoor_play.twig', [
