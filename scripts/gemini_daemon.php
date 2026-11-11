@@ -1344,7 +1344,20 @@ while (true) {
             fclose($client);
             continue;
         }
-        handleConnection($client, $geminiHost, $logFile);
+        // Without fork, one process (and one PDO) serves every request, so probe the
+        // handle first: it reconnects after a Postgres restart and a DB outage must
+        // not take the daemon down.
+        try {
+            Database::withRetry(static function (\PDO $pdo): void {
+                $pdo->query('SELECT 1');
+            });
+            handleConnection($client, $geminiHost, $logFile);
+        } catch (\Throwable $e) {
+            logMsg('ERROR', 'Request failed: ' . $e->getMessage(), $logFile);
+            if (is_resource($client)) {
+                @fclose($client);
+            }
+        }
         continue;
     }
 

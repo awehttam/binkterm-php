@@ -181,6 +181,13 @@ Choose the access path that best fits the feature:
 
 Where both are practical, prefer reusing an existing shared service or domain class over writing new direct SQL in terminal code.
 
+**Terminal sessions are long-lived.** Each telnet/SSH connection is a forked child that can stay up for hours and holds one shared PDO for its whole life. After a Postgres restart that handle is dead, and code that swallows the error just goes quiet for the rest of the session. So in terminal code:
+
+- Fetch the connection with `Database::getLivePdo()` at the start of a direct-DB operation (a menu screen, a handler `show()`), not `Database::getInstance()->getPdo()`. It reconnects if the handle is stale. See **Database Connections** in the root `CLAUDE.md` for the full rules.
+- In a catch block that logs and continues (like the auth-session recheck in `BbsSession::authSessionRevoked()`), call `Database::heal($e)` and retry once so the session recovers instead of staying degraded.
+- Don't cache a PDO in a handler property across menu screens; fetch it per operation.
+- Never open a PDO in the daemon's accept loop before forking. Each forked session opens its own.
+
 Authentication and session flows should normally use the existing API endpoints so terminal and web behavior remain consistent. Direct reuse of shared auth/session logic is acceptable only for clear internal-only cases and must not depend on browser-specific request handling.
 
 Do not bypass important business rules. If validation, permissions, side effects, or invariants already live in a shared service or domain class, terminal code should use that logic instead of reimplementing the behavior with ad hoc SQL.

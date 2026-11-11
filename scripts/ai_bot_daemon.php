@@ -134,11 +134,13 @@ $db = Database::getInstance()->getPdo();
 // AI service
 $ai = AiService::create();
 
-// Activity handler
-$chatHandler = new LocalChatActivityHandler($db, $ai, $logger);
-
-// Repository
-$repo = new AiBotRepository($db);
+// Objects that cache the PDO; rebuilt by $rebuildDbObjects after a reconnect.
+$rebuildDbObjects = static function (\PDO $pdo) use (&$db, &$chatHandler, &$repo, $ai, $logger): void {
+    $db          = $pdo;
+    $chatHandler = new LocalChatActivityHandler($pdo, $ai, $logger);
+    $repo        = new AiBotRepository($pdo);
+};
+$rebuildDbObjects($db);
 
 // Open realtime listener for LISTEN/NOTIFY wake-ups
 $eventListener = PostgresEventListener::fromConfiguredDatabase($logger);
@@ -174,6 +176,29 @@ while (!$shutdown) {
         break;
     }
 
+    // Probe the application DB handle; reconnect (and rebuild cached objects)
+    // if Postgres was restarted. If it is still down, wait and try again
+    // rather than exiting.
+    try {
+        Database::withRetry(
+            static function (\PDO $pdo): void {
+                $pdo->query('SELECT 1');
+            },
+            [1, 2, 5],
+            function (\PDO $pdo) use ($rebuildDbObjects, &$lastBotRefresh): void {
+                $rebuildDbObjects($pdo);
+                $lastBotRefresh = 0; // reload bots on the fresh connection
+            },
+            static function (string $message) use ($logger): void {
+                $logger->warning('AI bot daemon: ' . $message);
+            }
+        );
+    } catch (\Throwable $e) {
+        $logger->error('AI bot daemon: database unavailable', ['error' => $e->getMessage()]);
+        sleep(5);
+        continue;
+    }
+
     // Refresh bot list periodically
     if (time() - $lastBotRefresh >= $botRefreshEvery) {
         $bots           = $repo->getActiveChatBotsByUserId();
@@ -186,8 +211,10 @@ while (!$shutdown) {
         $logger->warning('AI bot daemon: pg connection lost, reconnecting...');
         sleep(2);
         if (!$eventListener->reconnect()) {
-            $logger->error('AI bot daemon: reconnect failed; exiting');
-            break;
+            // Postgres may still be restarting; keep trying until told to stop.
+            $logger->error('AI bot daemon: LISTEN reconnect failed; will retry');
+            sleep(5);
+            continue;
         }
     }
 

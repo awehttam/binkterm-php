@@ -198,6 +198,29 @@ while ($running) {
         pcntl_signal_dispatch();
     }
 
+    // Probe the database each pass; if Postgres was restarted, reconnect and
+    // rebuild everything that cached the old PDO instead of failing forever.
+    try {
+        Database::withRetry(
+            static function (\PDO $pdo): void {
+                $pdo->query('SELECT 1');
+            },
+            [1, 2, 5],
+            static function (\PDO $pdo) use (&$db, &$chatService, &$roomCacheExpiry, $service, $logger): void {
+                $db              = $pdo;
+                $chatService     = new ChatMessageService($pdo, $service, $logger);
+                $roomCacheExpiry = 0;
+            },
+            static function (string $message) use ($logger): void {
+                $logger->warning($message);
+            }
+        );
+    } catch (\Throwable $e) {
+        $logger->error('Matterbridge database unavailable', ['error' => $e->getMessage()]);
+        sleep($pollInterval);
+        continue;
+    }
+
     // Refresh room cache every 60 seconds
     if (time() >= $roomCacheExpiry) {
         $roomCache       = refreshRoomCache($db);

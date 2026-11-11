@@ -95,7 +95,7 @@ class DoorHandler
         $db = null;
 
         try {
-            $db = Database::getInstance()->getPdo();
+            $db = Database::getLivePdo();
             $activityService = new DoorActivityService($db);
             $activity = $activityService->getActivity(['is_admin' => $isAdmin], 5);
             $doorNames = $activityService->getVisibleDoors($isAdmin);

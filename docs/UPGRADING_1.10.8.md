@@ -24,6 +24,12 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Door Games Hub With Activity and Top Scores](#door-games-hub-with-activity-and-top-scores)
   - [Status Bar No Longer Scrolls the Screen](#status-bar-no-longer-scrolls-the-screen)
   - [Menus Repaint Immediately When the Window Is Resized](#menus-repaint-immediately-when-the-window-is-resized)
+- [Database Connection Recovery](#database-connection-recovery)
+  - [Background Services Reconnect After PostgreSQL Restarts](#background-services-reconnect-after-postgresql-restarts)
+  - [BinkP Session Logging Can No Longer Abort a Mail Transfer](#binkp-session-logging-can-no-longer-abort-a-mail-transfer)
+  - [FTP and NNTP Replies While the Database Is Down](#ftp-and-nntp-replies-while-the-database-is-down)
+  - [Terminal Server Sessions Recover After a Restart](#terminal-server-sessions-recover-after-a-restart)
+  - [Command-Line Scripts Report a Failed Connection as an Error](#command-line-scripts-report-a-failed-connection-as-an-error)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -57,6 +63,14 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Door Games hub with activity and Top Scores:** the Door Games menu item in the Telnet and SSH terminal server now opens a screen showing the most popular doors, recent players and the monthly Top Scores, with a key to continue to the list of playable doors.
 - **Status bar no longer scrolls the screen:** drawing the full-width status bar on the last terminal row no longer scrolls the screen up one line, which had pushed screen headers off the top.
 - **Menus repaint immediately when the window is resized:** the main menu and list screens now redraw as soon as the terminal window is resized, instead of waiting for the next keypress.
+
+### Database Connection Recovery
+
+- **Background services reconnect after PostgreSQL restarts:** the realtime server, FTP server, MRC daemon, Matterbridge daemon, AI bot daemon and Admin Daemon now reconnect to PostgreSQL after it restarts or briefly goes away, instead of exiting or failing until they are restarted.
+- **BinkP session logging can no longer abort a mail transfer:** a database failure while recording session statistics no longer ends a BinkP session, which could previously leave a received file saved but unacknowledged and cause the remote system to send it again.
+- **FTP and NNTP replies while the database is down:** FTP and NNTP now answer with their protocols' temporary-failure replies instead of dropping connections without explanation.
+- **Terminal server sessions recover after a restart:** long-lived Telnet and SSH sessions reconnect to the database, so features that read it directly and the periodic session-revocation check resume working.
+- **Command-line scripts report a failed connection as an error:** a command-line script that cannot connect to the database now exits with an error status instead of exiting successfully.
 
 ## Web Doors
 
@@ -201,6 +215,48 @@ Terminal server screens draw a status bar across the full width of the last term
 ### Menus Repaint Immediately When the Window Is Resized
 
 When a user resized their terminal window, the terminal server received the new size but the main menu and list screens did not redraw until the user pressed a key. The key that triggered the redraw was also easy to lose. These screens now repaint at the new size as soon as the resize is received. Text input fields do not repaint on resize.
+
+## Database Connection Recovery
+
+BinktermPHP opens one database connection per process. Web requests are short, so each one gets a fresh connection. The background services run for days, and a connection held by one of them stops working when PostgreSQL restarts, is upgraded, or loses network connectivity. Before this release, most services either exited when that happened, or kept running but failed every database operation until they were restarted by hand.
+
+### Background Services Reconnect After PostgreSQL Restarts
+
+These services now detect a lost database connection, reconnect, and carry on:
+
+- **Realtime server (BinkStream).** A client whose request was in flight when the connection dropped is disconnected. The server itself stays up, retries the connection every three seconds while PostgreSQL is unreachable, and resumes delivering events when it returns.
+- **FTP server.** The server no longer exits and no longer disconnects every user when the database drops. See [FTP and NNTP Replies While the Database Is Down](#ftp-and-nntp-replies-while-the-database-is-down).
+- **MRC daemon, Matterbridge daemon and AI bot daemon.** Each checks its database connection on every pass through its main loop. If PostgreSQL is still down, it logs the problem, waits, and tries again instead of exiting. The AI bot daemon also keeps retrying its realtime listener connection, where it previously exited after one failed attempt.
+- **Admin Daemon.** File virus scans requested through the Admin Daemon reconnect first if the connection has gone stale.
+- **BinkP scheduler.** Its existing reconnect behavior is unchanged.
+
+Messages about lost and restored connections are written to each service's normal log.
+
+These services still need PostgreSQL to be reachable when they start. If PostgreSQL is down at that moment, the service exits and must be started again, either by your service manager or by `scripts/restart_daemons.sh`.
+
+### BinkP Session Logging Can No Longer Abort a Mail Transfer
+
+Each BinkP session writes a row to the session log and updates its file and byte counts as files transfer. If the database connection was lost mid-session, that update raised an error and ended the session. When it happened right after a file was received, the file had already been saved to the inbound directory but the remote system was never told it arrived. The remote system then sent the file again on its next connection, and the second copy was saved next to the first with a `_1` suffix.
+
+Session logging is now best-effort. If a log write fails, the transfer continues and the failure is written once to the server log. The session logger reconnects at most once every five seconds so later updates in the same session can succeed. A session that could not create its log row at the start is not shown on the session history page, but the session itself is not refused because of it.
+
+### FTP and NNTP Replies While the Database Is Down
+
+**FTP.** If the database connection is lost while a user is connected, the failing command is answered with `451 Local error in processing, please try again` once the server has reconnected, and the user can repeat the command. If the database is still unreachable, the server answers `421 Service not available, closing control connection` and closes only that user's connection. Other connected users are not affected.
+
+**NNTP.** A new connection made while the database is down is answered with `400 Service temporarily unavailable` and closed. A connected session whose database connection is lost receives the same reply and is closed, so the newsreader reconnects and gets a working connection. Previously these sessions answered `403 Internal error` to every remaining command.
+
+### Terminal Server Sessions Recover After a Restart
+
+Each Telnet and SSH session is a separate long-running process that holds its own database connection. After a PostgreSQL restart, the parts of a session that read the database directly stopped working until the user disconnected: the Node List and BBS Directory screens, the door activity on the Door Games hub, the main menu's Node List entry, and the check that ends a session when it is revoked or expires elsewhere. That check logged an error every thirty seconds and never ended the session.
+
+These now reconnect and continue once PostgreSQL is back. While the database is still unreachable, the Door Games hub shows no activity and the Node List menu entry is hidden, as before, but the Node List and BBS Directory screens can still end the session when they cannot read the database.
+
+### Command-Line Scripts Report a Failed Connection as an Error
+
+When a script run from the command line could not connect to the database, it printed `Database connection failed: ...` and exited with status 0, which made cron jobs and service managers treat the run as a success. These scripts now stop with a PHP error and a non-zero exit status. Web pages are unchanged and still show the `Database connection failed` message.
+
+If you monitor script exit codes, a database outage now shows up as a failed run.
 
 ## Upgrade Instructions
 

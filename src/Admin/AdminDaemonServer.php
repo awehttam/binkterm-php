@@ -970,7 +970,9 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'invalid file_id']);
                         break;
                     }
-                    $db = \BinktermPHP\Database::getInstance()->getPdo();
+                    // This daemon is long-lived; probe the handle so a Postgres restart
+                    // since the last DB command reconnects instead of failing.
+                    $db = \BinktermPHP\Database::getLivePdo([1, 2, 5]);
                     $stmt = $db->prepare('SELECT storage_path FROM files WHERE id = ?');
                     $stmt->execute([$fileId]);
                     $file = $stmt->fetch();

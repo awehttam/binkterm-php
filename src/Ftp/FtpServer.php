@@ -6,6 +6,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
+use BinktermPHP\Database;
 use BinktermPHP\License;
 use BinktermPHP\Realtime\LoopServiceInterface;
 
@@ -121,6 +122,39 @@ class FtpServer implements LoopServiceInterface
 
     public function handleReadableSocket($socket): void
     {
+        try {
+            $this->dispatchReadable($socket);
+        } catch (\Throwable $e) {
+            if (!Database::isConnectionError($e)) {
+                throw $e;
+            }
+            // One lost database connection must not take every FTP session down with the daemon.
+            $this->recoverDatabase($e);
+        }
+    }
+
+    /**
+     * React to a lost database connection: reconnect and rebuild the
+     * components that cached the old PDO (FtpVirtualFilesystem builds
+     * FileAreaManager and QwkHttpController, which hold it).
+     *
+     * @return bool True if the database is reachable again
+     */
+    private function recoverDatabase(\Throwable $e): bool
+    {
+        $this->logger->error('FTP lost its database connection', ['error' => $e->getMessage()]);
+
+        if (Database::tryReconnect() === null) {
+            return false;
+        }
+
+        $this->vfs = new FtpVirtualFilesystem();
+        $this->logger->info('FTP database connection restored');
+        return true;
+    }
+
+    private function dispatchReadable($socket): void
+    {
         if ($socket === $this->server) {
             $this->acceptClient();
             return;
@@ -145,6 +179,18 @@ class FtpServer implements LoopServiceInterface
     }
 
     public function handleWritableSocket($socket): void
+    {
+        try {
+            $this->dispatchWritable($socket);
+        } catch (\Throwable $e) {
+            if (!Database::isConnectionError($e)) {
+                throw $e;
+            }
+            $this->recoverDatabase($e);
+        }
+    }
+
+    private function dispatchWritable($socket): void
     {
         foreach ($this->clients as $clientId => $client) {
             if (isset($client['data_socket']) && $socket === $client['data_socket']) {
@@ -282,7 +328,21 @@ class FtpServer implements LoopServiceInterface
         while (isset($this->clients[$clientId]) && ($lineEnd = strpos($this->clients[$clientId]['buffer'], "\n")) !== false) {
             $line = substr($this->clients[$clientId]['buffer'], 0, $lineEnd + 1);
             $this->clients[$clientId]['buffer'] = substr($this->clients[$clientId]['buffer'], $lineEnd + 1);
-            $this->handleCommand($clientId, rtrim($line, "\r\n"));
+            try {
+                $this->handleCommand($clientId, rtrim($line, "\r\n"));
+            } catch (\Throwable $e) {
+                if (!Database::isConnectionError($e)) {
+                    throw $e;
+                }
+                if ($this->recoverDatabase($e)) {
+                    // Reconnected; the client can simply repeat the command.
+                    $this->sendResponse($clientId, 451, 'Local error in processing, please try again');
+                } else {
+                    // RFC 959: 421 means the control connection is closing.
+                    $this->sendResponse($clientId, 421, 'Service not available, closing control connection');
+                    $this->closeClient($clientId);
+                }
+            }
         }
     }
 

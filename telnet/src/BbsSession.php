@@ -1078,7 +1078,16 @@ class BbsSession
         $this->authSessionCheckedAt = $now;
 
         try {
-            $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+            try {
+                $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+            } catch (\Throwable $e) {
+                // This process is long-lived: after a Postgres restart its shared
+                // connection is dead. Reconnect and retry once so revocation checks resume.
+                if (\BinktermPHP\Database::heal($e) === null) {
+                    throw $e;
+                }
+                $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+            }
         } catch (\Throwable $e) {
             $this->log('Auth session re-check failed: ' . $e->getMessage());
             return false;
@@ -2539,7 +2548,7 @@ class BbsSession
     private function nodelistHasEntries(): bool
     {
         try {
-            $db   = \BinktermPHP\Database::getInstance()->getPdo();
+            $db   = \BinktermPHP\Database::getLivePdo();
             $stmt = $db->query("SELECT 1 FROM nodelist LIMIT 1");
             return (bool)$stmt->fetch();
         } catch (\Throwable $e) {

@@ -161,6 +161,7 @@ Pipe-code rendering for plain bulletins and other ANSI/pipe text shared with the
 - **Process Cleanup**: Proper signal handling for SIGCHLD, SIGTERM, and SIGINT
 - **Connection Health**: Timeout on socket accept operations
 - **Zombie Prevention**: Automatic reaping of child processes
+- **Database Restarts**: Open sessions reconnect to PostgreSQL by themselves after it restarts, so the Node List, BBS Directory and door activity screens and the check that ends revoked sessions resume without users reconnecting. While PostgreSQL is down, logins fail like a wrong password, because login goes through the web API.
 
 ### Sixel Image Rendering
 

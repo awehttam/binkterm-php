@@ -496,11 +496,24 @@ The terminal server is a trusted first-party component. Code under `telnet/src/`
 |-----------|-----|
 | Consuming an existing API-shaped feature (user-facing flows that should behave the same as the web) | `TelnetUtils::apiRequest()` |
 | Sharing transport-agnostic business logic or domain services | Direct class reuse from `src/` |
-| Simple internal read or small internal query where an API would add unnecessary complexity | Direct PDO: `$db = Database::getInstance()->getPdo()` |
+| Simple internal read or small internal query where an API would add unnecessary complexity | Direct PDO: `$db = Database::getLivePdo()` (see [Long-Lived Sessions](#long-lived-sessions-and-the-database)) |
 
 Do not bypass important business rules. If validation, permissions, side effects, or invariants already live in a shared service or domain class, use that logic rather than reimplementing with ad hoc SQL.
 
 Terminal code must not depend on web controllers, route handlers, Twig/view helpers, form handlers, middleware, or any code that assumes a browser-driven HTTP request lifecycle.
+
+### Long-Lived Sessions and the Database
+
+Each Telnet or SSH connection is a forked child process that can stay up for hours and holds one shared PDO for its whole life. After a PostgreSQL restart that PDO is dead, and a direct read that swallows its error would stay silent until the user disconnects. In terminal code:
+
+- Fetch the connection with `Database::getLivePdo()` at the start of a direct-database operation (a menu screen, a handler's `show()`). It reconnects first if the shared PDO is stale and throws only if PostgreSQL is still unreachable. Do not use it inside a tight loop; it costs a `SELECT 1`.
+- In a catch block that logs and continues, call `Database::heal($e)` and retry once. `BbsSession::authSessionRevoked()` does this for the 30-second session-revocation check, so revoked sessions are still detected after a restart.
+- Do not cache a PDO in a handler property across screens. Fetch it per operation.
+- Do not open a PDO in the daemon's accept loop before forking. Each forked session opens its own connection after the fork.
+
+Screens that read the database directly today are the Door Games hub activity (`DoorHandler`), the Node List (`NodelistBrowserHandler`), the BBS Directory (`BbsListHandler`) and the main menu's Node List check (`BbsSession::nodelistHasEntries()`). Everything else goes through `apiRequest()`, so a database outage reaches those screens as an API error. Login also uses the API, so while PostgreSQL is down a login attempt fails in the same way as a wrong password.
+
+The full set of connection rules is in the **Database Connections** section of `docs/DEVELOPER_GUIDE.md`.
 
 ### `TelnetUtils::apiRequest()` — Response Structure
 

@@ -77,7 +77,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - **date_written vs date_received**: On `echomail` and `netmail`, `date_written` is derived from the FTN packet header (local time converted to UTC via the TZUTC kludge) and reflects when the sender composed the message — it can be wrong or in the future if the remote sysop's clock is incorrect. `date_received` is set server-side via `NOW() AT TIME ZONE 'UTC'` and is always reliable. Future-dated `date_written` values are hidden from message list queries until they are no longer in the future. When displaying dates to users, prefer `date_received` for ordering/display by default; show `date_written` with a tooltip that also includes `date_received` so discrepancies are visible.
  - **Charset columns**: The `message_charset` column on `echomail` and `netmail` stores the canonical iconv-compatible charset name (e.g. `CP437`, `UTF-8`) as normalized by `BinkpConfig::normalizeCharset()`. The raw `CHRS` value from the original FTN packet is preserved as-is in the `kludge_lines` column and may differ (e.g. `IBMPC`, `ASCII`). Always use `message_charset` for encoding/decoding operations and pre-selecting the charset UI; read `kludge_lines` only when you need the original wire value.
  - See FAQ.md for common questions and troubleshooting
- - To get a database connection use `$db = Database::getInstance()->getPdo()`
+ - To get a database connection use `$db = Database::getInstance()->getPdo()`. For long-lived processes (daemons, forked terminal sessions) see **Database Connections** below.
  - Don't edit postgres_schema.sql unless specifically instructed to. Database changes are migration-based; invoke the `/new-migration` skill when creating a migration.
  - Avoid duplicating code. Whenever possible centralize methods using a class.
  - **Git Workflow**: Do NOT stage or commit changes until explicitly instructed. Changes should be tested first before committing to git. **Never use `git add -A`, `git add .`, or any bulk/wildcard staging.** Stage only the specific files you worked on, by explicit path. The repo intentionally carries many untracked files (and a stray `nul` path) that bulk staging would wrongly add or abort on.
@@ -88,6 +88,33 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - **UPGRADING doc content rules**: Do not include sentences stating that no configuration is needed, no sysop action is required, or no migration is required. These are filler — omit them entirely.
  - When creating or modifying a WebDoor, invoke the `/new-webdoor` skill.
  - Write phpDoc blocks when possible
+
+## Database Connections
+
+`Database` (`src/Database.php`) holds one shared PDO per process. It does not detect a dead connection on its own, so a Postgres restart leaves a long-lived process holding a stale handle until something replaces it. Pick the access pattern by process lifetime:
+
+| Where the code runs | Use |
+|---|---|
+| Web request (route, controller, service) | `Database::getInstance()->getPdo()`. Each request opens a fresh connection; nothing else is needed. |
+| Short CLI script or cron job | Same. A failed connect throws `DatabaseUnavailableException` under the CLI (the web SAPI still dies with a message). |
+| Start of an operation in a long-lived process (daemon loop, forked session handler, daemon command handler) | `Database::getLivePdo()`. It runs `SELECT 1`, reconnects if the handle is stale, and throws once retries are exhausted. |
+| A unit of work in a daemon loop that should survive a restart | `Database::withRetry($fn, $delays, $onReconnect, $log)`. |
+| A catch block that swallows a DB error and carries on | `Database::heal($e)`. It reconnects only if `$e` is a lost-connection error. |
+| Best-effort bookkeeping that must never abort the caller (audit rows, activity stats) | Wrap the writes so a DB failure is logged once and skipped. See `src/Binkp/SessionLogger.php` (`bestEffort()`). |
+
+Rules for the retry helpers:
+
+- `getLivePdo()` costs one round trip. Call it at the start of an operation, never inside a hot loop. For a loop that runs every few hundred milliseconds, probe once per pass.
+- `withRetry()` re-runs the whole callable on a new connection, so the callable must be safe to repeat. It rethrows without retrying when a transaction was already open before the call, and always rethrows non-connection errors (SQL errors, constraint violations).
+- It blocks while backing off (`$delays` is seconds per retry). Do not use it in a single-threaded event loop that serves many clients (the realtime and FTP servers); handle `Database::isConnectionError($e)` there, call `Database::tryReconnect()`, rebuild anything that cached the old PDO, and retry on a later tick.
+- Anything that stores the PDO in a property (`$this->db`) keeps the dead handle after a reconnect. In a long-lived process either rebuild that object after `tryReconnect()` / in `withRetry()`'s `$onReconnect`, or fetch the PDO per operation instead of caching it.
+- Reconnecting replaces the singleton, so a PDO obtained earlier is stale afterwards. Use the one returned by `tryReconnect()`/`getLivePdo()`.
+- `tryReconnect()` returns `null` while the database is still down and does not throw. `Database::reconnect()` goes through `getInstance()` and throws under the CLI.
+- Do not catch `DatabaseUnavailableException` and chain the underlying `PDOException`: its stack trace contains the DB password.
+
+Forking: never create the PDO in a parent process before `pcntl_fork()`. Children would share one socket, and a child exiting closes the parent's connection. Let each child call `Database::getInstance()` after the fork (`NntpServer` explicitly calls `Database::reconnect()` in the child). The telnet, SSH, binkp, NNTP and gemini parents follow this today; keep it that way.
+
+When a long-lived component answers clients over a protocol, return that protocol's temporary-failure reply when the database is down (for example NNTP `400`, FTP `421`/`451`) rather than dropping the connection silently. Do not add new user-facing strings for this without adding the i18n keys.
 
 ## PostgreSQL Gotchas
 

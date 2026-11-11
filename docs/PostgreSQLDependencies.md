@@ -65,6 +65,19 @@ Suggested fields for new entries:
 - Difficulty:
   - medium
 
+### Connection-loss detection (SQLSTATE codes and libpq messages)
+
+- Why PostgreSQL-specific:
+  - `Database::isConnectionError()` decides when a daemon should reconnect and retry. It matches SQLSTATE class `08` (connection exceptions) and the PostgreSQL shutdown and startup states `57P01`, `57P02` and `57P03`
+  - when the socket drops mid-query, pdo_pgsql reports a generic `HY000` state, so it also matches libpq message text such as "server closed the connection unexpectedly" and "no connection to the server"
+  - other engines use different codes and messages
+- Current locations:
+  - `src/Database.php` (`isConnectionError()`, `tryReconnect()`, `withRetry()`, `getLivePdo()`, `heal()`)
+- Likely future strategy:
+  - move the matching into the platform layer (`DatabasePlatformInterface`) so each engine supplies its own connection-loss test
+- Difficulty:
+  - low
+
 ### PostgreSQL-only base schema install path
 
 - Why PostgreSQL-specific:

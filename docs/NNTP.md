@@ -282,6 +282,12 @@ time a member opens the group, and a soft-deleted netmail's number is retired.
 - **A group is missing from `LIST`** — its area tag contains a character that is
   not valid in a newsgroup name (e.g. `&`); such areas are skipped and logged at
   startup.
+- **`400 Service temporarily unavailable`** — the daemon could not reach PostgreSQL.
+  A new connection is refused with this reply and closed, and a connected session
+  whose database connection is lost gets it and is closed. Each new connection
+  opens its own database connection, so clients that reconnect succeed as soon as
+  PostgreSQL is back; the daemon does not need a restart. A `403 Internal error`
+  reply is a different failure and is logged with the command that caused it.
 - **Probe the server** without a full newsreader:
   `php scripts/nntp_test_client.php --host=127.0.0.1 --port=8119 --user=NAME --pass=PW`
 - **See the protocol dialogue** — start the daemon with `--log-level=DEBUG`. The log

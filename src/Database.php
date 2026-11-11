@@ -54,14 +54,32 @@ class Database
 
             $this->platform->initializeSession($this->pdo, $useUtcTimezone);
         } catch (PDOException $e) {
-            die('Database connection failed: ' . $e->getMessage());
+            // Not chained on purpose: the PDOException trace carries the DSN credentials.
+            throw new DatabaseUnavailableException('Database connection failed: ' . $e->getMessage());
         }
     }
 
+    /**
+     * Get the shared connection, opening it on first use.
+     *
+     * Under a web SAPI a failed connection ends the request with a message, as
+     * it always has. Under the CLI (daemons, cron scripts) a
+     * DatabaseUnavailableException is thrown instead so long-running callers
+     * can back off and retry rather than dying.
+     *
+     * @throws DatabaseUnavailableException CLI only
+     */
     public static function getInstance(bool $useUtcTimezone = true)
     {
         if (self::$instance === null) {
-            self::$instance = new self($useUtcTimezone);
+            try {
+                self::$instance = new self($useUtcTimezone);
+            } catch (DatabaseUnavailableException $e) {
+                if (PHP_SAPI === 'cli') {
+                    throw $e;
+                }
+                die($e->getMessage());
+            }
         }
         return self::$instance;
     }
@@ -73,6 +91,159 @@ class Database
     {
         self::$instance = null;
         return self::getInstance($useUtcTimezone);
+    }
+
+    /**
+     * Reconnect without throwing. Returns the new PDO, or null while the
+     * database is still unreachable (the singleton is left empty so the next
+     * getInstance() tries again).
+     */
+    public static function tryReconnect(bool $useUtcTimezone = true): ?PDO
+    {
+        self::$instance = null;
+        try {
+            self::$instance = new self($useUtcTimezone);
+        } catch (DatabaseUnavailableException $e) {
+            return null;
+        }
+        return self::$instance->getPdo();
+    }
+
+    /**
+     * Return a PDO known to be working, reconnecting first if the shared one
+     * went stale (e.g. Postgres restarted under a long-lived process).
+     *
+     * Costs one `SELECT 1` round trip, so use it at the start of an operation
+     * in a long-lived process, not in hot loops. Throws if the database is
+     * still unreachable after the retries.
+     *
+     * @param array<int, int> $delays Seconds to wait before each reconnect attempt
+     * @throws \Throwable The last connection error once retries are exhausted
+     */
+    public static function getLivePdo(array $delays = [0, 1]): PDO
+    {
+        return self::withRetry(static function (PDO $pdo): PDO {
+            $pdo->query('SELECT 1');
+            return $pdo;
+        }, $delays);
+    }
+
+    /**
+     * Try to recover from a swallowed database error.
+     *
+     * For catch blocks that log-and-continue (best-effort bookkeeping in
+     * long-lived sessions): if $e is a lost-connection error, replace the
+     * shared connection and return the fresh PDO, otherwise return null.
+     * Does nothing and returns null for ordinary SQL or logic errors.
+     */
+    public static function heal(\Throwable $e): ?PDO
+    {
+        if (!self::isConnectionError($e)) {
+            return null;
+        }
+
+        return self::tryReconnect();
+    }
+
+    /**
+     * Whether a throwable means the database connection was lost or could not
+     * be established (as opposed to a SQL or logic error).
+     *
+     * Matches SQLSTATE class 08 and the PostgreSQL shutdown/startup states
+     * (57P01 admin_shutdown, 57P02 crash_shutdown, 57P03 cannot_connect_now),
+     * plus the libpq message texts that pdo_pgsql surfaces under a generic
+     * SQLSTATE when the socket drops mid-query.
+     */
+    public static function isConnectionError(\Throwable $e): bool
+    {
+        for ($cur = $e; $cur !== null; $cur = $cur->getPrevious()) {
+            if ($cur instanceof DatabaseUnavailableException) {
+                return true;
+            }
+
+            $state = $cur instanceof PDOException
+                ? (string)($cur->errorInfo[0] ?? $cur->getCode())
+                : '';
+            if ($state !== '' && (str_starts_with($state, '08') || in_array($state, ['57P01', '57P02', '57P03'], true))) {
+                return true;
+            }
+
+            if (preg_match(
+                '/server closed the connection unexpectedly|no connection to the server|terminating connection|'
+                . 'could not (connect to|receive data from|send data to) server|connection to server .* failed|'
+                . 'SSL SYSCALL error|SSL connection has been closed|connection pointer is NULL|'
+                . 'the database system is (starting up|shutting down|in recovery mode)|connection (refused|timed out|reset)/i',
+                $cur->getMessage()
+            ) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Run a database operation, reconnecting and retrying if the connection
+     * was lost. Intended for long-running daemon loops.
+     *
+     * The callable receives the current PDO. If a transaction was open when the
+     * connection dropped, the error is rethrown without retrying (the
+     * transaction is gone, so replaying part of it would be wrong). Non
+     * connection errors are always rethrown untouched. Blocks while backing off.
+     *
+     * @template T
+     * @param callable(PDO): T $fn
+     * @param array<int, int> $delays Seconds to wait before each reconnect attempt; its length is the retry count
+     * @param callable(PDO): void|null $onReconnect Called with the new PDO after each successful reconnect, so callers can rebuild objects that cached the old handle
+     * @param callable(string): void|null $log Receives a one-line message per failure/recovery
+     * @return T
+     */
+    public static function withRetry(callable $fn, array $delays = [1, 2, 5], ?callable $onReconnect = null, ?callable $log = null)
+    {
+        $attempt = 0;
+        $pdo = null;
+
+        while (true) {
+            // Sampled before $fn runs: on a dead pdo_pgsql handle inTransaction()
+            // reports true (libpq status UNKNOWN), so it cannot be asked afterwards.
+            $outerTransaction = false;
+            try {
+                if ($pdo === null) {
+                    $pdo = self::getInstance()->getPdo();
+                }
+                $outerTransaction = self::inTransactionSafe($pdo);
+                return $fn($pdo);
+            } catch (\Throwable $e) {
+                if (!self::isConnectionError($e) || !isset($delays[$attempt]) || $outerTransaction) {
+                    throw $e;
+                }
+
+                if ($log !== null) {
+                    $log('Database connection error: ' . $e->getMessage() . " (retry " . ($attempt + 1) . '/' . count($delays) . ')');
+                }
+                sleep(max(0, (int)$delays[$attempt]));
+                $attempt++;
+
+                $pdo = self::tryReconnect();
+                if ($pdo !== null) {
+                    if ($log !== null) {
+                        $log('Database connection re-established');
+                    }
+                    if ($onReconnect !== null) {
+                        $onReconnect($pdo);
+                    }
+                }
+            }
+        }
+    }
+
+    private static function inTransactionSafe(PDO $pdo): bool
+    {
+        try {
+            return $pdo->inTransaction();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**
