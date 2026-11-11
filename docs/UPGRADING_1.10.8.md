@@ -24,6 +24,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Door Games Hub With Activity and Top Scores](#door-games-hub-with-activity-and-top-scores)
   - [Status Bar No Longer Scrolls the Screen](#status-bar-no-longer-scrolls-the-screen)
   - [Menus Repaint Immediately When the Window Is Resized](#menus-repaint-immediately-when-the-window-is-resized)
+- [Admin Dashboard](#admin-dashboard)
+  - [NNTP and Matterbridge in Service Status](#nntp-and-matterbridge-in-service-status)
 - [Database Connection Recovery](#database-connection-recovery)
   - [Background Services Reconnect After PostgreSQL Restarts](#background-services-reconnect-after-postgresql-restarts)
   - [BinkP Session Logging Can No Longer Abort a Mail Transfer](#binkp-session-logging-can-no-longer-abort-a-mail-transfer)
@@ -63,6 +65,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Door Games hub with activity and Top Scores:** the Door Games menu item in the Telnet and SSH terminal server now opens a screen showing the most popular doors, recent players and the monthly Top Scores, with a key to continue to the list of playable doors.
 - **Status bar no longer scrolls the screen:** drawing the full-width status bar on the last terminal row no longer scrolls the screen up one line, which had pushed screen headers off the top.
 - **Menus repaint immediately when the window is resized:** the main menu and list screens now redraw as soon as the terminal window is resized, instead of waiting for the next keypress.
+
+### Admin Dashboard
+
+- **NNTP and Matterbridge in Service Status:** the admin dashboard's Service Status card now lists the NNTP server and the Matterbridge daemon, and `binktop` lists the Matterbridge daemon.
 
 ### Database Connection Recovery
 
@@ -215,6 +221,23 @@ Terminal server screens draw a status bar across the full width of the last term
 ### Menus Repaint Immediately When the Window Is Resized
 
 When a user resized their terminal window, the terminal server received the new size but the main menu and list screens did not redraw until the user pressed a key. The key that triggered the redraw was also easy to lose. These screens now repaint at the new size as soon as the resize is received. Text input fields do not repaint on resize.
+
+## Admin Dashboard
+
+### NNTP and Matterbridge in Service Status
+
+The **Service Status** card on the admin dashboard shows whether each background service is running. It now includes two more rows, **NNTP Server** and **Matterbridge Daemon**, in the same style as the FTP, Gemini and MRC rows: a green Running or red Stopped badge, the process ID while it is running, and an "(optional)" label because most installations do not run them.
+
+The dashboard decides whether a service is running from its PID file, so an optional service that is not installed, or that has never been started, shows as Stopped:
+
+| Service | PID file | Environment variable to override the path |
+|---|---|---|
+| NNTP Server | `data/run/nntpd.pid` | `NNTPD_PID_FILE` |
+| Matterbridge Daemon | `data/run/matterbridge_daemon.pid` | `MATTERBRIDGE_PID_FILE` |
+
+`scripts/restart_daemons.sh` starts both daemons with these PID file paths. If you start either daemon yourself with a different `--pid-file`, set the matching variable in `.env` so the dashboard checks that file.
+
+The terminal monitor `scripts/binktop.php` also lists the Matterbridge daemon, using the same PID file. It already listed the NNTP server.
 
 ## Database Connection Recovery
 
