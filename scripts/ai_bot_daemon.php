@@ -128,8 +128,17 @@ if (function_exists('pcntl_signal')) {
     pcntl_signal(SIGINT,  function () use (&$shutdown) { $shutdown = true; });
 }
 
+// At boot the daemon may start before PostgreSQL is accepting connections.
+if (!Database::waitUntilAvailable(300, static function (string $m) use ($logger): void {
+    $logger->warning($m);
+})) {
+    $logger->error('Database did not become available, exiting');
+    removePidFile($pidFile);
+    exit(1);
+}
+
 // Database (PDO for application queries)
-$db = Database::getInstance()->getPdo();
+$db =Database::getInstance()->getPdo();
 
 // AI service
 $ai = AiService::create();

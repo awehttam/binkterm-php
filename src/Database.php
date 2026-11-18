@@ -129,6 +129,51 @@ class Database
     }
 
     /**
+     * Block until the database accepts connections, for daemon startup.
+     *
+     * Daemons launched from cron @reboot or an init script can start before
+     * PostgreSQL is ready. Call this once at startup (after daemonizing) so the
+     * process waits instead of exiting. Returns true once connected (the shared
+     * singleton is then live), or false if $timeoutSeconds elapsed first.
+     *
+     * @param int $timeoutSeconds Give up after this many seconds (0 = wait forever)
+     * @param callable(string): void|null $log Receives a one-line message on the first failure and on success
+     * @param bool $keepConnection False to drop the probe connection once it succeeds, for parent processes that fork (children must open their own connection)
+     */
+    public static function waitUntilAvailable(int $timeoutSeconds = 300, ?callable $log = null, bool $keepConnection = true): bool
+    {
+        $start = time();
+        $delay = 1;
+        $warned = false;
+
+        while (true) {
+            if (self::tryReconnect() !== null) {
+                if (!$keepConnection) {
+                    self::$instance = null;
+                }
+                if ($warned && $log !== null) {
+                    $log('Database is available after ' . (time() - $start) . 's');
+                }
+                return true;
+            }
+
+            if (!$warned) {
+                $warned = true;
+                if ($log !== null) {
+                    $log('Database not available yet, waiting for it to start');
+                }
+            }
+
+            if ($timeoutSeconds > 0 && (time() - $start) >= $timeoutSeconds) {
+                return false;
+            }
+
+            sleep($delay);
+            $delay = min($delay * 2, 10);
+        }
+    }
+
+    /**
      * Try to recover from a swallowed database error.
      *
      * For catch blocks that log-and-continue (best-effort bookkeeping in

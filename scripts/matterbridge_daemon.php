@@ -185,6 +185,15 @@ if ($bridgeUserId <= 0) {
     exit(1);
 }
 
+// At boot the daemon may start before PostgreSQL is accepting connections.
+if (!Database::waitUntilAvailable(300, static function (string $m) use ($logger): void {
+    $logger->warning($m);
+})) {
+    $logger->error('Database did not become available, exiting');
+    @unlink($pidFile);
+    exit(1);
+}
+
 $db             = Database::getInstance()->getPdo();
 $chatService    = new ChatMessageService($db, $service, $logger);
 

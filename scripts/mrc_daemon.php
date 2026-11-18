@@ -969,6 +969,15 @@ try {
         });
     }
 
+    // At boot the daemon may start before PostgreSQL is accepting connections.
+    if (!Database::waitUntilAvailable(300, static function (string $m): void {
+        mrcLog('MRC: ' . $m, 'WARNING');
+    })) {
+        mrcLog('MRC: Database did not become available, exiting', 'ERROR');
+        @unlink($pidFile);
+        exit(1);
+    }
+
     $debugMode = isset($args['debug']);
 
     mrcLog("MRC: Daemon started (PID: " . getmypid() . ")" . ($debugMode ? " [DEBUG MODE]" : ""));

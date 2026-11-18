@@ -106,6 +106,10 @@ register_shutdown_function(static function () use ($pidFile): void {
 });
 
 try {
+    // At boot the daemon may start before PostgreSQL is accepting connections.
+    if (!\BinktermPHP\Database::waitUntilAvailable(300, fn(string $m) => $logger->warning($m))) {
+        throw new RuntimeException('Database did not become available');
+    }
     (new WebSocketServer($host, $port, $logger))->run();
 } catch (Throwable $e) {
     $logger->error('Realtime daemon failed', ['error' => $e->getMessage()]);
