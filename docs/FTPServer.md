@@ -397,7 +397,10 @@ Logged events include:
 - when the database connection drops, the failing command is answered `451 Local error in processing, please try again`, and repeating it works once the daemon has reconnected
 - if PostgreSQL is still unreachable, the user gets `421 Service not available, closing control connection` and only that user's connection is closed
 - `data/logs/ftpd.log` records `FTP lost its database connection` and `FTP database connection restored`
-- PostgreSQL must be reachable when the daemon starts; if it is not, the daemon exits
+
+**The daemon is not running after a reboot**
+- at boot the daemon can start before PostgreSQL is ready; it logs `Database not available yet, waiting for it to start` and retries for up to five minutes, then logs `Database is available after Ns` and carries on
+- if PostgreSQL is still unreachable after five minutes the daemon exits; check `data/logs/ftpd.log` and start it again once the database is up
 
 ## See Also
 

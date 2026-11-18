@@ -452,7 +452,7 @@ The WebSocket server (`scripts/realtime_server.php`) is a single long-lived proc
 - reconnects and rebuilds `StreamService` and `CommandDispatcher`, which hold the old PDO, then logs `Realtime server database connection restored`
 - while PostgreSQL is unreachable, retries every 3 seconds and skips event polling in between
 
-A client whose handshake or command was in flight when the connection dropped is disconnected (a handshake gets `503 Service Unavailable`); other clients stay connected. Events inserted during the outage are still in `sse_events` and are delivered after reconnecting, subject to the usual cursor and retention rules. The SSE transport runs inside ordinary web requests and is unaffected by this. PostgreSQL must be reachable when the realtime server starts.
+A client whose handshake or command was in flight when the connection dropped is disconnected (a handshake gets `503 Service Unavailable`); other clients stay connected. Events inserted during the outage are still in `sse_events` and are delivered after reconnecting, subject to the usual cursor and retention rules. The SSE transport runs inside ordinary web requests and is unaffected by this. When the realtime server is started before PostgreSQL is ready, for example from a crontab `@reboot` entry, it logs `Database not available yet, waiting for it to start`, retries with a delay that grows to ten seconds for up to five minutes, and then starts normally. If the database is still unreachable after five minutes it logs an error and exits.
 
 ---
 

@@ -288,6 +288,11 @@ time a member opens the group, and a soft-deleted netmail's number is retired.
   opens its own database connection, so clients that reconnect succeed as soon as
   PostgreSQL is back; the daemon does not need a restart. A `403 Internal error`
   reply is a different failure and is logged with the command that caused it.
+- **Daemon not running after a reboot** — at boot the daemon can start before
+  PostgreSQL is ready. It logs `Database not available yet, waiting for it to
+  start` and retries for up to five minutes before listening, then logs
+  `Database is available after Ns`. If the database is still unreachable after
+  five minutes it logs an error and exits; check `data/logs/nntpd.log`.
 - **Probe the server** without a full newsreader:
   `php scripts/nntp_test_client.php --host=127.0.0.1 --port=8119 --user=NAME --pass=PW`
 - **See the protocol dialogue** — start the daemon with `--log-level=DEBUG`. The log

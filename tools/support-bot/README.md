@@ -115,6 +115,26 @@ Start it manually:
 python3 embed_server.py
 ```
 
+To run it in the background, for example from a crontab `@reboot` entry, use `--daemon`:
+
+```bash
+python3 embed_server.py --daemon
+```
+
+Options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--daemon` | — | Detach from the terminal and run in the background (not available on Windows) |
+| `--pid-file=PATH` | `data/run/embed_server.pid` | PID file location |
+| `--log-file=PATH` | `data/logs/embed_server.log` | Log file used with `--daemon` |
+
+The server refuses to start if the PID file names a process that is still running, and sends `SIGTERM` to stop it cleanly. In crontab, use the Python interpreter from the virtual environment that has the requirements installed:
+
+```cron
+@reboot /home/youruser/.local/share/virtualenvs/support-bot/bin/python3 /home/youruser/binkterm-php/tools/support-bot/embed_server.py --daemon
+```
+
 Available endpoints:
 
 - `GET /health` returns `{"status":"ok"}`

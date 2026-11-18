@@ -408,6 +408,8 @@ php scripts/binkp_scheduler.php --status
 php scripts/binkp_scheduler.php --interval=120
 ```
 
+When started at boot, for example from a crontab `@reboot` entry, the scheduler waits for PostgreSQL for up to five minutes if the database is not yet accepting connections. It logs `Database not available yet, waiting for it to start` to `data/logs/binkp_scheduler.log` and exits with an error if the database is still unreachable after that.
+
 ### Debug Connection Issues
 ```bash
 # Detailed connection debugging
@@ -966,6 +968,8 @@ php scripts/nntp_test_client.php --host=127.0.0.1 --port=1190 --user=NAME --pass
 ```
 
 Log: `data/logs/nntpd.log`.
+
+When started at boot, the daemon waits for PostgreSQL for up to five minutes if the database is not yet accepting connections, then exits with an error if it is still unreachable.
 
 ## Restart Daemons
 
