@@ -32,6 +32,9 @@ Make sure you have a current backup of your database and files before upgrading.
   - [FTP and NNTP Replies While the Database Is Down](#ftp-and-nntp-replies-while-the-database-is-down)
   - [Terminal Server Sessions Recover After a Restart](#terminal-server-sessions-recover-after-a-restart)
   - [Command-Line Scripts Report a Failed Connection as an Error](#command-line-scripts-report-a-failed-connection-as-an-error)
+  - [Daemons Wait for PostgreSQL at Startup](#daemons-wait-for-postgresql-at-startup)
+- [Support Bot](#support-bot)
+  - [Embedding Server Can Run as a Daemon](#embedding-server-can-run-as-a-daemon)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -77,6 +80,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - **FTP and NNTP replies while the database is down:** FTP and NNTP now answer with their protocols' temporary-failure replies instead of dropping connections without explanation.
 - **Terminal server sessions recover after a restart:** long-lived Telnet and SSH sessions reconnect to the database, so features that read it directly and the periodic session-revocation check resume working.
 - **Command-line scripts report a failed connection as an error:** a command-line script that cannot connect to the database now exits with an error status instead of exiting successfully.
+- **Daemons wait for PostgreSQL at startup:** the BinkP scheduler, realtime server, FTP server, NNTP server, MRC daemon, Matterbridge daemon and AI bot daemon now wait for PostgreSQL to accept connections when they start, instead of exiting. This matters when they are started at boot, for example from a crontab `@reboot` entry.
+
+### Support Bot
+
+- **Embedding server can run as a daemon:** `tools/support-bot/embed_server.py` accepts `--daemon`, `--pid-file` and `--log-file`, so it can be started from a crontab `@reboot` entry.
 
 ## Web Doors
 
@@ -255,7 +263,7 @@ These services now detect a lost database connection, reconnect, and carry on:
 
 Messages about lost and restored connections are written to each service's normal log.
 
-These services still need PostgreSQL to be reachable when they start. If PostgreSQL is down at that moment, the service exits and must be started again, either by your service manager or by `scripts/restart_daemons.sh`.
+The services listed here wait for PostgreSQL if it is not yet available when they start. See [Daemons Wait for PostgreSQL at Startup](#daemons-wait-for-postgresql-at-startup).
 
 ### BinkP Session Logging Can No Longer Abort a Mail Transfer
 
@@ -280,6 +288,46 @@ These now reconnect and continue once PostgreSQL is back. While the database is 
 When a script run from the command line could not connect to the database, it printed `Database connection failed: ...` and exited with status 0, which made cron jobs and service managers treat the run as a success. These scripts now stop with a PHP error and a non-zero exit status. Web pages are unchanged and still show the `Database connection failed` message.
 
 If you monitor script exit codes, a database outage now shows up as a failed run.
+
+### Daemons Wait for PostgreSQL at Startup
+
+A background service started from a crontab `@reboot` entry or an init script can begin running before PostgreSQL is ready to accept connections. Several services connected to the database once at startup, and when that failed they exited. The services were started by cron but were not running after the system came up, and because they had already detached from the terminal, nothing was printed.
+
+These daemons now wait for the database at startup, retrying with a delay that grows to ten seconds, for up to five minutes:
+
+- BinkP scheduler (`scripts/binkp_scheduler.php`)
+- Realtime server (`scripts/realtime_server.php`)
+- FTP server (`scripts/ftp_daemon.php`)
+- NNTP server (`scripts/nntp_server.php`)
+- MRC daemon (`scripts/mrc_daemon.php`)
+- Matterbridge daemon (`scripts/matterbridge_daemon.php`)
+- AI bot daemon (`scripts/ai_bot_daemon.php`)
+
+The first failed attempt is logged as "Database not available yet, waiting for it to start", and the daemon logs how long it waited once PostgreSQL is reachable. If the database is still unreachable after five minutes, the daemon logs an error and exits. Each daemon writes to its own log file in `data/logs/`.
+
+The Telnet, SSH, BinkP server, Admin Daemon, Gemini and DOS door bridge daemons do not connect to the database at startup and are unchanged.
+
+## Support Bot
+
+### Embedding Server Can Run as a Daemon
+
+The support bot's embedding server, `tools/support-bot/embed_server.py`, previously ran only in the foreground or under a systemd unit. It now accepts these options:
+
+| Option | Description |
+|---|---|
+| `--daemon` | Detach from the terminal and run in the background. Not available on Windows. |
+| `--pid-file PATH` | Where to write the process ID. Defaults to `data/run/embed_server.pid`. |
+| `--log-file PATH` | Where to append output when running with `--daemon`. Defaults to `data/logs/embed_server.log`. |
+
+The server refuses to start if the PID file names a process that is still running, and removes the PID file when it exits. Sending it `SIGTERM` shuts it down cleanly.
+
+To start it at boot from cron, use the Python interpreter from the virtual environment that has the support bot's requirements installed:
+
+```cron
+@reboot /home/youruser/.local/share/virtualenvs/support-bot/bin/python3 /home/youruser/binkterm-php/tools/support-bot/embed_server.py --daemon
+```
+
+Running `embed_server.py` without `--daemon`, or through `embed_server.service`, works as before.
 
 ## Upgrade Instructions
 
