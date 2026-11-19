@@ -3312,7 +3312,18 @@ function displaySearchResults(results, query) {
         const areaOnclick = subfolder
             ? `selectFileArea(${file.area_id}, '${subfolder}'); clearFileSearch();`
             : `selectFileArea(${file.area_id}, null); clearFileSearch();`;
-        const fileIcon = isUrlLink ? '<i class="fas fa-link text-info me-1"></i>' : '';
+        let fileIcon = isUrlLink ? '<i class="fas fa-link text-info me-1"></i>' : '';
+        if (!isUrlLink && file.virus_scanned) {
+            if (file.virus_scan_result === 'clean') {
+                fileIcon = `<i class="fas fa-shield-alt text-success me-1" title="${uiT('ui.files.virus_scan_clean', 'Virus scan: Clean')}"></i>`;
+            } else if (file.virus_scan_result === 'infected') {
+                fileIcon = `<i class="fas fa-shield-alt text-danger me-1" title="${uiT('ui.files.virus_detected_prefix', 'Virus detected: ')}${escapeHtml(file.virus_signature || uiT('ui.common.unknown', 'Unknown'))}"></i>`;
+            } else if (file.virus_scan_result === 'error') {
+                fileIcon = `<i class="fas fa-shield-alt text-warning me-1" title="${uiT('ui.files.virus_scan_error', 'Virus scan: Error')}"></i>`;
+            } else if (file.virus_scan_result === 'skipped') {
+                fileIcon = `<i class="fas fa-shield-alt text-muted me-1" title="${uiT('ui.files.virus_scan_skipped', 'Virus scan: Skipped')}"></i>`;
+            }
+        }
         const primaryAction = isUrlLink
             ? `<a href="${escapeHtml(file.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success" title="${uiT('ui.files.visit_link', 'Visit')}"><i class="fas fa-external-link-alt"></i></a>`
             : `<a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download title="${uiT('ui.files.download', 'Download')}"><i class="fas fa-download"></i></a>`;

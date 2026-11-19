@@ -3364,6 +3364,11 @@ Search results with file metadata
 | `results[].area_id` | integer | File area ID |
 | `results[].area_tag` | string | File area tag |
 | `results[].subfolder` | string\|null | Subfolder path if applicable |
+| `results[].source_type` | string\|null | Source type (e.g. `url` for link entries) |
+| `results[].url` | string\|null | External URL for link entries |
+| `results[].virus_scanned` | boolean | Whether the file has been virus scanned |
+| `results[].virus_scan_result` | string\|null | `clean`, `infected`, `error` or `skipped` |
+| `results[].virus_signature` | string\|null | Detected signature name when infected |
 
 **Error Responses**
 

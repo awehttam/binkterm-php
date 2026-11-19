@@ -3332,7 +3332,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 f.created_at,
                 f.file_area_id AS area_id,
                 fa.tag         AS area_tag,
-                f.subfolder
+                f.subfolder,
+                f.source_type,
+                f.url,
+                f.virus_scanned,
+                f.virus_scan_result,
+                f.virus_signature
             FROM files f
             JOIN file_areas fa ON fa.id = f.file_area_id
             WHERE {$areaConditions}
