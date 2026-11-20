@@ -20,6 +20,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [File Areas](#file-areas)
   - [Tabbed Files Page With a Forum-Style Area List](#tabbed-files-page-with-a-forum-style-area-list)
   - [File Counts and Sizes After Moving Files](#file-counts-and-sizes-after-moving-files)
+  - [Admin File Areas Page: Full-Width List and Virus Scanning Badge](#admin-file-areas-page-full-width-list-and-virus-scanning-badge)
+  - [TIC Files Log Why a Virus Scan Was Skipped](#tic-files-log-why-a-virus-scan-was-skipped)
 - [Terminal Server](#terminal-server)
   - [Door Games Hub With Activity and Top Scores](#door-games-hub-with-activity-and-top-scores)
   - [Status Bar No Longer Scrolls the Screen](#status-bar-no-longer-scrolls-the-screen)
@@ -62,6 +64,8 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Tabbed Files page with a forum-style area list:** the `/files` page is now tabbed, with a forum-style list of file areas and a separate closable tab for each area you open.
 - **File counts and sizes after moving files:** file area counts and sizes are now corrected after files are moved between areas.
+- **Admin File Areas page:** the file area list now uses the full page width and shows a badge on each area that has virus scanning enabled.
+- **TIC files log why a virus scan was skipped:** when a file received by TIC is not scanned, the TIC log now says why.
 
 ### Terminal Server
 
@@ -207,6 +211,23 @@ The page opens on the File Areas tab and remembers whether you last used File Ar
 ### File Counts and Sizes After Moving Files
 
 Moving a file to another file area did not update the file count and total size shown for the old and new area, so an area filled by moving files could show 0 files and 0 B. Moving a file now updates both areas, and an upgrade migration recalculates the counts for every area.
+
+### Admin File Areas Page: Full-Width List and Virus Scanning Badge
+
+On **Admin > File Areas**, the list of file areas now takes the full width of the page. The Statistics box and the File Area Settings help box that used to sit beside it have been removed.
+
+Each area that has **Virus Scanning** enabled now shows a green shield badge in its status column, next to the Active, Local, Replace and other badges, so you can see at a glance which areas are scanned. Hover over the badge to see its label. An area with no badge is not scanned.
+
+### TIC Files Log Why a Virus Scan Was Skipped
+
+Files received by TIC are only scanned when virus scanning is enabled for the file area they are stored in. When it is not, ClamAV is never called, so nothing appeared in the logs to explain why a file was left unscanned. The TIC log now records a line for each file that is not scanned, naming the reason:
+
+- Virus scanning is turned off for the file area, with the area tag.
+- `VIRUS_SCAN_DISABLED=true` is set in `.env`.
+- `VIRUS_SCAN_NOAUTO=true` is set in `.env`.
+- No scanner was available, for example because `clamdscan` was not found or clamd did not answer. `data/logs/server.log` has the details.
+
+To find files that arrived unscanned, search the TIC log for "Virus scan skipped", and check which file areas show the shield badge on **Admin > File Areas**.
 
 ## Terminal Server
 
