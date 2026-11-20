@@ -2768,7 +2768,7 @@ return [
     'ui.fileareas.upload_read_only' => 'Sola lettura (nessun upload)',
     'ui.fileareas.upload_permission_help' => 'Controlla chi può caricare file in questa area',
     'ui.fileareas.virus_scanning' => 'Scansione antivirus',
-    'ui.fileareas.virus_scanning_help' => 'Scansiona i file caricati alla ricerca di virus (richiede ClamAV)',
+    'ui.fileareas.virus_scanning_help' => 'Scansiona i file caricati alla ricerca di virus',
     'ui.fileareas.file_area_is_active' => 'Area file attiva',
     'ui.fileareas.edit_rules' => 'Modifica regole',
     'ui.fileareas.delete_confirm_prefix' => 'Sei sicuro di voler eliminare questa area file:',

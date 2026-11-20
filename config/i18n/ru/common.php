@@ -2800,7 +2800,7 @@ return [
     'ui.fileareas.upload_read_only' => 'Только чтение (без загрузки)',
     'ui.fileareas.upload_permission_help' => 'Управление тем, кто может загружать файлы в эту файлэху',
     'ui.fileareas.virus_scanning' => 'Проверка на вирусы',
-    'ui.fileareas.virus_scanning_help' => 'Проверять загружаемые файлы на вирусы (требуется ClamAV)',
+    'ui.fileareas.virus_scanning_help' => 'Проверять загружаемые файлы на вирусы',
     'ui.fileareas.file_area_is_active' => 'Файлэха активна',
     'ui.fileareas.edit_rules' => 'Редактировать правила',
     'ui.fileareas.delete_confirm_prefix' => 'Вы уверены, что хотите удалить эту файлэху:',

@@ -2787,7 +2787,7 @@ return [
     'ui.fileareas.upload_read_only' => 'Read-Only (No Uploads)',
     'ui.fileareas.upload_permission_help' => 'Control who can upload files to this area',
     'ui.fileareas.virus_scanning' => 'Virus Scanning',
-    'ui.fileareas.virus_scanning_help' => 'Scan uploaded files for viruses (requires ClamAV)',
+    'ui.fileareas.virus_scanning_help' => 'Scan uploaded files for viruses',
     'ui.fileareas.file_area_is_active' => 'File area is active',
     'ui.fileareas.edit_rules' => 'Edit Rules',
     'ui.fileareas.delete_confirm_prefix' => 'Are you sure you want to delete this file area:',

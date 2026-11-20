@@ -2339,7 +2339,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.fileareas.upload_read_only' => 'Lecture seule (aucun envoi)',
     'ui.fileareas.upload_permission_help' => 'Contrôler qui peut envoyer des fichiers dans cette zone',
     'ui.fileareas.virus_scanning' => 'Analyse antivirus',
-    'ui.fileareas.virus_scanning_help' => 'Analyser les fichiers envoyés pour détecter les virus (nécessite ClamAV)',
+    'ui.fileareas.virus_scanning_help' => 'Analyser les fichiers envoyés pour détecter les virus',
     'ui.fileareas.file_area_is_active' => 'La zone de fichiers est active',
     'ui.fileareas.edit_rules' => 'Modifier les règles',
     'ui.fileareas.delete_confirm_prefix' => 'Êtes-vous sûr de vouloir supprimer cette zone de fichiers :',
