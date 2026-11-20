@@ -759,13 +759,19 @@ class TicFileProcessor
      */
     protected function scanFileForViruses(int $fileId, array $fileArea): array
     {
-        if (\BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true' ||
-            \BinktermPHP\Config::env('VIRUS_SCAN_NOAUTO', 'false') === 'true') {
+        if (\BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true') {
+            $this->log("Virus scan skipped for file {$fileId}: VIRUS_SCAN_DISABLED=true");
+            return ['scanned' => false, 'result' => 'skipped', 'signature' => null, 'error_code' => '', 'error' => null];
+        }
+        if (\BinktermPHP\Config::env('VIRUS_SCAN_NOAUTO', 'false') === 'true') {
+            $this->log("Virus scan skipped for file {$fileId}: VIRUS_SCAN_NOAUTO=true");
             return ['scanned' => false, 'result' => 'skipped', 'signature' => null, 'error_code' => '', 'error' => null];
         }
 
         // Check if virus scanning is enabled for this area
         if (empty($fileArea['scan_virus'])) {
+            $areaTag = $fileArea['tag'] ?? 'unknown';
+            $this->log("Virus scan skipped for file {$fileId}: scan_virus is disabled for file area {$areaTag}");
             return [
                 'scanned' => false,
                 'result' => 'skipped',
@@ -796,6 +802,10 @@ class TicFileProcessor
         // Perform virus scan
         $scanner = new VirusScanner();
         $result = $scanner->scanFile($filePath);
+
+        if (($result['result'] ?? '') === 'skipped') {
+            $this->log("Virus scan skipped for file {$fileId}: no scanner available (ClamAV not found/clamd not responding, see server.log)");
+        }
 
         // Update database with scan results
         $stmt = $this->db->prepare("
