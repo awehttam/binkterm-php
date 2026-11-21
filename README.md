@@ -266,7 +266,7 @@ See **[docs/index.md](docs/index.md)** for the full documentation index.
 | BinkStream real-time events | [docs/BinkStreamChannel.md](docs/BinkStreamChannel.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
-BinktermPHP is developed using modern AI-assisted workflows alongside traditional software engineering and systems administration practices.
+BinktermPHP is built with AI. Much of the code is written by AI coding assistants, guided and reviewed by a human developer with a background in software engineering and systems administration.
 
 ---
 
