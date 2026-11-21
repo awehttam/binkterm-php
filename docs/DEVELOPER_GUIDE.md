@@ -251,7 +251,7 @@ These skills are also listed in the root `CLAUDE.md`. When adding a new skill, r
 - **Classes**: PascalCase (`MessageHandler`, `UserCredit`)
 - **Constants**: UPPER_SNAKE_CASE (`MAX_CONNECTIONS`, `DEFAULT_TIMEOUT`)
 - **Indentation**: 4 spaces (no tabs)
-- **Database**: Use `Database::getInstance()->getPdo()` for connections
+- **Database**: Use `Database::getInstance()->getPdo()` in web requests and short CLI scripts. Long-lived processes (daemons, forked sessions) must use `Database::getLivePdo()` / `Database::withRetry()` instead. See [Database Connections](#database-connections)
 - **Environment variables**: Always use `Config::env('VAR_NAME', 'default')` — never `getenv()` or `$_ENV` directly
 - **Client-side storage**: Use `UserStorage` (`public_html/js/user-storage.js`) instead of `localStorage` directly — it scopes keys per user and falls back to `sessionStorage` when not logged in
 - **Web interface queries**: Use AJAX requests via the API rather than full page reloads
