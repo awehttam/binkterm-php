@@ -878,10 +878,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
         $creditsConfig = $bbsConfig['credits'] ?? [];
         $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
-        $conditions = ['referral_enabled' => $referralEnabled];
+        $packetBbsNodesExist = \BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')
+            && (new \BinktermPHP\PacketBbs\PacketBbsNodeService())->getNodeCount() > 0;
+        $conditions = [
+            'referral_enabled'      => $referralEnabled,
+            'packetbbs_nodes_exist' => $packetBbsNodesExist,
+        ];
         $availableCards = \BinktermPHP\DashboardCardRegistry::getAvailableCards($user, $conditions);
 
-        $layout = \BinktermPHP\DashboardCardRegistry::validateLayout($body, $availableCards);
+        $layout =\BinktermPHP\DashboardCardRegistry::validateLayout($body, $availableCards);
         if ($layout === null) {
             apiError('errors.dashboard.invalid_layout', apiLocalizedText('errors.dashboard.invalid_layout', 'Invalid layout data.', $user), 400);
             return;
