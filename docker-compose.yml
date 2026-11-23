@@ -69,6 +69,13 @@ services:
       ENABLE_MCP_SERVER: "false"
       ENABLE_NNTP: "false"
 
+      # Native door users (opt-in; see docs/NativeDoors.md, Launch Modes). A
+      # space-separated list of door ids, each optionally id=user, e.g.
+      # "syncdoom bbslinknative=door_bbs". Creates an unprivileged user per entry and
+      # runs a door launcher as it. Set the door's Launch Mode to Socket in
+      # Admin > Native Doors afterwards. Leave empty to run doors as before.
+      NATIVEDOOR_DOOR_USERS: ${NATIVEDOOR_DOOR_USERS:-}
+
       # Scheduled maintenance jobs (all on by default, run via cron).
       # Override in docker-compose.override.yml.
       ENABLE_RSS_POSTER: "true"

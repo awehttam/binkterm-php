@@ -130,7 +130,7 @@ fi
 
 # Verify critical directories exist with correct permissions.
 # Volumes may be mounted empty on first run, so re-create and re-own as needed.
-# binkterm owns the files; www-data (in binkterm group) gets write access via 775.
+# binkterm owns the files; www-data (in binkterm group) gets write access via the group bits.
 echo "Verifying directory permissions..."
 mkdir -p \
     /var/www/html/data/logs \
@@ -140,8 +140,25 @@ mkdir -p \
     /var/www/html/dosbox-bridge/dos/DROPS \
     /var/www/html/dosbox-bridge/dos/DOORS
 
-chown -R binkterm:binkterm /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
-chmod -R 775 /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
+#
+# Native door users (NATIVEDOOR_DOOR_USERS) keep door-specific ownership under
+# data/users/<id>/<door>: each door's files belong to that door's group. Resetting
+# them to binkterm on every start would lock the door out of its own saves, so
+# that subtree is left to scripts/setup_door_user.sh and the bridge.
+#
+# Modes: owner and group (binkterm, and www-data through the group) get read/write,
+# everyone else gets nothing. Directories and files that are already executable come
+# out 770, plain files 660.
+DATA_DIR=/var/www/html/data
+if [ -n "${NATIVEDOOR_DOOR_USERS:-}" ] && [ -d "$DATA_DIR/users" ]; then
+    find "$DATA_DIR" -path "$DATA_DIR/users" -prune -o -exec chown binkterm:binkterm {} +
+    find "$DATA_DIR" -path "$DATA_DIR/users" -prune -o -exec chmod u=rwX,g=rwX,o= {} +
+else
+    chown -R binkterm:binkterm "$DATA_DIR"
+    chmod -R u=rwX,g=rwX,o= "$DATA_DIR"
+fi
+chown -R binkterm:binkterm /var/www/html/config /var/www/html/dosbox-bridge
+chmod -R u=rwX,g=rwX,o= /var/www/html/config /var/www/html/dosbox-bridge
 
 # config/*.json can carry credentials (BinkP uplink passwords in binkp.json,
 # LovlyNet keys in lovlynet.json, ...). The blanket 775 above would leave them
@@ -182,6 +199,29 @@ for var in "${!OPTIONAL_DAEMONS[@]}"; do
         echo "  enabled: $daemon (via $var)"
     fi
 done
+
+# Native door users (opt-in). NATIVEDOOR_DOOR_USERS is a space-separated list of
+# door ids, each optionally as id=user (default user name: door_<id>), e.g.
+# "syncdoom bbslinknative=door_bbs". For each one this creates an unprivileged
+# user and group, sets the permissions that keep that user away from .env, config/
+# and data/, and writes a supervisor program that runs door-launcher.js as that user.
+# A door still runs as binkterm until you pick the Socket launch mode for it in
+# Admin > Native Doors (or set NATIVEDOOR_LAUNCH_MODE=socket in .env). If setup
+# fails the doors are simply refused by the bridge's own checks, not run as binkterm.
+if [ -n "${NATIVEDOOR_DOOR_USERS:-}" ]; then
+    echo "Setting up native door users..."
+    DOOR_SETUP_ARGS=()
+    for spec in $NATIVEDOOR_DOOR_USERS; do
+        DOOR_SETUP_ARGS+=(--door "$spec")
+    done
+    if bash /var/www/html/scripts/setup_door_user.sh supervisor \
+            --install-dir /var/www/html --app-user binkterm --web-user www-data \
+            "${DOOR_SETUP_ARGS[@]}"; then
+        echo "  native door users ready"
+    else
+        echo "WARNING: native door user setup failed; doors set to the sudo or socket launch mode will be refused" >&2
+    fi
+fi
 
 # Generate the scheduled-job crontab from the ENABLE_*/*_SCHEDULE env vars
 # (Docker-only, set in docker-compose.yml/docker-compose.override.yml).

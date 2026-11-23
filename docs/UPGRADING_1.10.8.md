@@ -13,6 +13,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [MeshCore Public Key QR Codes](#meshcore-public-key-qr-codes)
 - [Native Doors](#native-doors)
   - [Doors Receive a Clean Environment](#doors-receive-a-clean-environment)
+  - [Running Native Doors as a Separate User](#running-native-doors-as-a-separate-user)
 - [Dashboard](#dashboard)
   - [Door Activity on the Mail, Areas & Doors Card](#door-activity-on-the-mail-areas--doors-card)
 - [BBS Directory](#bbs-directory)
@@ -56,6 +57,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Native Doors
 
 - **Doors receive a clean environment:** native doors, DOSBox and DOSEMU no longer inherit the door bridge's environment, which included the database, SMTP and admin daemon secrets from `.env`.
+- **Running native doors as a separate user:** a native door can now run as an unprivileged account that cannot read `.env` or your configuration, chosen per door in Admin → Native Doors.
 
 ### Dashboard
 
@@ -190,7 +192,23 @@ PubTerm always receives its target host and port from the bridge, so a `PUBTERM_
 
 The door bridge must be restarted for these changes to take effect.
 
-A door still runs as the same operating system user as the bridge and can read the files that user can read, including `.env`. A cleaner environment closes the leak through inherited variables only.
+A door still runs as the same operating system user as the bridge and can read the files that user can read, including `.env`, unless you run it as a separate user as described next. A cleaner environment closes the leak through inherited variables only.
+
+### Running Native Doors as a Separate User
+
+On Linux and BSD, a native door can now run as a dedicated unprivileged operating system account, so it cannot read `.env`, `config/binkp.json` or the rest of your data. Open **Admin → Native Doors**, click the edit button for a door and choose a **Launch Mode**:
+
+- **Direct** runs the door as the bridge's user, as before. This is the default.
+- **Sudo** runs the door with `sudo -n -u <door user>`. Choose the **Door User** from the list of members of the `doors` group.
+- **Socket** asks a launcher process that already runs as the door user to start the door. Choose the **Launcher Socket** from the sockets that exist under `/run/binkterm-doors/`.
+
+Nothing changes until you set this up. On a bare-metal install, run `scripts/setup_door_user.sh` as root to create the accounts, set the directory permissions and install the sudoers rule (sudo mode) or the launcher units (socket mode); `--dry-run` shows what it would do first. See `docs/CLI.md` (Door User Setup) and `docs/NativeDoors.md` (Launch Modes).
+
+In Docker, set `NATIVEDOOR_DOOR_USERS` for the `binkterm` service, for example `syncdoom bbslinknative=door_bbs`, and the container creates the users and a launcher for each on every start. Until you choose **Socket** for a door, it still runs as `binkterm` and can read `.env`.
+
+The Docker image also stops leaving `data/`, `config/` and `dosbox-bridge/` readable by other users. They are now `770` for directories and `660` for files, owned by `binkterm` and shared with the web server through its group. Anything else that read those paths through world access no longer can. Before every launch the bridge confirms the door user cannot read `.env` or `config/binkp.json`, and it refuses to start the door if that check or any other fails. It never falls back to the bridge's user. Once any door uses `sudo` or `socket`, a door with no launch mode set is also refused, so set `direct` explicitly on doors that should stay as they are.
+
+The bridge logs whether each non-direct door is healthy when it starts and when you reload it with `kill -HUP`. A new admin-only door named Door Probe checks what a door can see and do in each mode. Enable it only while testing, and see `docs/NativeDoors.md` for how to read its output.
 
 ## Dashboard
 

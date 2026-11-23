@@ -43,6 +43,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Import BBS List](#import-bbs-list)
 - [RLogin Synchronet Service Client](#rlogin-synchronet-service-client)
 - [Door Data Sync](#door-data-sync)
+- [Door User Setup](#door-user-setup)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -1343,3 +1344,16 @@ php scripts/door_data_sync.php LORD
 ```
 
 Players are matched to BBS users by the real name stored in the game record (against username or real name); unmatched or ambiguous players are skipped. A row is added only when a player's score has changed. The bridge runs this automatically when a door exits; set `DOSDOOR_PHP_PATH` in `.env` if `php` is not on the bridge's PATH. See `docs/DOSDoors.md`.
+
+## Door User Setup
+Prepares the operating system to run native doors as dedicated unprivileged users, for the Sudo and Socket launch modes (see `docs/NativeDoors.md`, Launch Modes). Run it as root:
+
+```bash
+sudo scripts/setup_door_user.sh sudo --door syncdoom --user door_syncdoom
+sudo scripts/setup_door_user.sh systemd --door syncdoom --door bbslinknative=door_bbs --web-user www-data
+scripts/setup_door_user.sh systemd --door syncdoom --dry-run
+```
+
+The first argument is the mode: `sudo` installs a sudoers rule (checked with `visudo -c` before it is installed), `systemd` creates a socket-activated launcher unit pair per door user, and `supervisor` writes a supervisor program per door user (this is what the Docker image uses). `--door ID` names a door directory under `native-doors/doors/`; add `--user NAME` after it, or write `ID=NAME`, to choose the account (default `door_<id>`). Other options: `--app-user` (the user the door bridge runs as; default the owner of `.env`), `--web-user` (added to each door group so the admin interface can still edit door files), `--doors-group`, `--install-dir`, `--socket-dir`, `--node`, `--supervisor-dir` and `--dry-run`, which prints every change without making any.
+
+The script creates the accounts and groups, takes world access away from `.env`, `config/` and `data/`, sets the per-door directory layout, and then confirms that each door user cannot read `.env`, `config/binkp.json` or `data/`. It fails if one can. It is safe to run again, and never deletes anything. After it runs, set the Launch Mode for each door in **Admin → Native Doors**.
