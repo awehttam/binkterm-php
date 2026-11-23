@@ -4533,6 +4533,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/native-doors/launch-options', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            echo json_encode([
+                'success' => true,
+                'options' => \BinktermPHP\NativeDoorLaunchPolicy::getOptions(),
+            ]);
+        });
+
         SimpleRouter::post('/native-doors/config', function() {
             $user = RouteHelper::requireAdmin();
             header('Content-Type: application/json');
@@ -4547,6 +4557,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 // Secret-named variables can never be approved for passthrough
                 $config = \BinktermPHP\NativeDoorEnvPolicy::sanitizeConfig($config);
+                $config = \BinktermPHP\NativeDoorLaunchPolicy::sanitizeConfig($config);
 
                 $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
                 if ($json === false) {

@@ -157,6 +157,7 @@ function currentUserName() {
  * @param {Object} extra       Bridge-supplied variables (DOOR_*, adapter extras). Trusted.
  * @param {Object} [options]
  * @param {string} [options.home]            Door home directory (HOME).
+ * @param {string} [options.user]            OS user the door runs as (USER, LOGNAME). Defaults to the bridge's user.
  * @param {number} [options.cols]            COLUMNS
  * @param {number} [options.rows]            LINES
  * @param {Object} [options.manifestEnv]     door.env from the manifest. Untrusted; secret names dropped.
@@ -183,7 +184,7 @@ function buildDoorEnv(extra, options) {
     if (opts.home) {
         env.HOME = opts.home;
     }
-    const user = currentUserName();
+    const user = opts.user || currentUserName();
     if (user) {
         env.USER = user;
         env.LOGNAME = user;

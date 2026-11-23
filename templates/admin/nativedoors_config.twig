@@ -144,15 +144,31 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/js/door-config-form.js?v=1.4.0"></script>
+<script src="/js/door-config-form.js?v=1.5.0"></script>
 <script>
 let doorForm = null;
 let doorsState = {
     config: {},
     availableDoors: [],
     configExists: false,
-    serverPlatform: ''
+    serverPlatform: '',
+    launchOptions: { supported: false, global_mode: '', users: [], sockets: [] }
 };
+
+function launchChoices(kind) {
+    const opts = doorsState.launchOptions;
+    const list = [{value: '', label: uiT('ui.admin.door_manifest_editor.launch.default', 'Server default')}];
+    if (kind === 'mode') {
+        list.push({value: 'direct', label: uiT('ui.admin.door_manifest_editor.launch.direct', 'Direct (as the BBS user)')});
+        if (opts.supported) {
+            list.push({value: 'sudo', label: uiT('ui.admin.door_manifest_editor.launch.sudo', 'Sudo (as a door user)')});
+            list.push({value: 'socket', label: uiT('ui.admin.door_manifest_editor.launch.socket', 'Socket (launcher running as a door user)')});
+        }
+        return list;
+    }
+    (kind === 'user' ? opts.users : opts.sockets).forEach(name => list.push({value: name, label: name}));
+    return list;
+}
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -173,6 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadConfig();
         loadAvailableDoors();
         loadDiscoverDoors();
+        loadLaunchOptions();
     });
 
     doorForm = DoorConfigForm.create({
@@ -187,6 +204,9 @@ document.addEventListener('DOMContentLoaded', function() {
             {key: 'max_concurrent_sessions', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.max_sessions', fallback: 'Max Concurrent Sessions'},
             {key: 'allow_anonymous', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.allow_anonymous', fallback: 'Allow Anonymous', helpKey: 'ui.admin.door_manifest_editor.field.allow_anonymous_help', helpFallback: 'Whether unregistered guests may use this door.'},
             {key: 'guest_max_sessions', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.guest_max_sessions', fallback: 'Guest Max Sessions', helpKey: 'ui.admin.door_manifest_editor.field.guest_max_sessions_help', helpFallback: 'Maximum simultaneous guest sessions for this door.'},
+            {key: 'launch_mode', type: 'select', options: () => launchChoices('mode'), labelKey: 'ui.admin.door_manifest_editor.field.launch_mode', fallback: 'Launch Mode', helpKey: 'ui.admin.door_manifest_editor.field.launch_mode_help', helpFallback: 'How the door is started. Direct runs it as the BBS user. Sudo and Socket run it as a separate unprivileged user. If a mode cannot be confirmed safe, the door will not start.'},
+            {key: 'run_as', type: 'select', options: () => launchChoices('user'), showWhen: {key: 'launch_mode', values: ['', 'sudo']}, labelKey: 'ui.admin.door_manifest_editor.field.run_as', fallback: 'Door User (sudo)', helpKey: 'ui.admin.door_manifest_editor.field.run_as_help', helpFallback: 'Account the door runs as in sudo mode. Only members of the door group are offered.'},
+            {key: 'launcher_socket', type: 'select', options: () => launchChoices('socket'), showWhen: {key: 'launch_mode', values: ['', 'socket']}, labelKey: 'ui.admin.door_manifest_editor.field.launcher_socket', fallback: 'Launcher Socket', helpKey: 'ui.admin.door_manifest_editor.field.launcher_socket_help', helpFallback: 'Launcher to use in socket mode. Only sockets that currently exist are offered.'},
             {key: 'hide_from_web', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web', fallback: 'Hide from Web', helpKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web_help', helpFallback: 'Only offer this door from telnet/SSH, not the web game library.'},
             {key: 'env_passthrough_approved', type: 'approvals', requestsKey: 'env_passthrough_requests', labelKey: 'ui.admin.door_config_form.env_approvals', fallback: 'Approved Environment Variables', helpKey: 'ui.admin.door_config_form.env_approvals_help', helpFallback: 'Variables this door asks to receive from the BBS server environment. Doors otherwise get a minimal clean environment.'}
         ],
@@ -220,6 +240,17 @@ function loadConfig() {
         .catch(error => {
             showAlert('danger', uiT('ui.admin.nativedoors_config.load_config_error_prefix', 'Error loading config: ') + error.message);
         });
+}
+
+function loadLaunchOptions() {
+    fetch('/admin/api/native-doors/launch-options')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.options) {
+                doorsState.launchOptions = data.options;
+            }
+        })
+        .catch(() => {});
 }
 
 function loadAvailableDoors() {

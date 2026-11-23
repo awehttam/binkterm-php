@@ -7,9 +7,9 @@ const net = require('net');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const pty = require('node-pty');
 const { Client } = require('pg');
 const { buildDoorEnv, buildEmulatorEnv, resolveLaunchVar } = require('./door-env');
+const { resolveLaunchSettings, createLauncher, prepareDoorHome, readDoorConfigs } = require('./door-launchers');
 
 /**
  * Build a pg connection config from process.env. Mirrors the DB_CONFIG
@@ -97,6 +97,22 @@ class EmulatorAdapter {
      */
     resize(cols, rows) {
         // No-op by default; overridden by NativeAdapter
+    }
+
+    /**
+     * Whether the launched process still exists (null when the adapter cannot tell).
+     * @returns {boolean|null}
+     */
+    isAlive() {
+        return null;
+    }
+
+    /**
+     * Kill the launched process immediately (false when the adapter does not handle it).
+     * @returns {boolean}
+     */
+    forceKill() {
+        return false;
     }
 
     /**
@@ -623,7 +639,8 @@ ${launchCmd}
 class NativeAdapter extends EmulatorAdapter {
     constructor(basePath) {
         super(basePath);
-        this.ptyProcess = null;
+        this.handle = null;
+        this.closed = false;
         this.outputEncoding = 'utf8';
         this.proxyForwarder = null;
     }
@@ -819,23 +836,41 @@ class NativeAdapter extends EmulatorAdapter {
         // client, so TELNET option negotiation is unaffected.
         const proxyEnvOverride = await this._setupPubtermProxyForwarder(door_id, clientIp, slog);
 
-        // Read admin config (config/nativedoors.json): terminal size and the
-        // sysop's approved env_passthrough names. Sysop-controlled, not the manifest.
+        // Read admin config (config/nativedoors.json): terminal size, the sysop's approved
+        // env_passthrough names and the launch strategy. All sysop-controlled, not the manifest.
         let initCols = 80, initRows = 25;
-        let doorCfg = {};
-        const doorConfigPath = path.join(this.basePath, 'config', 'nativedoors.json');
-        try {
-            if (fs.existsSync(doorConfigPath)) {
-                const doorConfigs = JSON.parse(fs.readFileSync(doorConfigPath, 'utf8'));
-                doorCfg = doorConfigs[door_id] || {};
-                const sizeStr = doorCfg.terminal_size || '80x25';
-                if (sizeStr !== 'autofit') {
-                    const sizeParts = sizeStr.split('x').map(Number);
-                    if (sizeParts[0] > 0) initCols = Math.max(20, Math.min(500, sizeParts[0]));
-                    if (sizeParts[1] > 0) initRows = Math.max(5,  Math.min(200, sizeParts[1]));
-                }
+        const allDoorConfigs = readDoorConfigs(this.basePath);
+        const doorCfg = allDoorConfigs[door_id] && typeof allDoorConfigs[door_id] === 'object'
+            ? allDoorConfigs[door_id]
+            : {};
+        const sizeStr = doorCfg.terminal_size || '80x25';
+        if (sizeStr !== 'autofit') {
+            const sizeParts = String(sizeStr).split('x').map(Number);
+            if (sizeParts[0] > 0) initCols = Math.max(20, Math.min(500, sizeParts[0]));
+            if (sizeParts[1] > 0) initRows = Math.max(5,  Math.min(200, sizeParts[1]));
+        }
+
+        // Launch strategy: fail closed. A non-direct mode that cannot be confirmed safe
+        // refuses the launch; it never falls back to running as the bridge's user.
+        const launchSettings = resolveLaunchSettings(door_id, allDoorConfigs);
+        if (launchSettings.error) {
+            throw new Error(`Launch refused for door '${door_id}': ${launchSettings.error}`);
+        }
+        if (launchSettings.notice) {
+            slog.warn(`[${this.getName()}] ${launchSettings.notice}`);
+        }
+        const launcher = createLauncher(launchSettings, { basePath: this.basePath, logger: slog });
+        const preflight = await launcher.preflight();
+        if (!preflight.ok) {
+            throw new Error(`Launch refused for door '${door_id}' (${launchSettings.mode}): ${preflight.error}`);
+        }
+        if (launchSettings.mode !== 'direct') {
+            prepareDoorHome(homeDir, preflight.gid);
+            const writable = await launcher.checkWritable(homeDir);
+            if (!writable.ok) {
+                throw new Error(`Launch refused for door '${door_id}' (${launchSettings.mode}): ${writable.error}`);
             }
-        } catch (_) {}
+        }
 
         // Strict environment: built from scratch, never a copy of process.env.
         const { env } = buildDoorEnv({
@@ -853,6 +888,7 @@ class NativeAdapter extends EmulatorAdapter {
             ...proxyEnvOverride
         }, {
             home: homeDir,
+            user: launchSettings.mode === 'direct' ? undefined : launcher.getUser(),
             cols: initCols,
             rows: initRows,
             manifestEnv: manifest.door && manifest.door.env,
@@ -867,46 +903,68 @@ class NativeAdapter extends EmulatorAdapter {
         slog.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
         slog.log(`[${this.getName()}] Spawning pty at ${initCols}x${initRows}`);
 
-        this.ptyProcess = pty.spawn(cmd, args, {
-            name: 'xterm-256color',
+        slog.log(`[${this.getName()}] Launch mode: ${launchSettings.mode}`);
+        this.handle = await launcher.spawn({
+            cmd,
+            args,
+            env,
+            cwd: doorDir,
             cols: initCols,
             rows: initRows,
-            cwd: doorDir,
-            // node-pty on Windows (conpty) does not support encoding — omit it
-            ...(isWindows ? {} : { encoding: ptyEncoding }),
-            env
+            encoding: ptyEncoding
         });
 
-        this.ptyProcess.onExit(({ exitCode, signal }) => {
+        this.handle.onExit(({ exitCode, signal }) => {
             slog.log(`[${this.getName()}] Process exited: code=${exitCode}, signal=${signal}`);
             if (this.exitCallback) {
                 this.exitCallback(exitCode, signal);
             }
         });
 
-        return { process: this.ptyProcess, pid: this.ptyProcess.pid };
+        return { process: this.handle, pid: this.handle.pid };
     }
 
     onData(callback) {
-        if (this.ptyProcess) {
-            this.ptyProcess.onData(callback);
+        if (this.handle && !this.closed) {
+            this.handle.onData(callback);
         }
     }
 
     write(data) {
-        if (this.ptyProcess) {
-            this.ptyProcess.write(data.toString('utf8'));
+        if (this.handle && !this.closed) {
+            this.handle.write(data.toString('utf8'));
         }
     }
 
     resize(cols, rows) {
         const slog = this.slog || console;
-        if (this.ptyProcess) {
+        if (this.handle && !this.closed) {
             slog.log(`[${this.getName()}] Resizing pty to ${cols}x${rows}`);
-            this.ptyProcess.resize(cols, rows);
+            this.handle.resize(cols, rows);
         } else {
-            slog.log(`[${this.getName()}] resize() called but ptyProcess is null`);
+            slog.log(`[${this.getName()}] resize() called but the door is not running`);
         }
+    }
+
+    /**
+     * @returns {boolean|null} Whether the door process still exists, or null if unknown
+     */
+    isAlive() {
+        return this.handle ? this.handle.isAlive() : null;
+    }
+
+    /**
+     * Kill the door without waiting for it to exit. Goes through the launch strategy,
+     * because the right way to do this differs between direct, sudo and socket.
+     *
+     * @returns {boolean} True if a kill was issued
+     */
+    forceKill() {
+        if (!this.handle) {
+            return false;
+        }
+        this.handle.forceKill();
+        return true;
     }
 
     close() {
@@ -915,10 +973,10 @@ class NativeAdapter extends EmulatorAdapter {
             try { this.proxyForwarder.close(); } catch (_) {}
             this.proxyForwarder = null;
         }
-        if (this.ptyProcess) {
-            slog.log(`[${this.getName()}] Killing PTY process`);
-            this.ptyProcess.kill();
-            this.ptyProcess = null;
+        if (this.handle && !this.closed) {
+            slog.log(`[${this.getName()}] Killing door process`);
+            this.closed = true;
+            this.handle.kill();
         }
     }
 }
