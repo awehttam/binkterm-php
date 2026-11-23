@@ -208,7 +208,7 @@ In Docker, set `NATIVEDOOR_DOOR_USERS` for the `binkterm` service, for example `
 
 The Docker image also stops leaving `data/`, `config/` and `dosbox-bridge/` readable by other users. They are now `770` for directories and `660` for files, owned by `binkterm` and shared with the web server through its group. Anything else that read those paths through world access no longer can. Before every launch the bridge confirms the door user exists and can be reached and can write its own directory, and it refuses to start the door if any check fails. It never falls back to the bridge's user. Once any door uses `sudo` or `socket`, a door with no launch mode set is also refused, so set `direct` explicitly on doors that should stay as they are.
 
-The bridge logs whether each non-direct door is healthy when it starts and when you reload it with `kill -HUP`. A new admin-only door named Door Probe checks what a door can see and do in each mode. Enable it only while testing, and see `docs/NativeDoors.md` for how to read its output.
+The bridge logs whether each non-direct door is healthy when it starts and when you reload it with `kill -HUP`.
 
 ## Dashboard
 

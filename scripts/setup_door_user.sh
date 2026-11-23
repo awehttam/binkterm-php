@@ -525,7 +525,7 @@ summary() {
         log "(data/users/<id>/<door>). To keep doors away from your secrets, also make sure it"
         log "cannot read .env or config/; the bridge does not check this."
     fi
-    log "Then enable the Door Probe door and check its output in that mode."
+    log "Then enable the linuxdoortest door and check that it runs in that mode."
     log "The door bridge may need a restart (or SIGHUP) to pick up the new group memberships."
 }
 

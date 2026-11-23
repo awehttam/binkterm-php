@@ -447,7 +447,7 @@ The container also no longer leaves `data/`, `config/` and `dosbox-bridge/` read
 
 Before every launch the bridge checks that the door user exists, is not root or the bridge's own user, and can be reached (`sudo -n -u <user> true`, or a handshake with the launcher). It also confirms that the door user can write its own `data/users/<id>/<door>` directory. The bridge does not check whether the door user can read `.env` or `config/`; keeping door users away from those files is a matter of file permissions that you set up (or `--apply-permissions`, or the Docker image, does). If any check fails, the launch is refused and the reason is logged. A door is never started as the bridge's user as a fallback. The bridge logs the state of each non-direct door when it starts and when it is reloaded with `SIGHUP`.
 
-To verify a setup, enable the bundled **Door Probe** door (see below) in each mode and read its output.
+To verify a setup, enable the bundled `linuxdoortest` door, set its Launch Mode and launch it.
 
 ## Configuration File
 
@@ -493,13 +493,12 @@ All supported keys per door entry:
 
 ## Included Test Doors
 
-Three test doors are bundled in `native-doors/doors/` to verify the system is working:
+Two test doors are bundled in `native-doors/doors/` to verify the system is working:
 
 | Door ID | Platform | Description |
 |---------|----------|-------------|
 | `linuxdoortest` | Linux | Bash script — displays "hello world" and waits for a keypress |
 | `windoortest` | Windows | Batch file — displays "hello world" and waits for a keypress |
-| `doorprobe` | Linux | Admin-only security check. Prints one JSON line per check: the user and groups the door runs as, the names (never values) of the environment variables it received and which look like secrets, whether it can read `.env`, `config/binkp.json` and `data/`, and whether it can write its own directory but not `native-doors/drops/` or `native-doors/doors/`. In `direct` mode the secrets and files are readable, which is the baseline. In `sudo` and `socket` modes every denial should show `"readable":false`. Writing `teardown` or `terminal` into `probe_mode` in the door's home directory makes it ignore hangup signals (to test force-kill) or report the terminal size each second (to test resizing) |
 
 Both are disabled by default. Enable them through **Admin → Native Doors** to test your setup.
 

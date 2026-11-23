@@ -37,7 +37,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nodejs \
         p7zip-full \
         postgresql-client \
-        # ps, used by the Door Probe test door
         procps \
         rsync \
         supervisor \
