@@ -20,7 +20,8 @@
  *   });
  *   form.render();
  *
- * Field types: bool, int, text, textarea. Keys the form does not list are
+ * Field types: bool, int, text, textarea, tags, approvals (checklist of the names
+ * listed in the door metadata under field.requestsKey; each is {name, refused}). Keys the form does not list are
  * preserved. Clearing an int/text field removes its key.
  */
 window.DoorConfigForm = (function () {
@@ -48,7 +49,45 @@ window.DoorConfigForm = (function () {
         }
     }
 
-    function renderField(field, value) {
+    function renderApprovals(field, value, info) {
+        const requests = (info && info[field.requestsKey]) || [];
+        if (requests.length === 0) {
+            return '';
+        }
+        const approved = Array.isArray(value) ? value : [];
+        const items = requests.map(req => {
+            const refused = !!req.refused;
+            const checked = !refused && approved.includes(req.name);
+            const note = refused
+                ? ` <span class="badge bg-danger">${esc(t('ui.admin.door_config_form.env_refused', 'Refused: looks like a secret'))}</span>`
+                : '';
+            return `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" data-approval-name="${esc(req.name)}" ${checked ? 'checked' : ''} ${refused ? 'disabled' : ''}>
+                    <label class="form-check-label"><code>${esc(req.name)}</code>${note}</label>
+                </div>`;
+        }).join('');
+        return `
+            <div class="col-12" data-field="${esc(field.key)}" data-field-type="approvals">
+                <label class="form-label">${esc(t(field.labelKey, field.fallback))}</label>
+                ${items}
+                <div class="form-text">${esc(t(field.helpKey, field.helpFallback || ''))}</div>
+            </div>`;
+    }
+
+    /**
+     * Names this door's manifest requests that the sysop has not approved yet.
+     */
+    function pendingApprovals(field, entry, info) {
+        const requests = (info && info[field.requestsKey]) || [];
+        const approved = Array.isArray(entry[field.key]) ? entry[field.key] : [];
+        return requests.filter(r => !r.refused && !approved.includes(r.name)).map(r => r.name);
+    }
+
+    function renderField(field, value, info) {
+        if (field.type === 'approvals') {
+            return renderApprovals(field, value, info);
+        }
         const label = esc(t(field.labelKey, field.fallback));
         const help = field.helpKey
             ? `<div class="form-text">${esc(t(field.helpKey, field.helpFallback || ''))}</div>`
@@ -151,6 +190,12 @@ window.DoorConfigForm = (function () {
                     ? `<span class="badge bg-info">${cost} ${esc(t('ui.admin.door_config_form.credits', 'credits'))}</span>`
                     : `<span class="badge bg-success">${esc(t('ui.admin.door_config_form.free', 'Free'))}</span>`);
             }
+            opts.fields.filter(f => f.type === 'approvals').forEach(f => {
+                const pending = pendingApprovals(f, entry, info);
+                if (pending.length > 0) {
+                    badges.push(`<span class="badge bg-warning text-dark" title="${esc(pending.join(', '))}">${esc(t('ui.admin.door_config_form.env_pending', 'Requests variables, not approved'))}: ${esc(pending.join(', '))}</span>`);
+                }
+            });
             if (entry.hide_from_web) {
                 badges.push(`<span class="badge bg-warning text-dark">${esc(t('ui.admin.door_config_form.telnet_only', 'Telnet/SSH only'))}</span>`);
             }
@@ -263,7 +308,7 @@ window.DoorConfigForm = (function () {
                 if ((val === undefined || val === null || (Array.isArray(val) && val.length === 0)) && f.key === 'genre' && info.genre) {
                     val = info.genre;
                 }
-                return renderField(f, val);
+                return renderField(f, val, info);
             }).join('');
             bootstrap.Modal.getOrCreateInstance(el).show();
         }
@@ -284,7 +329,15 @@ window.DoorConfigForm = (function () {
                 if (!field) {
                     return;
                 }
-                if (field.type === 'bool') {
+                if (field.type === 'approvals') {
+                    const names = Array.from(input.querySelectorAll('[data-approval-name]:checked'))
+                        .map(box => box.dataset.approvalName);
+                    if (names.length === 0) {
+                        delete config[modalKey][field.key];
+                    } else {
+                        config[modalKey][field.key] = names;
+                    }
+                } else if (field.type === 'bool') {
                     config[modalKey][field.key] = input.checked;
                 } else if (input.value.trim() === '') {
                     delete config[modalKey][field.key];

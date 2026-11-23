@@ -11,6 +11,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Internet Archive Games](#internet-archive-games)
   - [Top Scores Month Uses Your Timezone](#top-scores-month-uses-your-timezone)
   - [MeshCore Public Key QR Codes](#meshcore-public-key-qr-codes)
+- [Native Doors](#native-doors)
+  - [Doors Receive a Clean Environment](#doors-receive-a-clean-environment)
 - [Dashboard](#dashboard)
   - [Door Activity on the Mail, Areas & Doors Card](#door-activity-on-the-mail-areas--doors-card)
 - [BBS Directory](#bbs-directory)
@@ -50,6 +52,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Internet Archive games:** sysops can add browser-playable games hosted on the Internet Archive to the `/games` page.
 - **Top Scores month uses your timezone:** the monthly Top Scores leaderboard now follows each user's own timezone.
 - **MeshCore public key QR codes:** MeshCore node details now show a QR code beside the node's public key.
+
+### Native Doors
+
+- **Doors receive a clean environment:** native doors, DOSBox and DOSEMU no longer inherit the door bridge's environment, which included the database, SMTP and admin daemon secrets from `.env`.
 
 ### Dashboard
 
@@ -163,6 +169,28 @@ Node detail windows now show a QR code directly beneath a MeshCore node's public
 
 - **Community Wireless Node List.** The QR code encodes the node's public key. It is served by a new `qr` action on the door's own `api.php`.
 - **MeshCore Nodes page.** The QR code that was already shown at the bottom of the node window has moved up to sit under the public key. It encodes a MeshCore contact link, so scanning it in a MeshCore app adds the node as a contact.
+
+## Native Doors
+
+### Doors Receive a Clean Environment
+
+Native doors used to start with a copy of the door bridge's environment. That environment held the secrets from `.env` (database login, SMTP login, admin daemon secret), so any door could read them. A native door now starts with only these variables:
+
+- `PATH`, set to `/usr/local/bin:/usr/bin:/bin`. Set `NATIVEDOOR_PATH` in `.env` to change it.
+- `HOME` (the door's private directory for that user, the same as `DOOR_HOME`), `USER`, `LOGNAME`.
+- `TERM` (`xterm-256color`), `LANG` (`C.UTF-8`), `COLUMNS` and `LINES`.
+- The `DOOR_*` variables and `BBSDEV_DRP` described in `docs/NativeDoors.md`.
+- Anything the door's manifest lists under `door.env`, plus any variables you approve as described below.
+
+The DOSBox and DOSEMU emulators receive `PATH`, `HOME`, `LANG` and the display variables they need, and nothing else. The bridge also reads only the names it uses from `.env`.
+
+A door that relied on another inherited variable, such as `TMPDIR`, `http_proxy` or a library path, now runs without it. A door asks for such a variable by listing its name under `door.env_passthrough` in its manifest. The request has no effect until you approve it: open **Admin → Native Doors**, click the edit button for the door, and tick the variable under **Approved Environment Variables**. A door with requests you have not approved shows a badge listing the names, and the bridge log lists them each time the door launches. Names that look like secrets (for example `DB_PASS`, `SMTP_PASSWORD`, anything ending in `_SECRET`, `_TOKEN` or `_KEY`) are refused and cannot be approved. Names are never approved on a door's behalf, so a door update that adds a new request must be approved again.
+
+PubTerm always receives its target host and port from the bridge, so a `PUBTERM_HOST` or `PUBTERM_PORT` value in `.env` now applies whether or not the connection is proxied. The bundled SyncDOOM manifest now passes `-home "{homedir}"`, so its save files go to the per-user door directory.
+
+The door bridge must be restarted for these changes to take effect.
+
+A door still runs as the same operating system user as the bridge and can read the files that user can read, including `.env`. A cleaner environment closes the leak through inherited variables only.
 
 ## Dashboard
 

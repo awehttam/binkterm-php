@@ -194,6 +194,8 @@ The door will now appear in the `/games` game library.
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
 | `ansi_required` | boolean | No | Whether ANSI is required. Defaults to `true` |
 | `time_per_day` | integer | No | Time limit in minutes per day. Defaults to `30` |
+| `env` | object | No | Static environment variables to set for the door, as name/value strings. Names that look like secrets (`DB_*`, `SMTP_*`, `*_SECRET`, `*_PASSWORD`, `*_TOKEN`, `*_KEY` and similar) are ignored |
+| `env_passthrough` | array of strings | No | Names of variables the door would like copied from the bridge's environment. This is a request only: a variable is passed only after a sysop approves it for the door in **Admin → Native Doors** |
 
 #### Launch command placeholders
 
@@ -252,7 +254,20 @@ The following environment variables are set in the door process at launch:
 | `DOOR_ANSI` | Always `1` (ANSI assumed) | `1` |
 | `TERM` | Terminal type | `xterm-256color` |
 
-The process also inherits the environment of the multiplexing bridge, including `PATH`.
+A door's environment is built from scratch. It does **not** inherit the multiplexing bridge's environment, so secrets from `.env` are never visible to the door. In addition to the variables above, the door receives:
+
+| Variable | Value |
+|----------|-------|
+| `PATH` | `/usr/local/bin:/usr/bin:/bin`, or the value of `NATIVEDOOR_PATH` in `.env` |
+| `HOME` | The user's private per-door directory (same as `DOOR_HOME`) |
+| `USER`, `LOGNAME` | The operating system user the bridge runs as |
+| `LANG` | `C.UTF-8` |
+| `COLUMNS`, `LINES` | The terminal size |
+| `PUBTERM_HOST`, `PUBTERM_PORT`, `PUBTERM_TELNET_BIN` | PubTerm door only, supplied by the bridge |
+| `door.env` values | Static values from the manifest |
+| Approved `door.env_passthrough` names | Copied from the bridge's environment, only after sysop approval |
+
+Variable names that look like secrets can never be set through `door.env` or approved for passthrough, and are never substituted into `${VAR:-default}` references in a launch command (the default is used instead). The bridge logs the names of any manifest requests that were not approved. At debug level it also logs the names, never the values, of the variables each door received.
 
 ---
 
@@ -407,6 +422,7 @@ All supported keys per door entry:
 | `allow_anonymous` | boolean | `false` | Allow unauthenticated guest access (requires `credit_cost: 0`) |
 | `guest_max_sessions` | integer | `2` | Maximum concurrent guest sessions when `allow_anonymous` is true |
 | `terminal_size` | string | `"80x25"` | Initial PTY and canvas dimensions. Accepted values: `"80x25"`, `"132x24"`, `"132x43"`, `"132x50"`, or `"autofit"`. See [Terminal Settings](#terminal-settings) |
+| `env_passthrough_approved` | array of strings | none | Variables from the door's manifest `env_passthrough` request that the sysop has approved. Set through **Admin → Native Doors**; names that look like secrets are removed when the configuration is saved |
 | `hide_from_web` | boolean | `false` | When `true`, hides this door from the web games list and blocks its `/games/nativedoors/{doorid}` web player page (`404`). The door remains launchable over telnet/SSH via **[Files] → Door Games** (`telnet/src/DoorHandler.php`), since that path calls `POST /api/door/launch` directly rather than going through the web listing/player route. Use this for doors that only make sense in a terminal (e.g. FOSSIL/ANSI-only games) or that a sysop wants restricted to the terminal server. |
 
 ---
@@ -428,7 +444,7 @@ Both are disabled by default. Enable them through **Admin → Native Doors** to 
 
 > **Only install native doors from sources you trust.**
 
-Native doors run as the same operating system user as the BinktermPHP web server and multiplexing bridge. A door that drops to a shell, spawns subprocesses, or reads arbitrary files on disk does so with the full permissions of that user — including access to your database credentials, configuration files, private keys, and all BBS data.
+Native doors receive a clean environment without the secrets from `.env`, but they still run as the same operating system user as the multiplexing bridge. A door that drops to a shell, spawns subprocesses, or reads arbitrary files on disk does so with the full permissions of that user — including read access to `.env`, configuration files, private keys, and all BBS data.
 
 **Key risks to be aware of:**
 

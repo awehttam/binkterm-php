@@ -20,8 +20,9 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { Client } = require('pg');
+const { buildEmulatorEnv, loadBridgeEnv } = require('./door-env');
 const { createEmulatorAdapter } = require('./emulator-adapters');
-require('dotenv').config({ path: __dirname + '/../../.env' });
+loadBridgeEnv(__dirname + '/../../.env', false);
 
 // Prepend ISO timestamp to every console.log / .error / .warn line
 ['log', 'error', 'warn'].forEach(method => {
@@ -199,7 +200,7 @@ function getClientIp(req) {
  */
 function reloadEnv() {
     console.log('[Config] Reloading .env...');
-    require('dotenv').config({ path: __dirname + '/../../.env', override: true });
+    loadBridgeEnv(__dirname + '/../../.env', true);
 
     const newDisconnectTimeout = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
     const newReconnectTimeout = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 90;
@@ -934,12 +935,9 @@ class SessionManager {
             stdio: 'ignore'
         };
 
-        // Linux: Set SDL_VIDEODRIVER=dummy for true headless operation
+        // Never inherit the bridge environment; Linux headless adds SDL_VIDEODRIVER=dummy
+        spawnOptions.env = buildEmulatorEnv(isLinux && headless ? { SDL_VIDEODRIVER: 'dummy' } : {});
         if (isLinux && headless) {
-            spawnOptions.env = {
-                ...process.env,
-                SDL_VIDEODRIVER: 'dummy'
-            };
             console.log(`[DOSBOX] Linux headless mode: SDL_VIDEODRIVER=dummy`);
         }
 

@@ -144,7 +144,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/js/door-config-form.js?v=1.3.0"></script>
+<script src="/js/door-config-form.js?v=1.4.0"></script>
 <script>
 let doorForm = null;
 let doorsState = {
@@ -187,7 +187,8 @@ document.addEventListener('DOMContentLoaded', function() {
             {key: 'max_concurrent_sessions', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.max_sessions', fallback: 'Max Concurrent Sessions'},
             {key: 'allow_anonymous', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.allow_anonymous', fallback: 'Allow Anonymous', helpKey: 'ui.admin.door_manifest_editor.field.allow_anonymous_help', helpFallback: 'Whether unregistered guests may use this door.'},
             {key: 'guest_max_sessions', type: 'int', labelKey: 'ui.admin.door_manifest_editor.field.guest_max_sessions', fallback: 'Guest Max Sessions', helpKey: 'ui.admin.door_manifest_editor.field.guest_max_sessions_help', helpFallback: 'Maximum simultaneous guest sessions for this door.'},
-            {key: 'hide_from_web', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web', fallback: 'Hide from Web', helpKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web_help', helpFallback: 'Only offer this door from telnet/SSH, not the web game library.'}
+            {key: 'hide_from_web', type: 'bool', labelKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web', fallback: 'Hide from Web', helpKey: 'ui.admin.door_manifest_editor.field.runtime_hide_from_web_help', helpFallback: 'Only offer this door from telnet/SSH, not the web game library.'},
+            {key: 'env_passthrough_approved', type: 'approvals', requestsKey: 'env_passthrough_requests', labelKey: 'ui.admin.door_config_form.env_approvals', fallback: 'Approved Environment Variables', helpKey: 'ui.admin.door_config_form.env_approvals_help', helpFallback: 'Variables this door asks to receive from the BBS server environment. Doors otherwise get a minimal clean environment.'}
         ],
         getDoors: () => doorsState.availableDoors,
         onChange: () => { updateJsonStatus(); renderDoorsList(); },

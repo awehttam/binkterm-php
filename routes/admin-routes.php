@@ -4497,7 +4497,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'platform' => $door['platform'] ?? [],
                     'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? []),
                     'icon_url' => !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null,
-                    'config' => $door['config'] ?? []
+                    'config' => $door['config'] ?? [],
+                    'env_passthrough_requests' => \BinktermPHP\NativeDoorEnvPolicy::describeRequests($door['env_passthrough'] ?? [])
                 ];
             }
 
@@ -4543,6 +4544,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (!is_array($config)) {
                     throw new Exception('Invalid config data');
                 }
+
+                // Secret-named variables can never be approved for passthrough
+                $config = \BinktermPHP\NativeDoorEnvPolicy::sanitizeConfig($config);
 
                 $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
                 if ($json === false) {
