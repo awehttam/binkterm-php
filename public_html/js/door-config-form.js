@@ -47,6 +47,10 @@ window.DoorConfigForm = (function () {
     function parse(text) {
         try {
             const data = JSON.parse(text);
+            // PHP serializes an empty config as [], which means "no doors configured yet"
+            if (Array.isArray(data) && data.length === 0) {
+                return {};
+            }
             return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
         } catch (e) {
             return null;
