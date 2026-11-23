@@ -688,9 +688,7 @@ class NativeAdapter extends EmulatorAdapter {
         }
 
         const isV6 = net.isIP(clientIp) === 6;
-        const proxyLine = `PROXY ${isV6 ? 'TCP6' : 'TCP4'} ${clientIp} ${isV6 ? '::1' : '127.0.0.1'} 0 ${targetPort}
-
-`;
+        const proxyLine = `PROXY ${isV6 ? 'TCP6' : 'TCP4'} ${clientIp} ${isV6 ? '::1' : '127.0.0.1'} 0 ${targetPort}\r\n`;
 
         const server = net.createServer((client) => {
             // Only the first connection is expected - stop listening immediately.
