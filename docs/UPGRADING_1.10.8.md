@@ -49,7 +49,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Web Doors
 
 - **Leaderboards read from DOS and native door game data:** a door can name a data parser that reads the game's own player files, starting with Legend of the Red Dragon (LORD) and The Wire, and publishes each player's score on the `/games` Top Scores leaderboard.
-- **Door Manifest Editor changes:** the editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP.
+- **Door Manifest Editor changes:** the editor can set the data parser for a door and can now edit manifests that ship with BinktermPHP, even though it's not recommended to do so.
 - **Internet Archive games:** sysops can add browser-playable games hosted on the Internet Archive to the `/games` page.
 - **Top Scores month uses your timezone:** the monthly Top Scores leaderboard now follows each user's own timezone.
 - **MeshCore public key QR codes:** MeshCore node details now show a QR code beside the node's public key.
@@ -139,7 +139,7 @@ The Door Manifest Editor, reached from the door admin pages, has two changes.
 
 **Game data parser fields.** The door setup section of the DOS and native door editors now has a **Game Data Parser** dropdown and a **Data Directory** field. These set the `data_parser` and `data_dir` manifest keys described above, so a door no longer needs its manifest edited by hand to publish its scores. The dropdown lists every parser the BBS knows about. Choose **None** for a door without a parser.
 
-**Unmanaged manifests can be edited.** Previously, a manifest without `"managed": "web"` could not be changed in the editor. This covers the manifests that ship with BinktermPHP. These manifests now open for editing, with a warning banner and an **Unmanaged (edits may be overwritten)** status badge. Saving a manifest marks it `"managed": "web"`. Because a later BinktermPHP upgrade can replace the manifests that ship with it, changes made to one of them may be lost. To keep your changes, copy the door directory to a new name, such as `LORD2`, and edit the copy instead.
+**Unmanaged manifests can be edited.** Previously, a manifest without `"managed": "web"` could not be changed in the editor. This covers the manifests that ship with BinktermPHP. These manifests now open for editing, even though it is not recommended to do so, with a warning banner and an **Unmanaged (edits may be overwritten)** status badge. Saving a manifest marks it `"managed": "web"`. Because a later BinktermPHP upgrade can replace the manifests that ship with it, changes made to one of them may be lost. To keep your changes, copy the door directory to a new name, such as `LORD2`, and edit the copy instead.
 
 The Admin Daemon caches its code, so restart it after upgrading for the editor changes to take effect. `scripts/restart_daemons.sh` does this.
 
