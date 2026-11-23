@@ -27,10 +27,20 @@
 #   --node PATH          node binary the launchers run. Default: the one on PATH.
 #   --supervisor-dir DIR supervisor mode: where to write the programs.
 #                        Default: /etc/supervisor/conf.d/enabled.
+#   --apply-permissions  Also change ownership and modes: make .env, config/ and data/
+#                        unreadable to other users, and hand each door directory to its
+#                        door group. Off by default. This assumes the web server and the
+#                        door bridge share a group that owns the application files, as in
+#                        the Docker image; on an install that relies on world access it
+#                        will lock the web server out. Without it the sysop sets
+#                        permissions by hand.
 #   --dry-run            Print what would be done without changing anything.
 #   -h, --help           Show this help.
 #
-# Safe to run repeatedly. It never deletes users, groups or files.
+# By default this only creates the door accounts and groups, adds the bridge (and web)
+# user to them, and installs the sudoers rule or launcher units. It does not change the
+# ownership or mode of any application file. Safe to run repeatedly. It never deletes
+# users, groups or files.
 
 set -euo pipefail
 
@@ -38,6 +48,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 MODE=""
 DRY_RUN=0
+APPLY_PERMISSIONS=0
 APP_USER=""
 WEB_USER=""
 DOORS_GROUP="doors"
@@ -122,6 +133,7 @@ parse_args() {
             --socket-dir)     SOCKET_DIR="${2:?--socket-dir needs a value}"; shift 2 ;;
             --node)           NODE_BIN="${2:?--node needs a value}"; shift 2 ;;
             --supervisor-dir) SUPERVISOR_DIR="${2:?--supervisor-dir needs a value}"; shift 2 ;;
+            --apply-permissions) APPLY_PERMISSIONS=1; shift ;;
             --dry-run)        DRY_RUN=1; shift ;;
             -h|--help)        usage; exit 0 ;;
             *) die "unknown option: $1" ;;
@@ -507,6 +519,12 @@ summary() {
     for i in "${!DOOR_IDS[@]}"; do
         log "  ${DOOR_IDS[$i]}  ->  ${DOOR_USERS[$i]}"
     done
+    if [ "$APPLY_PERMISSIONS" != 1 ]; then
+        log "File ownership and permissions were not changed. Doors run as the door user, so"
+        log "make sure it can read the files a door needs and can write its own directory"
+        log "(data/users/<id>/<door>). To keep doors away from your secrets, also make sure it"
+        log "cannot read .env or config/; the bridge does not check this."
+    fi
     log "Then enable the Door Probe door and check its output in that mode."
     log "The door bridge may need a restart (or SIGHUP) to pick up the new group memberships."
 }
@@ -514,11 +532,11 @@ summary() {
 parse_args "$@"
 preflight
 ensure_accounts
-apply_layout
+[ "$APPLY_PERMISSIONS" != 1 ] || apply_layout
 case "$MODE" in
     sudo)       install_sudo ;;
     systemd)    socket_dirs; install_systemd ;;
     supervisor) install_supervisor ;;
 esac
-negative_probes
+[ "$APPLY_PERMISSIONS" != 1 ] || negative_probes
 summary

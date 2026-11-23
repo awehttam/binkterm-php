@@ -219,17 +219,6 @@ function prepareDoorHome(homeDir, gid) {
 }
 
 /**
- * Files a door user must not be able to read.
- *
- * @param {string} basePath
- * @returns {string[]} Existing secret-bearing paths
- */
-function secretPaths(basePath) {
-    return [path.join(basePath, '.env'), path.join(basePath, 'config', 'binkp.json')]
-        .filter((p) => fs.existsSync(p));
-}
-
-/**
  * Handle for a door the bridge spawned itself (direct and sudo strategies).
  */
 class PtyHandle {
@@ -564,14 +553,6 @@ class SudoLauncher {
             return { ok: false, error: `sudo -n -u ${user} failed: ${(probe.stderr || probe.stdout).trim() || 'no output'}` };
         }
 
-        // Fail closed if the door user can read application secrets.
-        for (const secret of secretPaths(this.ctx.basePath)) {
-            const read = this.deps.run('sudo', ['-n', '-u', user, 'test', '-r', secret]);
-            if (read.status === 0) {
-                return { ok: false, error: `door user '${user}' can read ${secret}; the hardening would be ineffective` };
-            }
-        }
-
         return { ok: true, gid: verdict.gid };
     }
 
@@ -689,13 +670,6 @@ class SocketLauncher {
             return { ok: false, error: hello.error };
         }
         try {
-            const secrets = secretPaths(this.ctx.basePath);
-            const probe = await hello.connection.request(TO_LAUNCHER.PROBE, { read: secrets, write: [] }, FROM_LAUNCHER.PROBED);
-            for (const secret of secrets) {
-                if (probe.read && probe.read[secret]) {
-                    return { ok: false, error: `launcher user can read ${secret}; the hardening would be ineffective` };
-                }
-            }
             return { ok: true, gid: hello.ready.gid };
         } catch (e) {
             return { ok: false, error: e.message };
@@ -832,7 +806,6 @@ module.exports = {
     resolveLaunchSettings,
     validateDoorUser,
     prepareDoorHome,
-    secretPaths,
     PtyHandle,
     SudoHandle,
     SocketHandle,

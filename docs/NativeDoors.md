@@ -424,8 +424,8 @@ sudo scripts/setup_door_user.sh systemd --door syncdoom --user door_syncdoom    
 It does the following, which you can also do by hand:
 
 - Creates one unprivileged account per door user, each with its own primary group, adds the accounts to the shared `doors` group, and adds the bridge's user (and the web server user, if you give one) to each door user's group.
-- Makes `.env`, `config/` and `data/` unreadable to the door users. `data/` and `data/users/` stay traverse-only so a door can reach its own directory.
-- Gives each door directory under `native-doors/doors/` to the bridge's user with the door's group and mode `3770`, makes `native-doors/doors/` itself traverse-only, and gives the door user any files the manifest lists under `door.writable_paths`. The bridge creates each user's `data/users/<id>/<door>` directory with the door's group and mode `2770`.
+- With `--apply-permissions` only (the Docker image uses it; on bare metal you set permissions yourself): makes `.env`, `config/` and `data/` unreadable to the door users. `data/` and `data/users/` stay traverse-only so a door can reach its own directory.
+- With `--apply-permissions` only: gives each door directory under `native-doors/doors/` to the bridge's user with the door's group and mode `3770`, makes `native-doors/doors/` itself traverse-only, and gives the door user any files the manifest lists under `door.writable_paths`. The bridge creates each user's `data/users/<id>/<door>` directory with the door's group and mode `2770`.
 - Sudo mode: installs a sudoers rule for the bridge's user, `bridgeuser ALL=(%doors) NOPASSWD: ALL`, together with `Defaults:bridgeuser !use_pty`, checked with `visudo -c` first. Without `!use_pty`, sudo inserts a second terminal that breaks raw output, resizing and teardown.
 - Socket mode: runs `door-launcher.js` as each door user, with a clean environment, listening on `/run/binkterm-doors/<user>/launcher.sock` in a directory the bridge's user can traverse and other door users cannot. Under systemd it is socket-activated (`LISTEN_FDS`) with `NoNewPrivileges`, a read-only filesystem apart from the door's own directories, and `.env` and `config/` made inaccessible. The launcher reads these from its own environment, never from a file the web server can write:
 
@@ -439,13 +439,13 @@ It does the following, which you can also do by hand:
 
 The container image ships the support but leaves it off. Set `NATIVEDOOR_DOOR_USERS` for the service in `docker-compose.yml` (or the shell or `.env` that Compose reads) to a space-separated list of door ids, each optionally `id=user`, for example `syncdoom bbslinknative=door_bbs`. On every start the container then creates those users, applies the permissions above, and runs a launcher for each as a supervisor program. Afterwards choose **Socket** for the door in **Admin → Native Doors**, or set `NATIVEDOOR_LAUNCH_MODE=socket` in `.env` to make it the default.
 
-Until a door's mode is changed it keeps running as `binkterm`, the bridge's own user, and can read `.env` and the bridge's `/proc/<pid>/environ`. It is not on by default because a door that fails its checks is refused rather than run, and bind-mounted volumes on some hosts (Docker Desktop in particular) ignore ownership and mode changes, which makes those checks fail.
+Until a door's mode is changed it keeps running as `binkterm`, the bridge's own user, and can read `.env` and the bridge's `/proc/<pid>/environ`. It is not on by default because bind-mounted volumes on some hosts (Docker Desktop in particular) ignore ownership and mode changes, so the door user may not be kept away from `.env` or able to write its own directory there.
 
 The container also no longer leaves `data/`, `config/` and `dosbox-bridge/` readable by other users: they are `770` (directories) and `660` (files).
 
 ### Failing closed
 
-Before every launch the bridge checks that the door user exists, is not root or the bridge's own user, and can be reached (`sudo -n -u <user> true`, or a handshake with the launcher). It also confirms that the door user can read neither `.env` nor `config/binkp.json`, and can write its own `data/users/<id>/<door>` directory. If any check fails, the launch is refused and the reason is logged. A door is never started as the bridge's user as a fallback. The bridge logs the state of each non-direct door when it starts and when it is reloaded with `SIGHUP`.
+Before every launch the bridge checks that the door user exists, is not root or the bridge's own user, and can be reached (`sudo -n -u <user> true`, or a handshake with the launcher). It also confirms that the door user can write its own `data/users/<id>/<door>` directory. The bridge does not check whether the door user can read `.env` or `config/`; keeping door users away from those files is a matter of file permissions that you set up (or `--apply-permissions`, or the Docker image, does). If any check fails, the launch is refused and the reason is logged. A door is never started as the bridge's user as a fallback. The bridge logs the state of each non-direct door when it starts and when it is reloaded with `SIGHUP`.
 
 To verify a setup, enable the bundled **Door Probe** door (see below) in each mode and read its output.
 

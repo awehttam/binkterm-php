@@ -215,7 +215,7 @@ if [ -n "${NATIVEDOOR_DOOR_USERS:-}" ]; then
         DOOR_SETUP_ARGS+=(--door "$spec")
     done
     if bash /var/www/html/scripts/setup_door_user.sh supervisor \
-            --install-dir /var/www/html --app-user binkterm --web-user www-data \
+            --apply-permissions --install-dir /var/www/html --app-user binkterm --web-user www-data \
             "${DOOR_SETUP_ARGS[@]}"; then
         echo "  native door users ready"
     else

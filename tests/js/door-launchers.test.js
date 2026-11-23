@@ -219,19 +219,19 @@ fs.writeFileSync(path.join(baseDir, '.env'), 'X=1');
 fs.writeFileSync(path.join(baseDir, 'config', 'binkp.json'), '{}');
 const sudoSettings = { mode: 'sudo', runAs: 'door_a', doorsGroup: 'doors' };
 
-test('sudo preflight passes when sudo works and secrets are unreadable', async () => {
+test('sudo preflight passes when sudo works, and does not probe application files', async () => {
     const calls = [];
     const deps = fakeDeps({
         run: (cmd, args) => {
             calls.push(args.join(' '));
-            return { status: args.includes('-r') ? 1 : 0, stdout: '', stderr: '' };
+            return { status: 0, stdout: '', stderr: '' };
         }
     });
     const l = launchers.createLauncher(sudoSettings, { basePath: baseDir, logger: silent, deps });
     const r = await l.preflight();
     assert.strictEqual(r.ok, true, r.error);
     assert.strictEqual(r.gid, 2001);
-    assert.ok(calls.some((c) => c.includes('test -r') && c.endsWith('.env')));
+    assert.ok(!calls.some((c) => c.includes('test -r')));
 });
 
 test('sudo preflight fails closed when sudo is not permitted', async () => {
@@ -239,13 +239,6 @@ test('sudo preflight fails closed when sudo is not permitted', async () => {
     const r = await launchers.createLauncher(sudoSettings, { basePath: baseDir, logger: silent, deps }).preflight();
     assert.strictEqual(r.ok, false);
     assert.match(r.error, /password is required/);
-});
-
-test('sudo preflight fails closed when the door user can read .env', async () => {
-    const deps = fakeDeps({ run: () => ({ status: 0, stdout: '', stderr: '' }) }); // test -r succeeds
-    const r = await launchers.createLauncher(sudoSettings, { basePath: baseDir, logger: silent, deps }).preflight();
-    assert.strictEqual(r.ok, false);
-    assert.match(r.error, /can read/);
 });
 
 test('sudo preflight refuses a user outside the door group', async () => {
@@ -394,16 +387,14 @@ test('socket preflight fails when the socket is missing', async () => {
     assert.match(r.error, /does not exist/);
 });
 
-test('socket preflight passes when secrets are unreadable, and fails when readable', async () => {
+test('socket preflight passes without probing application files', async () => {
+    // The launcher here runs as the test's own user, which can read the temp files.
     await withLauncher(policy, async ({ deps }) => {
         deps.appUid = () => -12345;
-        // The launcher here runs as the test's own user, which can read the temp files.
         const l = launchers.createLauncher(socketSettings, { basePath: baseDir, logger: silent, deps });
         const r = await l.preflight();
-        assert.strictEqual(r.ok, false);
-        assert.match(r.error, /can read/);
+        assert.strictEqual(r.ok, true, r.error);
     });
-    // With nothing to protect the same launcher passes.
     const emptyBase = path.join(tmp, 'emptybase');
     fs.mkdirSync(emptyBase, { recursive: true });
     await withLauncher(policy, async ({ deps }) => {
