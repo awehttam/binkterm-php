@@ -199,6 +199,8 @@ DOSDOOR_MAX_SESSIONS=10
 
 For DOS-door-specific settings (DOSBox executable, disconnect timeout, etc.) see [DOSDoors.md](DOSDoors.md#configuration).
 
+For native doors, the bridge starts each door with a clean environment rather than its own, and can run a door as a separate unprivileged user. See [NativeDoors.md](NativeDoors.md#environment-variables) and [NativeDoors.md](NativeDoors.md#launch-modes).
+
 ---
 
 ## Running the Bridge

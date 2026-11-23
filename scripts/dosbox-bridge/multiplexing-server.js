@@ -20,8 +20,10 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { Client } = require('pg');
+const { buildEmulatorEnv, loadBridgeEnv } = require('./door-env');
+const { describeLaunchStatus } = require('./door-launchers');
 const { createEmulatorAdapter } = require('./emulator-adapters');
-require('dotenv').config({ path: __dirname + '/../../.env' });
+loadBridgeEnv(__dirname + '/../../.env', false);
 
 // Prepend ISO timestamp to every console.log / .error / .warn line
 ['log', 'error', 'warn'].forEach(method => {
@@ -199,7 +201,7 @@ function getClientIp(req) {
  */
 function reloadEnv() {
     console.log('[Config] Reloading .env...');
-    require('dotenv').config({ path: __dirname + '/../../.env', override: true });
+    loadBridgeEnv(__dirname + '/../../.env', true);
 
     const newDisconnectTimeout = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
     const newReconnectTimeout = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 90;
@@ -223,6 +225,9 @@ function reloadEnv() {
         CARRIER_LOSS_TIMEOUT = newCarrierLossTimeout;
     }
 
+    // Launch modes and users are re-read per launch; report their state now.
+    reportLaunchStatus();
+
     // DOSDOOR_HEADLESS and DOSBOX_EXECUTABLE are already read inline per session — no action needed.
     // WS_PORT, WS_BIND_HOST, DOSDOOR_TRUSTED_PROXIES, and DB_* require a full restart to take effect.
     console.log('[Config] Reload complete. Note: WS_PORT, WS_BIND_HOST, DOSDOOR_TRUSTED_PROXIES, and DB_* require a restart.');
@@ -230,6 +235,16 @@ function reloadEnv() {
 const TCP_PORT_BASE = 5000;
 const TCP_PORT_MAX = 5100;
 const BASE_PATH = path.resolve(__dirname, '../..');
+
+/**
+ * Log whether each native door's non-direct launch mode is healthy. Doors are
+ * preflighted again at every launch; this is the early warning for sysops.
+ */
+function reportLaunchStatus() {
+    describeLaunchStatus(BASE_PATH, console).catch((err) => {
+        console.error('[Launcher] Status check failed:', err.message);
+    });
+}
 
 // Database configuration
 const DB_CONFIG = {
@@ -934,12 +949,9 @@ class SessionManager {
             stdio: 'ignore'
         };
 
-        // Linux: Set SDL_VIDEODRIVER=dummy for true headless operation
+        // Never inherit the bridge environment; Linux headless adds SDL_VIDEODRIVER=dummy
+        spawnOptions.env = buildEmulatorEnv(isLinux && headless ? { SDL_VIDEODRIVER: 'dummy' } : {});
         if (isLinux && headless) {
-            spawnOptions.env = {
-                ...process.env,
-                SDL_VIDEODRIVER: 'dummy'
-            };
             console.log(`[DOSBOX] Linux headless mode: SDL_VIDEODRIVER=dummy`);
         }
 
@@ -1434,7 +1446,21 @@ class SessionManager {
             const timeoutSec = (CARRIER_LOSS_TIMEOUT / 1000).toFixed(1);
             session.slog.log(`[SESSION] Waiting ${timeoutSec} seconds for emulator PID ${session.emulatorPid} to exit after carrier loss...`);
             setTimeout(() => {
-                // Check if process still running
+                // Adapters that own their launch strategy (native doors) report liveness and
+                // kill through it: a bare signal-0 probe can fail with EPERM, and a SIGKILL
+                // sent to a sudo wrapper would orphan the door.
+                const emulator = session.emulator;
+                const alive = emulator && typeof emulator.isAlive === 'function' ? emulator.isAlive() : null;
+                if (alive === false) {
+                    session.slog.log(`[SESSION] Emulator PID ${session.emulatorPid} already exited`);
+                    return;
+                }
+                if (alive === true && typeof emulator.forceKill === 'function' && emulator.forceKill()) {
+                    session.slog.log(`[SESSION] Emulator PID ${session.emulatorPid} still running, force killed`);
+                    return;
+                }
+
+                // DOSBox/DOSEMU: plain process of the bridge's own user
                 try {
                     process.kill(session.emulatorPid, 0); // Signal 0 checks if process exists
                     session.slog.log(`[SESSION] Emulator PID ${session.emulatorPid} still running, force killing`);
@@ -1591,6 +1617,8 @@ console.log(`[WS] Server listening on ${WS_BIND_HOST}:${WS_PORT}`);
         await client.end();
     }
 })();
+
+reportLaunchStatus();
 
 console.log('[WS] Waiting for connections...');
 console.log('');

@@ -344,6 +344,19 @@ PROXY protocol so rate limiting, registration screening, and logging see the
 actual client. This works with no configuration on a single-host install. See
 [docs/PubTerm.md](PubTerm.md#real-client-ip-forwarding).
 
+### Native Doors
+
+```bash
+# NATIVEDOOR_PATH=/usr/local/bin:/usr/bin:/bin   # PATH given to native doors
+# NATIVEDOOR_LAUNCH_MODE=direct     # direct, sudo or socket, for doors with no mode of their own
+# NATIVEDOOR_RUN_AS_USER=door_user  # default door user for sudo mode
+# NATIVEDOOR_LAUNCHER_SOCKET=door_user   # default launcher socket name for socket mode
+# NATIVEDOOR_SOCKET_DIR=/run/binkterm-doors   # directory of launcher sockets
+# NATIVEDOOR_DOORS_GROUP=doors      # group whose members may be used as door users
+```
+
+Native doors receive a clean environment instead of the bridge's. `NATIVEDOOR_PATH` sets the `PATH` they get, and the launch mode settings choose whether a door runs as the bridge's user or as a separate unprivileged user. Per-door settings are made in **Admin → Native Doors** and override these defaults. The launcher service itself reads `NATIVEDOOR_LAUNCHER_SOCKET`, `NATIVEDOOR_LAUNCHER_EXEC_ROOTS` and `NATIVEDOOR_LAUNCHER_INTERPRETERS` from its own environment, not from `.env`. Docker installs also use `NATIVEDOOR_DOOR_USERS`, which is read by the container, not by `.env`. See [docs/NativeDoors.md](NativeDoors.md#launch-modes).
+
 ### Appearance
 
 ```bash
