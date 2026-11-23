@@ -1987,7 +1987,7 @@ return [
     'ui.admin.door_manifest_editor.section.door_setup' => 'Configurazione porta',
     'ui.admin.door_manifest_editor.section.environment' => 'Ambiente',
     'ui.admin.door_manifest_editor.field.door_env' => 'Variabili d\'ambiente',
-    'ui.admin.door_manifest_editor.field.door_env_help' => 'Variabili statiche impostate per la door. I nomi che sembrano segreti (DB_*, SMTP_*, *_SECRET, *_PASSWORD, *_TOKEN, *_KEY) non sono ammessi. Altrimenti la door riceve un ambiente minimo e pulito.',
+    'ui.admin.door_manifest_editor.field.door_env_help' => 'Variabili statiche impostate per la door, come valori letterali. Altrimenti la door riceve un ambiente minimo e pulito. I valori sono salvati in chiaro nel manifest.',
     'ui.admin.door_manifest_editor.field.door_env_passthrough' => 'Variabili dall\'ambiente del BBS',
     'ui.admin.door_manifest_editor.field.door_env_passthrough_help' => 'Variabili che la door chiede di ricevere dall\'ambiente del server BBS, un nome per riga. È solo una richiesta: il sysop deve approvare ogni nome in Admin > Native Doors prima che venga passato.',
     'ui.admin.door_manifest_editor.field.launch_mode' => 'Modalità di avvio',

@@ -160,7 +160,8 @@ function currentUserName() {
  * @param {string} [options.user]            OS user the door runs as (USER, LOGNAME). Defaults to the bridge's user.
  * @param {number} [options.cols]            COLUMNS
  * @param {number} [options.rows]            LINES
- * @param {Object} [options.manifestEnv]     door.env from the manifest. Untrusted; secret names dropped.
+ * @param {Object} [options.manifestEnv]     door.env from the manifest. Literal values written in the
+ *                                           manifest, never read from the bridge, so any name is allowed.
  * @param {string[]} [options.requested]     door.env_passthrough from the manifest.
  * @param {string[]} [options.approved]      Names the sysop approved for this door.
  * @param {Object} [options.logger]          Object with warn().
@@ -198,13 +199,12 @@ function buildDoorEnv(extra, options) {
         env.LINES = String(opts.rows);
     }
 
-    // Static literals from the manifest. Untrusted: secret names are refused.
+    // Static literals from the manifest. These are values the door author wrote down, not
+    // copies of anything in the bridge's environment, so a secret-looking name (an API key
+    // the door needs, say) leaks nothing. The denylist applies only to what is read from
+    // the bridge: passthrough below and ${VAR:-default} substitution.
     for (const [name, value] of Object.entries(opts.manifestEnv || {})) {
         if (!isValidName(name) || value === null || typeof value === 'object') {
-            continue;
-        }
-        if (isSecretName(name)) {
-            dropped.secret.push(name);
             continue;
         }
         env[name] = String(value);
@@ -239,7 +239,7 @@ function buildDoorEnv(extra, options) {
 
     if (logger) {
         if (dropped.secret.length > 0) {
-            logger.warn(`[DoorEnv] Refused secret-named variables from manifest: ${dropped.secret.join(', ')}`);
+            logger.warn(`[DoorEnv] Refused secret-named passthrough requests from manifest: ${dropped.secret.join(', ')}`);
         }
         if (dropped.unapproved.length > 0) {
             logger.warn(`[DoorEnv] Manifest requests variables not approved by the sysop (dropped): ${dropped.unapproved.join(', ')}`);

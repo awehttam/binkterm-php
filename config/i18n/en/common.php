@@ -2007,7 +2007,7 @@ return [
     'ui.admin.door_manifest_editor.section.door_setup' => 'Door Setup',
     'ui.admin.door_manifest_editor.section.environment' => 'Environment',
     'ui.admin.door_manifest_editor.field.door_env' => 'Environment Variables',
-    'ui.admin.door_manifest_editor.field.door_env_help' => 'Static variables set for the door. Names that look like secrets (DB_*, SMTP_*, *_SECRET, *_PASSWORD, *_TOKEN, *_KEY) are not allowed. The door otherwise receives a minimal clean environment.',
+    'ui.admin.door_manifest_editor.field.door_env_help' => 'Static variables set for the door, as literal values. The door otherwise receives a minimal clean environment. Values are stored as plain text in the manifest.',
     'ui.admin.door_manifest_editor.field.door_env_passthrough' => 'Variables From the BBS Environment',
     'ui.admin.door_manifest_editor.field.door_env_passthrough_help' => 'Variables the door asks to receive from the BBS server environment, one name per line. This is only a request: the sysop must approve each name in Admin > Native Doors before it is passed.',
     'ui.admin.door_manifest_editor.field.launch_mode' => 'Launch Mode',

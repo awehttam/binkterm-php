@@ -29,11 +29,14 @@ assert.strictEqual(env.LINES, '25');
 assert.strictEqual(env.TERM, 'xterm-256color');
 assert.ok(env.PATH.length > 0);
 
-// door.env literals: secret names refused
-({ env } = lib.buildDoorEnv({}, { manifestEnv: { DB_PASS: 'x', FOO: 'bar', MY_TOKEN: 't' } }));
-assert.strictEqual(env.DB_PASS, undefined);
-assert.strictEqual(env.MY_TOKEN, undefined);
+// door.env literals: any valid name is allowed, and the value is the manifest's, never the bridge's
+({ env } = lib.buildDoorEnv({}, { manifestEnv: { DB_PASS: 'door-value', FOO: 'bar', MY_TOKEN: 't', '1bad': 'x', OBJ: {} } }));
+assert.strictEqual(env.DB_PASS, 'door-value');
+assert.notStrictEqual(env.DB_PASS, process.env.DB_PASS);
+assert.strictEqual(env.MY_TOKEN, 't');
 assert.strictEqual(env.FOO, 'bar');
+assert.strictEqual(env['1bad'], undefined);
+assert.strictEqual(env.OBJ, undefined);
 
 // Passthrough only when approved; secrets never
 let res = lib.buildDoorEnv({}, {

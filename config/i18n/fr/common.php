@@ -1750,7 +1750,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.door_manifest_editor.section.door_setup' => 'Configuration de la porte',
     'ui.admin.door_manifest_editor.section.environment' => 'Environnement',
     'ui.admin.door_manifest_editor.field.door_env' => 'Variables d\'environnement',
-    'ui.admin.door_manifest_editor.field.door_env_help' => 'Variables statiques définies pour la door. Les noms qui ressemblent à des secrets (DB_*, SMTP_*, *_SECRET, *_PASSWORD, *_TOKEN, *_KEY) ne sont pas autorisés. Sinon, la door reçoit un environnement minimal et propre.',
+    'ui.admin.door_manifest_editor.field.door_env_help' => 'Variables statiques définies pour la door, sous forme de valeurs littérales. Sinon, la door reçoit un environnement minimal et propre. Les valeurs sont stockées en clair dans le manifeste.',
     'ui.admin.door_manifest_editor.field.door_env_passthrough' => 'Variables de l\'environnement du BBS',
     'ui.admin.door_manifest_editor.field.door_env_passthrough_help' => 'Variables que la door demande à recevoir de l\'environnement du serveur BBS, un nom par ligne. Ce n\'est qu\'une demande : le sysop doit approuver chaque nom dans Admin > Native Doors avant qu\'il soit transmis.',
     'ui.admin.door_manifest_editor.field.launch_mode' => 'Mode de lancement',

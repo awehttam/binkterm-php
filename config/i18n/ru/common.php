@@ -2025,7 +2025,7 @@ return [
     'ui.admin.door_manifest_editor.section.door_setup' => 'Настройка двери',
     'ui.admin.door_manifest_editor.section.environment' => 'Окружение',
     'ui.admin.door_manifest_editor.field.door_env' => 'Переменные окружения',
-    'ui.admin.door_manifest_editor.field.door_env_help' => 'Статические переменные для двери. Имена, похожие на секреты (DB_*, SMTP_*, *_SECRET, *_PASSWORD, *_TOKEN, *_KEY), не допускаются. Иначе дверь получает минимальное чистое окружение.',
+    'ui.admin.door_manifest_editor.field.door_env_help' => 'Статические переменные для двери в виде литеральных значений. Иначе дверь получает минимальное чистое окружение. Значения хранятся в манифесте открытым текстом.',
     'ui.admin.door_manifest_editor.field.door_env_passthrough' => 'Переменные из окружения BBS',
     'ui.admin.door_manifest_editor.field.door_env_passthrough_help' => 'Переменные, которые дверь просит получить из окружения сервера BBS, по одному имени в строке. Это только запрос: сисоп должен одобрить каждое имя в Admin > Native Doors, прежде чем оно будет передано.',
     'ui.admin.door_manifest_editor.field.launch_mode' => 'Режим запуска',

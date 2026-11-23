@@ -194,7 +194,7 @@ The door will now appear in the `/games` game library.
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
 | `ansi_required` | boolean | No | Whether ANSI is required. Defaults to `true` |
 | `time_per_day` | integer | No | Time limit in minutes per day. Defaults to `30` |
-| `env` | object | No | Static environment variables to set for the door, as name/value strings. Names that look like secrets (`DB_*`, `SMTP_*`, `*_SECRET`, `*_PASSWORD`, `*_TOKEN`, `*_KEY` and similar) are ignored |
+| `env` | object | No | Static environment variables to set for the door, as name/value strings. Any valid name may be used, including ones that look like secrets (for example `WX_API_KEY`), because the value is the literal one written in the manifest and is never read from the bridge. It is stored in plain text in `nativedoor.json`, so do not put a secret you share with other systems there |
 | `env_passthrough` | array of strings | No | Names of variables the door would like copied from the bridge's environment. This is a request only: a variable is passed only after a sysop approves it for the door in **Admin → Native Doors** |
 
 #### Launch command placeholders
@@ -267,7 +267,7 @@ A door's environment is built from scratch. It does **not** inherit the multiple
 | `door.env` values | Static values from the manifest |
 | Approved `door.env_passthrough` names | Copied from the bridge's environment, only after sysop approval |
 
-Variable names that look like secrets can never be set through `door.env` or approved for passthrough, and are never substituted into `${VAR:-default}` references in a launch command (the default is used instead). The bridge logs the names of any manifest requests that were not approved. At debug level it also logs the names, never the values, of the variables each door received.
+Variable names that look like secrets can never be approved for passthrough, and are never substituted into `${VAR:-default}` references in a launch command (the default is used instead), because both read from the bridge's own environment. They can be set as literals in `door.env`, since that value comes from the manifest. The bridge logs the names of any manifest requests that were not approved. At debug level it also logs the names, never the values, of the variables each door received.
 
 ---
 

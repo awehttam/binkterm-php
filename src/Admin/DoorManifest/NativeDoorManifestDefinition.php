@@ -322,10 +322,9 @@ class NativeDoorManifestDefinition implements DoorManifestTypeDefinition
 
         foreach (($manifest['door']['env'] ?? []) as $name => $value) {
             $name = (string)$name;
+            // Any valid name is allowed: these are literal values, never copied from the bridge.
             if (!NativeDoorEnvPolicy::isValidName($name)) {
                 $errors[] = "door.env: invalid variable name '{$name}'";
-            } elseif (NativeDoorEnvPolicy::isSecretName($name)) {
-                $errors[] = "door.env: '{$name}' looks like a secret and cannot be set";
             } elseif (!is_scalar($value)) {
                 $errors[] = "door.env: value for '{$name}' must be a string";
             }

@@ -2040,7 +2040,7 @@ return [
     'ui.admin.door_manifest_editor.section.door_setup' => 'Configuracion de puerta',
     'ui.admin.door_manifest_editor.section.environment' => 'Entorno',
     'ui.admin.door_manifest_editor.field.door_env' => 'Variables de entorno',
-    'ui.admin.door_manifest_editor.field.door_env_help' => 'Variables estaticas para la puerta. No se permiten nombres que parezcan secretos (DB_*, SMTP_*, *_SECRET, *_PASSWORD, *_TOKEN, *_KEY). De lo contrario, la puerta recibe un entorno minimo y limpio.',
+    'ui.admin.door_manifest_editor.field.door_env_help' => 'Variables estaticas para la puerta, como valores literales. De lo contrario, la puerta recibe un entorno minimo y limpio. Los valores se guardan como texto plano en el manifiesto.',
     'ui.admin.door_manifest_editor.field.door_env_passthrough' => 'Variables del entorno del BBS',
     'ui.admin.door_manifest_editor.field.door_env_passthrough_help' => 'Variables que la puerta solicita recibir del entorno del servidor BBS, un nombre por linea. Es solo una solicitud: el sysop debe aprobar cada nombre en Admin > Native Doors antes de pasarlo.',
     'ui.admin.door_manifest_editor.field.launch_mode' => 'Modo de inicio',
