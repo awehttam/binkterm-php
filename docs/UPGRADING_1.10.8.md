@@ -24,6 +24,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Sources Listed on the Public Directory Page](#sources-listed-on-the-public-directory-page)
 - [File Areas](#file-areas)
   - [Tabbed Files Page With a Forum-Style Area List](#tabbed-files-page-with-a-forum-style-area-list)
+  - [File Search Results Open in Their Own Tab](#file-search-results-open-in-their-own-tab)
   - [File Counts and Sizes After Moving Files](#file-counts-and-sizes-after-moving-files)
   - [Admin File Areas Page: Full-Width List and Virus Scanning Badge](#admin-file-areas-page-full-width-list-and-virus-scanning-badge)
   - [TIC Files Log Why a Virus Scan Was Skipped](#tic-files-log-why-a-virus-scan-was-skipped)
@@ -73,6 +74,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### File Areas
 
 - **Tabbed Files page with a forum-style area list:** the `/files` page is now tabbed, with a forum-style list of file areas and a separate closable tab for each area you open.
+- **File search results open in their own tab:** searching for files from the `/files` sidebar now shows the results in a separate closable Search tab instead of replacing the Recent Uploads list.
 - **File counts and sizes after moving files:** file area counts and sizes are now corrected after files are moved between areas.
 - **Admin File Areas page:** the file area list now uses the full page width and shows a badge on each area that has virus scanning enabled.
 - **TIC files log why a virus scan was skipped:** when a file received by TIC is not scanned, the TIC log now says why.
@@ -255,6 +257,12 @@ The `/files` page now has a tab bar above the main panel:
 - **Optional: multiple area tabs.** Under **Admin > Appearance > File Areas**, check **Allow multiple open area tabs** to give every area you open its own tab instead. Opening an area that already has a tab switches to it, each tab remembers the subfolder you were viewing, and closing the active tab moves you to a neighbouring tab, or to Recent Uploads if none remain. This option is off by default.
 
 The page opens on the File Areas tab and remembers whether you last used File Areas or Recent Uploads. Opening a direct link such as `/files/<AREA>` or `/files?view=my-uploads` goes straight to that area's tab. Open area tabs are not kept when the page is reloaded.
+
+### File Search Results Open in Their Own Tab
+
+Searching with the **File Search** box in the `/files` sidebar used to replace the Recent Uploads list with the results. The results now open in a separate **Search** tab beside the area tabs, and Recent Uploads is left as it was. Results update in that tab as you type.
+
+Close the Search tab with its **x**, the clear button in the search box, or by emptying the box. You return to the neighbouring tab, or to Recent Uploads if no other tab is open. Clicking an area name in a result opens that area in its own tab and closes the Search tab. With **Allow multiple open area tabs** turned off, opening an area no longer closes the Search tab.
 
 ### File Counts and Sizes After Moving Files
 

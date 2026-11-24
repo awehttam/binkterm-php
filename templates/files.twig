@@ -1145,7 +1145,11 @@ function showFilesTab(name, userClick) {
     }
     const tab = areaTabs.find(t => t.key === name);
     if (tab && currentViewKey() !== name) {
-        if (tab.type === 'my_uploads') {
+        if (tab.type === 'search') {
+            $('#globalFileSearch').val(tab.query || '');
+            $('#clearFileSearch').toggle(!!tab.query);
+            runFileSearch(tab.query || '');
+        } else if (tab.type === 'my_uploads') {
             selectMyUploads();
         } else {
             selectFileArea(tab.areaId, tab.subfolder);
@@ -1155,6 +1159,7 @@ function showFilesTab(name, userClick) {
 
 function currentViewKey() {
     if (currentViewMode === 'my_uploads') return 'my_uploads';
+    if (currentViewMode === 'search') return 'search';
     if (currentViewMode === 'area' && currentAreaId !== null) return 'area:' + currentAreaId;
     return null;
 }
@@ -1163,17 +1168,19 @@ function currentViewKey() {
  * Add (or update) the tab for the area / My Uploads view being entered.
  */
 function setAreaTab(icon, label, view) {
-    const key = view.type === 'my_uploads' ? 'my_uploads' : 'area:' + view.areaId;
-    if (!multipleAreaTabs) {
+    const key = view.type === 'search' ? 'search'
+        : (view.type === 'my_uploads' ? 'my_uploads' : 'area:' + view.areaId);
+    if (!multipleAreaTabs && view.type !== 'search') {
         // Single-tab mode: entering a new area replaces the previous area tab.
-        areaTabs = areaTabs.filter(t => t.key === key);
+        areaTabs = areaTabs.filter(t => t.key === key || t.type === 'search');
     }
     const existing = areaTabs.find(t => t.key === key);
     if (existing) {
         existing.label = label;
         existing.subfolder = view.subfolder;
+        existing.query = view.query;
     } else {
-        areaTabs.push({ key: key, icon: icon, label: label, type: view.type, areaId: view.areaId, subfolder: view.subfolder });
+        areaTabs.push({ key: key, icon: icon, label: label, type: view.type, areaId: view.areaId, subfolder: view.subfolder, query: view.query });
     }
     renderAreaTabs();
 }
@@ -1198,6 +1205,10 @@ function renderAreaTabs() {
 
 function closeAreaTab(e, key) {
     e.stopPropagation();
+    if (key === 'search') {
+        closeSearchTab();
+        return;
+    }
     const idx = areaTabs.findIndex(t => t.key === key);
     if (idx === -1) return;
     areaTabs.splice(idx, 1);
@@ -3220,13 +3231,7 @@ function scheduleFileSearch(query) {
     $('#clearFileSearch').toggle(query.length > 0);
     if (query.length < 2) {
         if (query.length === 0) {
-            // Restore normal view
-            if (currentAreaId) {
-                loadFiles(currentAreaId, currentSubfolder);
-            } else {
-                loadRecentFiles();
-            }
-            $('#fileSearchStatus').hide();
+            closeSearchTab();
         }
         return;
     }
@@ -3237,15 +3242,29 @@ function scheduleFileSearch(query) {
  * Clear the global search input and restore the previous view.
  */
 function clearFileSearch() {
+    closeSearchTab();
+}
+
+/**
+ * Close the search results tab, clear the search input, and fall back to
+ * a neighbouring tab (or Recent Uploads) if the search tab was active.
+ */
+function closeSearchTab() {
+    clearTimeout(fileSearchTimer);
     $('#globalFileSearch').val('');
     $('#clearFileSearch').hide();
     $('#fileSearchStatus').hide();
-    setPreviewNavigationFiles(displayedFiles);
-    if (currentAreaId) {
-        loadFiles(currentAreaId, currentSubfolder);
-    } else {
-        loadRecentFiles();
+    const idx = areaTabs.findIndex(t => t.key === 'search');
+    if (idx === -1) {
+        return;
     }
+    areaTabs.splice(idx, 1);
+    if (activeTab !== 'search') {
+        renderAreaTabs();
+        return;
+    }
+    const next = areaTabs[idx] || areaTabs[idx - 1];
+    showFilesTab(next ? next.key : 'recent', true);
 }
 
 /**
@@ -3254,6 +3273,13 @@ function clearFileSearch() {
  * @param {string} query - Search query string (minimum 2 chars)
  */
 function runFileSearch(query) {
+    currentViewMode = 'search';
+    const searchLabel = uiT('ui.files.search_heading', 'Search');
+    setAreaTab('fa-search', searchLabel, { type: 'search', query: query });
+    showFilesTab('search');
+    $('#currentAreaTitle').html('<i class="fas fa-search"></i> ' + escapeHtml(searchLabel));
+    $('#currentAreaMeta').hide();
+    $('#uploadFileBtn').hide();
     $('#fileSearchStatus').text(uiT('ui.common.loading', 'Loading…')).show();
     $('#filesContainer').html('<div class="p-4 text-center text-muted"><i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.common.loading', 'Searching…') + '</div>');
 
