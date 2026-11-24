@@ -1,5 +1,7 @@
 # Upgrading to 1.10.8
 
+BinktermPHP 1.10.8 focuses on door games, security hardening and reliability. Door leaderboards can now be built from the player files of DOS and native doors such as LORD and The Wire, and sysops can add browser-playable games hosted on the Internet Archive. Native doors start with a clean environment that no longer exposes the secrets in `.env`, and can optionally run as a separate unprivileged operating system user. The dashboard and terminal server show door activity and Top Scores, the Files page is tabbed with a forum-style area list, and the BBS Directory records where each entry came from. Background services now reconnect to PostgreSQL after a restart and wait for it when started at boot, so a database outage no longer leaves daemons stopped or failing.
+
 Make sure you have a current backup of your database and files before upgrading.
 
 ## Table of Contents
