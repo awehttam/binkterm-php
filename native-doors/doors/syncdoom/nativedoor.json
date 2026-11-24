@@ -8,7 +8,7 @@
         "author": "Rob Swindell / id Software",
         "version": "0.1",
         "release_year": null,
-        "description": "Multiplayer DOOM as a Synchronet external program (door): co-op and deathmatch over the BBS, rendered to the terminal via SyncTERM JPEG-XL/PPM graphics, sixel, or a text/block-character fallback. The door itself is C (a doomgeneric / Chocolate Doom port); the lobby that browses and creates network games is JavaScript.",
+        "description": "DOOM ",
         "genre": [
             "Multiplayer",
             "Action",
@@ -20,13 +20,15 @@
     },
     "door": {
         "executable": "syncdoom",
-        "launch_command": "-f {dropfile} -home \"{homedir}\"",
+        "launch_command": "syncdoom -f {dropfile} -home \"{homedir}\" -iwad freedoom1.wad",
         "launch_command_windows": null,
         "dropfile_format": "DOOR32.SYS",
         "output_encoding": "utf8",
         "max_nodes": 10,
         "ansi_required": true,
-        "time_per_day": 30
+        "time_per_day": 30,
+        "env": [],
+        "env_passthrough": []
     },
     "requirements": {
         "admin_only": false
@@ -38,5 +40,7 @@
         "max_sessions": 10,
         "allow_anonymous": false,
         "guest_max_sessions": 2
-    }
+    },
+    "data_parser": "",
+    "data_dir": "."
 }
