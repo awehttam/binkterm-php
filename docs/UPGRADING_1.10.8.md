@@ -1,6 +1,6 @@
 # Upgrading to 1.10.8
 
-BinktermPHP 1.10.8 focuses on door games, security hardening and reliability. Door leaderboards can now be built from the player files of DOS and native doors such as LORD and The Wire, and sysops can add browser-playable games hosted on the Internet Archive. Native doors start with a clean environment that no longer exposes the secrets in `.env`, and can optionally run as a separate unprivileged operating system user. The dashboard and terminal server show door activity and Top Scores, the Files page is tabbed with a forum-style area list, and the BBS Directory records where each entry came from. Background services now reconnect to PostgreSQL after a restart and wait for it when started at boot, so a database outage no longer leaves daemons stopped or failing.
+BinktermPHP 1.10.8 focuses on door games, security hardening and reliability. Door leaderboards can now be built from the player files of DOS and native doors such as LORD and The Wire, and sysops can add browser-playable games hosted on the Internet Archive. Native doors now start with a sanitized, clean environment, and can optionally run as a separate unprivileged operating system user. The dashboard and terminal server show door activity and Top Scores, the Files page is tabbed with a forum-style area list, and the BBS Directory records where each entry came from. Background services now reconnect to PostgreSQL after a restart and wait for it when started at boot, so a database outage no longer leaves daemons stopped or failing.
 
 Make sure you have a current backup of your database and files before upgrading.
 
@@ -58,7 +58,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Native Doors
 
-- **Doors receive a clean environment:** native doors, DOSBox and DOSEMU no longer inherit the door bridge's environment, which included the database, SMTP and admin daemon secrets from `.env`.
+- **Doors receive a clean environment:** native doors, DOSBox and DOSEMU no longer inherit the door bridge's environment and start with a sanitized, clean one instead.
 - **Running native doors as a separate user:** a native door can now run as an unprivileged account that cannot read `.env` or your configuration, chosen per door in Admin → Native Doors.
 
 ### Dashboard
@@ -178,7 +178,7 @@ Node detail windows now show a QR code directly beneath a MeshCore node's public
 
 ### Doors Receive a Clean Environment
 
-Native doors used to start with a copy of the door bridge's environment. That environment held the secrets from `.env` (database login, SMTP login, admin daemon secret), so any door could read them. A native door now starts with only these variables:
+Native doors used to start with a copy of the door bridge's environment. A native door now starts with a sanitized, clean environment containing only these variables:
 
 - `PATH`, set to `/usr/local/bin:/usr/bin:/bin`. Set `NATIVEDOOR_PATH` in `.env` to change it.
 - `HOME` (the door's private directory for that user, the same as `DOOR_HOME`), `USER`, `LOGNAME`.
@@ -194,19 +194,19 @@ PubTerm always receives its target host and port from the bridge, so a `PUBTERM_
 
 The door bridge must be restarted for these changes to take effect.
 
-A door still runs as the same operating system user as the bridge and can read the files that user can read, including `.env`, unless you run it as a separate user as described next. A cleaner environment closes the leak through inherited variables only.
+A door still runs as the same operating system user as the bridge and can read the files that user can read, including your configuration files, unless you run it as a separate user as described next. The clean environment applies to inherited variables only.
 
 ### Running Native Doors as a Separate User
 
-On Linux and BSD, a native door can now run as a dedicated unprivileged operating system account, so it cannot read `.env`, `config/binkp.json` or the rest of your data. Open **Admin → Native Doors**, click the edit button for a door and choose a **Launch Mode**:
+On Linux and BSD, a native door can now run as a dedicated unprivileged operating system account, so it cannot read `config/binkp.json`, your configuration files or the rest of your data. Open **Admin → Native Doors**, click the edit button for a door and choose a **Launch Mode**:
 
 - **Direct** runs the door as the bridge's user, as before. This is the default.
 - **Sudo** runs the door with `sudo -n -u <door user>`. Choose the **Door User** from the list of members of the `doors` group.
 - **Socket** asks a launcher process that already runs as the door user to start the door. Choose the **Launcher Socket** from the sockets that exist under `/run/binkterm-doors/`.
 
-Nothing changes until you set this up. On a bare-metal install, run `scripts/setup_door_user.sh` as root to create the door accounts and groups and install the sudoers rule (sudo mode) or the launcher units (socket mode); `--dry-run` shows what it would do first. The script does not change the ownership or permissions of any of your files. You decide who can read what: a door user can write only its own `data/users/<id>/<door>` directory, which the bridge checks before each launch, and a door can read `.env`, `config/` and `data/` unless you make them unreadable to the door user. Add `--apply-permissions` to have the script remove world access from those paths, but only if your web server and door bridge share a group that owns the files; on an install where the web server reaches them through world access, that would lock it out. See `docs/CLI.md` (Door User Setup) and `docs/NativeDoors.md` (Launch Modes).
+Nothing changes until you set this up. On a bare-metal install, run `scripts/setup_door_user.sh` as root to create the door accounts and groups and install the sudoers rule (sudo mode) or the launcher units (socket mode); `--dry-run` shows what it would do first. The script does not change the ownership or permissions of any of your files. You decide who can read what: a door user can write only its own `data/users/<id>/<door>` directory, which the bridge checks before each launch, and a door can read `config/` and `data/` unless you make them unreadable to the door user. Add `--apply-permissions` to have the script remove world access from those paths, but only if your web server and door bridge share a group that owns the files; on an install where the web server reaches them through world access, that would lock it out. See `docs/CLI.md` (Door User Setup) and `docs/NativeDoors.md` (Launch Modes).
 
-In Docker, set `NATIVEDOOR_DOOR_USERS` for the `binkterm` service, for example `syncdoom bbslinknative=door_bbs`, and the container creates the users and a launcher for each on every start. Until you choose **Socket** for a door, it still runs as `binkterm` and can read `.env`.
+In Docker, set `NATIVEDOOR_DOOR_USERS` for the `binkterm` service, for example `syncdoom bbslinknative=door_bbs`, and the container creates the users and a launcher for each on every start. Until you choose **Socket** for a door, it still runs as `binkterm`.
 
 The Docker image also stops leaving `data/`, `config/` and `dosbox-bridge/` readable by other users. They are now `770` for directories and `660` for files, owned by `binkterm` and shared with the web server through its group. Anything else that read those paths through world access no longer can. Before every launch the bridge confirms the door user exists and can be reached and can write its own directory, and it refuses to start the door if any check fails. It never falls back to the bridge's user. Once any door uses `sudo` or `socket`, a door with no launch mode set is also refused, so set `direct` explicitly on doors that should stay as they are.
 
