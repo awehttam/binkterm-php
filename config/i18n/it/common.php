@@ -5790,6 +5790,7 @@ return [
     'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'Richieste di file',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Impostazioni',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Interessi',
+    'ui.admin.appearance.term_menu_keys.action.subscriptions' => 'Iscrizioni',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Chi e online',
     'ui.admin.appearance.term_menu_keys.action.qwk' => 'Posta offline QWK',
     'ui.admin.appearance.term_menu_keys.action.bbslist' => 'Directory BBS',

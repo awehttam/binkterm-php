@@ -39,6 +39,7 @@ require_once __DIR__ . '/src/AnsiForm.php';
 require_once __DIR__ . '/src/AnsiTabComponent.php';
 require_once __DIR__ . '/src/SettingsHandler.php';
 require_once __DIR__ . '/src/InterestsHandler.php';
+require_once __DIR__ . '/src/SubscriptionsHandler.php';
 require_once __DIR__ . '/src/QwkMenuHandler.php';
 require_once __DIR__ . '/src/BbsListHandler.php';
 require_once __DIR__ . '/src/NodelistBrowserHandler.php';

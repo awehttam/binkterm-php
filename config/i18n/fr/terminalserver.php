@@ -547,6 +547,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Interets',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Abonnements',
     'ui.terminalserver.server.menu.qwk'       => 'K) Courrier QWK hors ligne',
 
     // --- Main menu section headers ---
@@ -565,6 +566,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Crédits',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Abonnements',
+    'ui.terminalserver.subscriptions.network_title' => 'Abonnements : {network} - Entrée pour s\'abonner/se désabonner',
+    'ui.terminalserver.subscriptions.local_network' => 'Local',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} abonnées)',
+    'ui.terminalserver.subscriptions.none' => 'Aucune zone d\'écho disponible.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Échec de l\'abonnement à {area}.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Échec du désabonnement de {area}.',
     'ui.terminalserver.interests.title'              => 'Interets',
     'ui.terminalserver.interests.none'               => 'Aucun interet disponible.',
     'ui.terminalserver.interests.area_count'         => '({count} zones)',

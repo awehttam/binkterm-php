@@ -589,6 +589,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Interessen',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Abonnements',
     'ui.terminalserver.server.menu.qwk'       => 'K) QWK Offline Mail',
 
     // --- Main menu section headers ---
@@ -607,6 +608,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Guthaben',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Abonnements',
+    'ui.terminalserver.subscriptions.network_title' => 'Abonnements: {network} - Eingabe zum Abonnieren/Abbestellen',
+    'ui.terminalserver.subscriptions.local_network' => 'Lokal',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} abonniert)',
+    'ui.terminalserver.subscriptions.none' => 'Keine Echo-Bereiche verfügbar.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Abonnieren von {area} fehlgeschlagen.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Abbestellen von {area} fehlgeschlagen.',
     'ui.terminalserver.interests.title'              => 'Interessen',
     'ui.terminalserver.interests.none'               => 'Keine Interessen verfügbar.',
     'ui.terminalserver.interests.area_count'         => '({count} Bereiche)',

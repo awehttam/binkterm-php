@@ -50,6 +50,7 @@ class AppearanceConfig
         'freqrequests' => 'r',
         'settings'   => 't',
         'interests'  => 'i',
+        'subscriptions' => 'a',
         'whosonline' => 'w',
         'qwk'        => 'k',
         'bbslist'    => 'b',

@@ -589,6 +589,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Interessi',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Iscrizioni',
     'ui.terminalserver.server.menu.qwk'       => 'K) Posta offline QWK',
 
     // --- Main menu section headers ---
@@ -607,6 +608,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Crediti',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Iscrizioni',
+    'ui.terminalserver.subscriptions.network_title' => 'Iscrizioni: {network} - Invio per iscriversi/annullare',
+    'ui.terminalserver.subscriptions.local_network' => 'Locale',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} iscritte)',
+    'ui.terminalserver.subscriptions.none' => 'Nessuna area echo disponibile.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Iscrizione a {area} non riuscita.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Annullamento dell\'iscrizione a {area} non riuscito.',
     'ui.terminalserver.interests.title'              => 'Interessi',
     'ui.terminalserver.interests.none'               => 'Nessun interesse disponibile.',
     'ui.terminalserver.interests.area_count'         => '({count} aree)',

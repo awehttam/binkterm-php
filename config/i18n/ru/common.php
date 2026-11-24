@@ -648,6 +648,7 @@ return [
     'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'Запросы файлов',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Настройки',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Интересы',
+    'ui.admin.appearance.term_menu_keys.action.subscriptions' => 'Подписки',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Кто онлайн',
     'ui.admin.appearance.term_menu_keys.action.qwk' => 'QWK офлайн-почта',
     'ui.admin.appearance.term_menu_keys.action.bbslist' => 'Каталог BBS',

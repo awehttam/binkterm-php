@@ -5793,6 +5793,7 @@ return [
     'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'Solicitudes de archivos',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Configuracion',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Intereses',
+    'ui.admin.appearance.term_menu_keys.action.subscriptions' => 'Suscripciones',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Quien esta en linea',
     'ui.admin.appearance.term_menu_keys.action.qwk' => 'Correo sin conexion QWK',
     'ui.admin.appearance.term_menu_keys.action.bbslist' => 'Directorio BBS',

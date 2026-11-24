@@ -641,6 +641,7 @@ return [
     'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'File Requests',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Settings',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Interests',
+    'ui.admin.appearance.term_menu_keys.action.subscriptions' => 'Subscriptions',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Who\'s Online',
     'ui.admin.appearance.term_menu_keys.action.qwk' => 'QWK Offline Mail',
     'ui.admin.appearance.term_menu_keys.action.bbslist' => 'BBS Directory',

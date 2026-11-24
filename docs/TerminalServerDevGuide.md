@@ -447,6 +447,14 @@ The admin save route derives its valid action list from `array_keys(AppearanceCo
 
 ---
 
+## Subscriptions
+
+`SubscriptionsHandler::show()` is the entry point for the `subscriptions` main menu action (default key `a`, listed in the Settings column). It uses `EchoareaSubscriptionManager` directly, the same service behind `/api/subscriptions`, so sysop-only filtering and subscription reactivation match the web side. `Database::getLivePdo()` is called before each read or write, and a failure is passed to `Database::heal()`.
+
+The handler builds two `chooseFromList()` screens. The first groups `getAllEchoareasWithSubscriptionStatus()` rows by network, with local areas (`is_local`) grouped under an empty domain and shown with the `ui.terminalserver.subscriptions.local_network` label. The second lists one network's areas and calls `subscribeUser()` or `unsubscribeUser()` when an area is selected, then rebuilds the list with the same row highlighted. Strings live under `ui.terminalserver.subscriptions.*` in every locale's `terminalserver.php`.
+
+---
+
 ## Doors Hub
 
 `DoorHandler::show()` is the entry point for the `doors` main menu action. It renders a hub via `showScrollablePanel()` (extra key `p` returns `play`) and loops: `play` calls the private `DoorHandler::showDoorList()` (the door picker and launcher); any other result returns to the main menu.

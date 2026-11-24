@@ -30,6 +30,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [TIC Files Log Why a Virus Scan Was Skipped](#tic-files-log-why-a-virus-scan-was-skipped)
 - [Terminal Server](#terminal-server)
   - [Door Games Hub With Activity and Top Scores](#door-games-hub-with-activity-and-top-scores)
+  - [Subscriptions Menu Item](#subscriptions-menu-item)
   - [Status Bar No Longer Scrolls the Screen](#status-bar-no-longer-scrolls-the-screen)
   - [Menus Repaint Immediately When the Window Is Resized](#menus-repaint-immediately-when-the-window-is-resized)
 - [Admin Dashboard](#admin-dashboard)
@@ -82,6 +83,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Terminal Server
 
 - **Door Games hub with activity and Top Scores:** the Door Games menu item in the Telnet and SSH terminal server now opens a screen showing the most popular doors, recent players and the monthly Top Scores, with a key to continue to the list of playable doors.
+- **Subscriptions menu item:** the Telnet and SSH main menu has a new Subscriptions item under Settings, default key `A`, for subscribing to and unsubscribing from echo areas network by network.
 - **Status bar no longer scrolls the screen:** drawing the full-width status bar on the last terminal row no longer scrolls the screen up one line, which had pushed screen headers off the top.
 - **Menus repaint immediately when the window is resized:** the main menu and list screens now redraw as soon as the terminal window is resized, instead of waiting for the next keypress.
 
@@ -298,6 +300,14 @@ Choosing **Door Games** from the terminal server main menu previously went strai
 Press `U` or `D` to scroll, `P` to open the list of playable doors, or `Q` to return to the main menu. Quitting the door list returns to the hub. Disabled doors, doors hidden from the web, and admin-only doors (for non-admin users) are left out of the activity lists.
 
 The hub works in both the full-screen and line-mode shells. Its text is translated in every installed language.
+
+### Subscriptions Menu Item
+
+The Telnet and SSH main menu now has a **Subscriptions** item in the Settings section, bound to `A` by default. It opens a list of networks, local areas first, each showing how many of its echo areas the user is subscribed to. Selecting a network lists its echo areas, with `[+]` marking the subscribed ones. Pressing Enter on an area subscribes to it or unsubscribes from it. These are the same subscriptions the web Subscriptions page uses.
+
+The main menu layout also changed. Subscriptions and Interests share one row in the Settings column, and Quit now sits at the bottom of the Files column after a blank line instead of on its own row.
+
+If you saved a custom main menu key map under **Admin > BBS Settings > Appearance > Terminal Server > Main Menu Keys** before this release, the Subscriptions item is hidden until you assign it a key there, because actions missing from a saved map are not shown. Restart the Telnet and SSH daemons after upgrading.
 
 ### Status Bar No Longer Scrolls the Screen
 

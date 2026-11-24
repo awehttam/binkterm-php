@@ -585,6 +585,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Intereses',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Suscripciones',
     'ui.terminalserver.server.menu.qwk'       => 'K) Correo QWK sin conexión',
 
     // --- Main menu section headers ---
@@ -603,6 +604,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Créditos',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Suscripciones',
+    'ui.terminalserver.subscriptions.network_title' => 'Suscripciones: {network} - Intro para suscribirse/cancelar',
+    'ui.terminalserver.subscriptions.local_network' => 'Local',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} suscritas)',
+    'ui.terminalserver.subscriptions.none' => 'No hay áreas de eco disponibles.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'No se pudo suscribir a {area}.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'No se pudo cancelar la suscripción a {area}.',
     'ui.terminalserver.interests.title'              => 'Intereses',
     'ui.terminalserver.interests.none'               => 'No hay intereses disponibles.',
     'ui.terminalserver.interests.area_count'         => '({count} áreas)',

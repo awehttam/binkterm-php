@@ -58,6 +58,7 @@ Custom shells can be added by placing plugin definition files in
 - Local chat with rooms, direct messages, online users, and moderation shortcuts
 - BBS Directory (browse other BBSes when enabled)
 - Nodelist browser (browse Fidonet nodelist entries when available)
+- Subscriptions (subscribe to or unsubscribe from echo areas, network by network)
 - Interests (tag-based content interests when enabled)
 - Door launcher integration (DOS doors, native doors, and configured door menu), fronted by a hub screen showing the monthly Top Scores leaderboard and recent door activity
 - Who's Online display
@@ -301,6 +302,7 @@ Every action in the terminal main menu can be bound to a different single letter
 | R | File Requests |
 | T | Settings |
 | I | Interests |
+| A | Subscriptions |
 | W | Who's Online |
 | K | QWK Offline Mail |
 | B | BBS Directory |
@@ -311,6 +313,12 @@ Every action in the terminal main menu can be bound to a different single letter
 If no custom map is saved the built-in defaults above are used. When a custom map is saved, any action with no assigned key is hidden from the menu and its slot is not rendered — remaining items in that section reflow to fill the gap. When every action in a section (Messaging, Community/Explore, or Files/Settings) is unassigned, the section header itself is suppressed. The `quit` key is always required. Sysops are responsible for ensuring their `mainmenu.ans` art matches whatever keys are configured.
 
 The key map is returned as part of the `GET /api/config/session-init` call made immediately after login.
+
+### Subscriptions
+
+The **Subscriptions** item in the Settings section of the main menu (default key `A`) lets a user choose which echo areas appear in their echomail list. It first lists the networks, local areas first, each with a count of how many of its areas the user is subscribed to. Selecting a network lists its echo areas with a `[+]` marker on the ones the user is subscribed to. Pressing Enter on an area subscribes to it or unsubscribes from it, and the marker updates straight away. Q returns to the previous list. Sysop-only areas are shown to administrators only. The same subscriptions are used by the web interface.
+
+A sysop who saved a custom main menu key map before this item existed must assign it a key under **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**, because actions missing from a saved map are hidden.
 
 ### Door Games
 

@@ -597,6 +597,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'Demandes de fichiers',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Paramètres',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Centres d\'intérêt',
+    'ui.admin.appearance.term_menu_keys.action.subscriptions' => 'Abonnements',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Qui est en ligne',
     'ui.admin.appearance.term_menu_keys.action.qwk' => 'Courrier hors-ligne QWK',
     'ui.admin.appearance.term_menu_keys.action.bbslist' => 'Annuaire BBS',
