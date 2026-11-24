@@ -305,7 +305,7 @@ The hub works in both the full-screen and line-mode shells. Its text is translat
 
 The Telnet and SSH main menu now has a **Subscriptions** item in the Settings section, bound to `A` by default. It opens a list of networks, local areas first, each showing how many of its echo areas the user is subscribed to. Selecting a network lists its echo areas, with `[+]` marking the subscribed ones. Pressing Enter on an area subscribes to it or unsubscribes from it. These are the same subscriptions the web Subscriptions page uses.
 
-The main menu layout also changed. Subscriptions and Interests share one row in the Settings column, and Quit now sits at the bottom of the Files column after a blank line instead of on its own row.
+On the full-screen main menu, Subscriptions shares a row with Interests in the Settings column, and Quit is now separated from the items above it by one blank line.
 
 If you saved a custom main menu key map under **Admin > BBS Settings > Appearance > Terminal Server > Main Menu Keys** before this release, the Subscriptions item is hidden until you assign it a key there, because actions missing from a saved map are not shown. Restart the Telnet and SSH daemons after upgrading.
 
