@@ -20,7 +20,7 @@
     },
     "door": {
         "executable": "syncdoom",
-        "launch_command": "syncdoom -door32 {dropfile} -home \"{homedir}\" -iwad freedoom1.wad",
+        "launch_command": "syncdoom {dropfile} -home \"{homedir}\" -iwad freedoom1.wad",
         "launch_command_windows": null,
         "dropfile_format": "DOOR32.SYS",
         "output_encoding": "utf8",
