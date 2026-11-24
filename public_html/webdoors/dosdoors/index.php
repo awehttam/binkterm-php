@@ -543,8 +543,6 @@ $mobileCatalog = array_filter(
                                 } catch (_) {}
                             }
 
-                            // TEMP EXPERIMENT: native doors receive the raw stream, unfiltered
-                            if (!DOOR_IS_NATIVE) {
                             if (pendingAnsiChunk) {
                                 data = pendingAnsiChunk + data;
                                 pendingAnsiChunk = '';
@@ -562,7 +560,6 @@ $mobileCatalog = array_filter(
                             // Standard VT100 / xterm.js erases the screen but leaves cursor position unchanged.
                             // Translate to ensure DOS doors relying on ANSI.SYS cursor homing align correctly.
                             data = data.replace(/\x1b\[2J(?!\x1b\[H|\x1b\[1;1H|\x1b\[;H|\x1b\[1;1f)/g, '\x1b[2J\x1b[H');
-                            }
                         }
                         if (data.length > 0) {
                             term.write(data);
