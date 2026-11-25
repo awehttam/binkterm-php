@@ -47,6 +47,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
+  - [Using Docker](#using-docker)
 
 ## Summary of Changes
 
@@ -429,3 +430,21 @@ scripts/restart_daemons.sh
 ### Using the Installer
 
 Download the latest installer from the [BinktermPHP website](https://lovelybits.org/binktermphp) and run it. The installer handles file replacement, runs setup, and restarts all daemons automatically — no manual steps required.
+
+### Using Docker
+
+Pull the new source, then rebuild the image and recreate the containers:
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+If you run native doors, these 1.10.8 changes apply to your install as soon as the new container starts:
+
+1. **File permissions are tightened.** On every start the container sets `data/`, `config/` and `dosbox-bridge/` to `770` for directories and `660` for files, owned by `binkterm`, with no access for other users. This also applies to your existing volumes and bind mounts. Anything outside the container that reads those paths as another user, such as a host-side backup job, will lose access, so give it access through the `binkterm` group or run it as that user.
+2. **Doors start with a clean environment.** A native door no longer inherits the door bridge's environment variables. After the upgrade, launch each of your native doors once and confirm it works. If a door needs a variable it used to inherit, such as `TMPDIR` or `http_proxy`, the door's manifest must list it under `door.env_passthrough`. Then open **Admin → Native Doors**, click the edit button for the door and tick the variable under **Approved Environment Variables**. The bridge log lists unapproved requests each time the door launches. See [Doors Receive a Clean Environment](#doors-receive-a-clean-environment).
+3. **Doors still run as `binkterm`.** Running doors as separate users is optional. To use it, add `NATIVEDOOR_DOOR_USERS` to the `.env` file next to `docker-compose.yml`, for example `NATIVEDOOR_DOOR_USERS=syncdoom bbslinknative=door_bbs`, then run `docker compose up -d` again. The container creates the users and launchers on each start. Then open **Admin → Native Doors**, edit each door, and set **Launch Mode** to **Socket** and **Launcher Socket** to that door's socket. Once any door uses **Sudo** or **Socket**, a door with no launch mode set is refused, so set **Direct** explicitly on the doors that should keep running as `binkterm`. See [Running Native Doors as a Separate User](#running-native-doors-as-a-separate-user).
+
+The door bridge restarts with the container, so no separate restart is needed.
