@@ -156,6 +156,12 @@ try {
         @file_put_contents($pidFile, (string)getmypid());
     }
     
+    // At boot the daemon may start before PostgreSQL is accepting connections.
+    if (!\BinktermPHP\Database::waitUntilAvailable(300, fn(string $m) => $logger->warning($m))) {
+        $logger->error('Database did not become available, exiting');
+        exit(1);
+    }
+
     $scheduler = new Scheduler($config, $logger);
 
     $logger->info("Starting BinktermPHP scheduler daemon ".Version::getVersion()."...");

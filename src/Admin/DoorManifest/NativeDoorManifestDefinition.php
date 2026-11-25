@@ -2,6 +2,8 @@
 
 namespace BinktermPHP\Admin\DoorManifest;
 
+use BinktermPHP\NativeDoorEnvPolicy;
+
 class NativeDoorManifestDefinition implements DoorManifestTypeDefinition
 {
     public function getTypeKey(): string
@@ -215,6 +217,29 @@ class NativeDoorManifestDefinition implements DoorManifestTypeDefinition
                         'default'   => 30,
                         'help_key'  => 'ui.admin.door_manifest_editor.field.time_per_day_help',
                     ],
+                    ...DoorDataFields::getFields(),
+                ],
+            ],
+            [
+                'key'       => 'environment',
+                'label_key' => 'ui.admin.door_manifest_editor.section.environment',
+                'fields'    => [
+                    [
+                        'path'      => 'door.env',
+                        'label_key' => 'ui.admin.door_manifest_editor.field.door_env',
+                        'type'      => 'key-value',
+                        'required'  => false,
+                        'default'   => [],
+                        'help_key'  => 'ui.admin.door_manifest_editor.field.door_env_help',
+                    ],
+                    [
+                        'path'      => 'door.env_passthrough',
+                        'label_key' => 'ui.admin.door_manifest_editor.field.door_env_passthrough',
+                        'type'      => 'array-text',
+                        'required'  => false,
+                        'default'   => [],
+                        'help_key'  => 'ui.admin.door_manifest_editor.field.door_env_passthrough_help',
+                    ],
                 ],
             ],
             [
@@ -293,6 +318,24 @@ class NativeDoorManifestDefinition implements DoorManifestTypeDefinition
         $executable = trim((string)($manifest['door']['executable'] ?? ''));
         if ($executable === '') {
             $errors[] = 'door.executable is required';
+        }
+
+        foreach (($manifest['door']['env'] ?? []) as $name => $value) {
+            $name = (string)$name;
+            // Any valid name is allowed: these are literal values, never copied from the bridge.
+            if (!NativeDoorEnvPolicy::isValidName($name)) {
+                $errors[] = "door.env: invalid variable name '{$name}'";
+            } elseif (!is_scalar($value)) {
+                $errors[] = "door.env: value for '{$name}' must be a string";
+            }
+        }
+
+        foreach (($manifest['door']['env_passthrough'] ?? []) as $name) {
+            if (!NativeDoorEnvPolicy::isValidName($name)) {
+                $errors[] = 'door.env_passthrough: invalid variable name ' . json_encode($name);
+            } elseif (NativeDoorEnvPolicy::isSecretName($name)) {
+                $errors[] = "door.env_passthrough: '{$name}' looks like a secret and cannot be requested";
+            }
         }
 
         return $errors;

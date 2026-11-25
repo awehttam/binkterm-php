@@ -545,6 +545,16 @@ return [
     // --- Door games ---
     'ui.terminalserver.doors.no_doors'                 => 'No doors are currently available.',
     'ui.terminalserver.doors.title'                    => 'Door Games',
+    'ui.terminalserver.doors.top_scores' => 'Top Scores - {month}',
+    'ui.terminalserver.doors.no_scores' => 'No scores recorded this month.',
+    'ui.terminalserver.doors.plays' => '{count} plays',
+    'ui.terminalserver.doors.hub_scroll' => 'Scroll',
+    'ui.terminalserver.doors.hub_play' => 'Play a door',
+    'ui.terminalserver.doors.hub_quit' => 'Return',
+    'ui.terminalserver.doors.hub_help' => 'U/D Scroll  P Play a door  Q Return',
+    'ui.terminalserver.doors.popular' => 'Most Popular',
+    'ui.terminalserver.doors.recent_players' => 'Recent Players',
+    'ui.terminalserver.doors.no_activity' => 'No recent door activity.',
     'ui.terminalserver.doors.enter_choice'             => 'Enter number to play, or Q to return: ',
     'ui.terminalserver.doors.invalid'                  => 'Invalid selection.',
     'ui.terminalserver.doors.launching'                => 'Launching {name}...',
@@ -579,6 +589,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Interests',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Subscriptions',
     'ui.terminalserver.server.menu.qwk'       => 'K) QWK Offline Mail',
 
     // --- Main menu section headers ---
@@ -597,6 +608,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Credits',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Subscriptions',
+    'ui.terminalserver.subscriptions.network_title' => 'Subscriptions: {network} - Enter to subscribe/unsubscribe',
+    'ui.terminalserver.subscriptions.local_network' => 'Local',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} subscribed)',
+    'ui.terminalserver.subscriptions.none' => 'No echo areas are available.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Failed to subscribe to {area}.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Failed to unsubscribe from {area}.',
     'ui.terminalserver.interests.title'              => 'Interests',
     'ui.terminalserver.interests.none'               => 'No interests are available.',
     'ui.terminalserver.interests.area_count'         => '({count} areas)',

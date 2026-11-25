@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nodejs \
         p7zip-full \
         postgresql-client \
+        procps \
         rsync \
         supervisor \
         telnet \
@@ -88,7 +89,8 @@ RUN mkdir -p /opt/binkterm-i18n-src \
 
 # Create necessary directories and set permissions.
 # Files are owned by binkterm (mirroring a normal install).
-# 775 on data/, config/, and dosbox-bridge/ gives www-data (binkterm group) write access.
+# Owner and group (www-data is in the binkterm group) get read/write on data/, config/ and
+# dosbox-bridge/; everyone else gets nothing, so a native door user cannot read them.
 RUN mkdir -p \
         data/run \
         data/logs \
@@ -99,7 +101,7 @@ RUN mkdir -p \
         dosbox-bridge/dos/DROPS \
         dosbox-bridge/dos/DOORS \
     && chown -R binkterm:binkterm /var/www/html \
-    && chmod -R 775 data config dosbox-bridge \
+    && chmod -R u=rwX,g=rwX,o= data config dosbox-bridge \
     && chmod +x scripts/*.php
 
 # Copy Docker configuration files.

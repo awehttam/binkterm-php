@@ -164,7 +164,7 @@ This is how you verify the full pipeline is working.
 
 **Send a test netmail:**
 
-Compose a netmail to yourself or to the network coordinator using their FTN address. Go to **Netmail → Compose**, enter the destination address (e.g. `1:1/1`), and send. Poll to deliver it.
+Compose a netmail to yourself or to the network coordinator using their FTN address. Go to **Netmail → Compose**, enter the destination address, and send. Poll to deliver it.
 
 If mail is not flowing, see the [Troubleshooting section in FTNGuide](FTNGuide.md#troubleshooting) and check the log files in `data/logs/`.
 

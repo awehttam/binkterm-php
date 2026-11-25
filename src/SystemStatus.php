@@ -36,7 +36,9 @@ class SystemStatus
             'telnetd'              => Config::env('TELNETD_PID_FILE',      $runDir . '/telnetd.pid'),
             'ssh_daemon'           => Config::env('SSHD_PID_FILE',        $runDir . '/sshd.pid'),
             'gemini_daemon'        => Config::env('GEMINI_PID_FILE',       $runDir . '/gemini_daemon.pid'),
+            'nntp_daemon'          => Config::env('NNTPD_PID_FILE',        $runDir . '/nntpd.pid'),
             'mrc_daemon'           => Config::env('MRC_PID_FILE',          $runDir . '/mrc_daemon.pid'),
+            'matterbridge_daemon'  => Config::env('MATTERBRIDGE_PID_FILE', $runDir . '/matterbridge_daemon.pid'),
             'multiplexing_server'  => Config::env('MULTIPLEX_PID_FILE',    $runDir . '/multiplexing-server.pid'),
             'mcp_server'           => Config::env('MCP_SERVER_PID_FILE',   $runDir . '/mcp-server.pid'),
         ];

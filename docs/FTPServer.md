@@ -392,6 +392,16 @@ Logged events include:
 - run in foreground on Windows
 - `--daemon` requires Unix `pcntl_fork`
 
+**Users see `451` or `421` replies after PostgreSQL restarted**
+- the daemon reconnects to PostgreSQL on its own and keeps running, so no restart is needed
+- when the database connection drops, the failing command is answered `451 Local error in processing, please try again`, and repeating it works once the daemon has reconnected
+- if PostgreSQL is still unreachable, the user gets `421 Service not available, closing control connection` and only that user's connection is closed
+- `data/logs/ftpd.log` records `FTP lost its database connection` and `FTP database connection restored`
+
+**The daemon is not running after a reboot**
+- at boot the daemon can start before PostgreSQL is ready; it logs `Database not available yet, waiting for it to start` and retries for up to five minutes, then logs `Database is available after Ns` and carries on
+- if PostgreSQL is still unreachable after five minutes the daemon exits; check `data/logs/ftpd.log` and start it again once the database is up
+
 ## See Also
 
 - [Configuration](CONFIGURATION.md)

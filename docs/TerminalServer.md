@@ -58,8 +58,9 @@ Custom shells can be added by placing plugin definition files in
 - Local chat with rooms, direct messages, online users, and moderation shortcuts
 - BBS Directory (browse other BBSes when enabled)
 - Nodelist browser (browse Fidonet nodelist entries when available)
+- Subscriptions (subscribe to or unsubscribe from echo areas, network by network)
 - Interests (tag-based content interests when enabled)
-- Door launcher integration (DOS doors, native doors, and configured door menu)
+- Door launcher integration (DOS doors, native doors, and configured door menu), fronted by a hub screen showing the monthly Top Scores leaderboard and recent door activity
 - Who's Online display
 - Reusable public profile viewer for terminal user lookups
 - Full-screen message editor with cursor navigation and line editing controls
@@ -161,6 +162,7 @@ Pipe-code rendering for plain bulletins and other ANSI/pipe text shared with the
 - **Process Cleanup**: Proper signal handling for SIGCHLD, SIGTERM, and SIGINT
 - **Connection Health**: Timeout on socket accept operations
 - **Zombie Prevention**: Automatic reaping of child processes
+- **Database Restarts**: Open sessions reconnect to PostgreSQL by themselves after it restarts, so the Node List, BBS Directory and door activity screens and the check that ends revoked sessions resume without users reconnecting. While PostgreSQL is down, logins fail like a wrong password, because login goes through the web API.
 
 ### Sixel Image Rendering
 
@@ -300,6 +302,7 @@ Every action in the terminal main menu can be bound to a different single letter
 | R | File Requests |
 | T | Settings |
 | I | Interests |
+| A | Subscriptions |
 | W | Who's Online |
 | K | QWK Offline Mail |
 | B | BBS Directory |
@@ -310,6 +313,22 @@ Every action in the terminal main menu can be bound to a different single letter
 If no custom map is saved the built-in defaults above are used. When a custom map is saved, any action with no assigned key is hidden from the menu and its slot is not rendered — remaining items in that section reflow to fill the gap. When every action in a section (Messaging, Community/Explore, or Files/Settings) is unassigned, the section header itself is suppressed. The `quit` key is always required. Sysops are responsible for ensuring their `mainmenu.ans` art matches whatever keys are configured.
 
 The key map is returned as part of the `GET /api/config/session-init` call made immediately after login.
+
+### Subscriptions
+
+The **Subscriptions** item in the Settings section of the main menu (default key `A`) lets a user choose which echo areas appear in their echomail list. It first lists the networks, local areas first, each with a count of how many of its areas the user is subscribed to. Selecting a network lists its echo areas with a `[+]` marker on the ones the user is subscribed to. Pressing Enter on an area subscribes to it or unsubscribes from it, and the marker updates straight away. Q returns to the previous list. Sysop-only areas are shown to administrators only. The same subscriptions are used by the web interface.
+
+A sysop who saved a custom main menu key map before this item existed must assign it a key under **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**, because actions missing from a saved map are hidden.
+
+### Door Games
+
+Selecting Door Games opens a hub screen rather than the door list. It shows the same information as the web interface:
+
+- **Top Scores** - the current month's best WebDoor scores. This section is hidden when Hide Top Scores is enabled under Admin → Appearance.
+- **Most Popular** - the doors played most over the past 30 days, with play counts.
+- **Recent Players** - who most recently played which door, and when (shown in the user's timezone).
+
+Press `U`/`D` to scroll, `P` to open the list of playable doors, or `Q` to return to the main menu. Quitting the door list returns to the hub. Admin-only doors are excluded from the activity lists for non-admin users.
 
 ### Local Chat
 
@@ -371,7 +390,7 @@ In **Admin → BBS Settings → Terminal Server Settings**, sysops can enable **
 - **Smooth Streaming**: Terminal output is streamed in small chunk bursts (~35 updates/sec) with microsecond pacing, accurately recreating the line-by-line drawing effect of ANSI art without stuttering.
 - **Typing Responsiveness**: Single-character typing echoes bypass the delay so local interactive input has zero latency.
 - **Skip on Keypress**: If a user presses a key while a large screen is actively drawing, the delay is instantly bypassed for the remainder of that screen.
-- **SSH Support**: A companion setting allows applying the same baud rate simulation to SSH connections if desired.
+- **SSH Support**: **Throttle SSH server speed (dialup simulation)** is a separate checkbox that applies the same baud rate to SSH sessions. It is independent of the Telnet checkbox; the baud rate selector is shown when either is enabled. Large output such as Sixel images draws at the emulated speed unless the user presses a key.
 
 ### Login Menu
 

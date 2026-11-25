@@ -15,7 +15,7 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
@@ -42,39 +42,6 @@
                         {{ t('ui.fileareas.loading_file_areas', {}, locale, ['common']) }}
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.common.statistics', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-8">{{ t('ui.fileareas.active_areas', {}, locale, ['common']) }}</dt>
-                    <dd class="col-4" id="activeCount">-</dd>
-
-                    <dt class="col-8">{{ t('ui.fileareas.total_files', {}, locale, ['common']) }}</dt>
-                    <dd class="col-4" id="totalFiles">-</dd>
-
-                    <dt class="col-8">{{ t('ui.fileareas.total_size', {}, locale, ['common']) }}</dt>
-                    <dd class="col-4" id="totalSize">-</dd>
-                </dl>
-            </div>
-        </div>
-
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.fileareas.settings_title', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <small class="text-muted">
-                    <strong>{{ t('ui.fileareas.replace_existing_label', {}, locale, ['common']) }}</strong> {{ t('ui.fileareas.replace_existing_help', {}, locale, ['common']) }}
-                    <br><br>
-                    <strong>{{ t('ui.fileareas.versioning_label', {}, locale, ['common']) }}</strong> {{ t('ui.fileareas.versioning_help', {}, locale, ['common']) }}
-                </small>
             </div>
         </div>
     </div>
@@ -410,7 +377,6 @@ $(document).ready(function() {
 
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadFileareas();
-        loadStats();
     });
 
     $('input[name="filter"]').change(function() {
@@ -630,6 +596,10 @@ function displayFileareas(fileareas) {
             ? `<span class="badge bg-dark ms-1">${uiT('ui.fileareas.is_public', 'Public File Area')}</span>`
             : '';
 
+        const virusScanBadge = area.scan_virus
+            ? `<span class="badge bg-success ms-1" title="${uiT('ui.fileareas.virus_scanning', 'Virus Scanning')}"><i class="fas fa-shield-virus"></i></span>`
+            : '';
+
         const freqBadge = area.freq_enabled
             ? `<span class="badge bg-warning text-dark ms-1">FREQ</span>`
             : '';
@@ -651,7 +621,7 @@ function displayFileareas(fileareas) {
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
                 <td>${fileSize}</td>
-                <td>${statusBadge}${localBadge}${replaceBadge}${geminiPublicBadge}${publicBadge}${freqBadge}${isoBadge}</td>
+                <td>${statusBadge}${localBadge}${replaceBadge}${geminiPublicBadge}${publicBadge}${freqBadge}${virusScanBadge}${isoBadge}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="editFilearea(${area.id})">
                         <i class="fas fa-edit"></i>
@@ -863,7 +833,6 @@ function saveFilearea() {
                 bootstrap.Modal.getInstance('#fileareaModal').hide();
                 showSuccess(successMessage);
                 loadFileareas();
-                loadStats();
             });
         },
         error: function(xhr) {
@@ -899,22 +868,12 @@ function deleteFilearea() {
                 : uiT('ui.fileareas.deleted_success', 'File area deleted');
             showSuccess(successMessage);
             loadFileareas();
-            loadStats();
         },
         error: function(xhr) {
             const error = apiError(xhr.responseJSON, uiT('errors.fileareas.delete_failed', 'Failed to delete file area'));
             showError(error);
         }
     });
-}
-
-function loadStats() {
-    $.get('/api/fileareas/stats')
-        .done(function(data) {
-            $('#activeCount').text(data.active_count);
-            $('#totalFiles').text(data.total_files);
-            $('#totalSize').text(formatBytes(data.total_size));
-        });
 }
 
 function formatBytes(bytes) {

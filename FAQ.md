@@ -520,6 +520,15 @@ UPDATE users SET is_admin = TRUE WHERE username = 'username';
 3. The `timezone` setting in `binkp.json` is correct
 4. PHP's `date.timezone` is configured in `php.ini`
 
+### Q: Why are my sixel graphics slow?
+**A:** Sixel images are large compared to normal screen text, so they are the first thing to crawl if dialup speed emulation is enabled. Output is paced at the emulated baud rate (28,800 baud by default), which can make an image take many seconds to draw. Pressing a key while it is drawing skips the delay for the rest of that screen, which is a good sign this is the cause.
+
+To fix it, go to **Admin → BBS Settings → Terminal Server Settings** and check:
+- **Throttle Telnet server speed (dialup simulation)** — applies to Telnet connections.
+- **Throttle SSH server speed (dialup simulation)** — applies to SSH connections and is independent of the Telnet checkbox.
+
+Uncheck the one for the protocol you are connecting with to draw at full speed, or raise the **Emulated baud rate** if you want to keep the effect. If both are unchecked and sixel is still slow, the image itself may be large; see `SIXEL_PIXELS_PER_COL` and `SIXEL_PIXELS_PER_ROW` in `.env` to limit its size.
+
 ### Q: How do I debug binkp connection issues?
 **A:**
 1. Enable verbose logging in your uplink's configuration

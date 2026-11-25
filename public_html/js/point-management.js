@@ -97,6 +97,7 @@ function renderPointCard(point) {
                 ${point.name ? `<span class="ms-2">${escapeHtml(point.name)}</span>` : ''}
                 ${point.network_name ? `<span class="text-muted ms-2">${escapeHtml(point.network_name)}</span>` : ''}
                 <span class="text-muted ms-2">${escapeHtml(window.t('ui.point_management.point_number_label', {}, 'Point number'))}: ${escapeHtml(String(point.point_number))}</span>
+                <span class="text-muted ms-2">${escapeHtml(window.t('ui.admin.hub_nodes.queue_retention_days', {}, 'Queue Retention (Days)'))}: ${escapeHtml(String(point.queue_retention_days))} ${escapeHtml(window.t('ui.admin.hub_nodes.days', {}, 'days'))}</span>
             </div>
             <div>
                 <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-bs-toggle="collapse" data-bs-target="#pmSettings-${id}" aria-expanded="false" aria-controls="pmSettings-${id}">

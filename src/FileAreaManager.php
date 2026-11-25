@@ -2479,6 +2479,10 @@ class FileAreaManager
         );
         $stmt->execute([$targetAreaId, $newPath, $fileId]);
 
+        // Keep the cached per-area counters correct for both the old and new area
+        $this->updateFileAreaStats((int)$file['file_area_id']);
+        $this->updateFileAreaStats($targetAreaId);
+
         return true;
     }
 

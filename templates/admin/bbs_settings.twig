@@ -94,6 +94,11 @@
                             <label class="form-check-label" for="bbsTerminalThrottleSpeed">{{ t('ui.admin.bbs_settings.terminal_server.throttle_speed', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_server.throttle_speed_help', {}, locale, ['common']) }}</small></div>
                         </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsTerminalThrottleSsh" onchange="toggleThrottleBaudVisibility()">
+                            <label class="form-check-label" for="bbsTerminalThrottleSsh">{{ t('ui.admin.bbs_settings.terminal_server.throttle_ssh', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_server.throttle_ssh_help', {}, locale, ['common']) }}</small></div>
+                        </div>
                         <div class="mb-3 ps-3 border-start border-2 border-secondary" id="bbsTerminalThrottleOptionsGroup">
                             <div class="mb-2">
                                 <label class="form-label" for="bbsTerminalThrottleBaud">{{ t('ui.admin.bbs_settings.terminal_server.throttle_baud', {}, locale, ['common']) }}</label>
@@ -110,11 +115,6 @@
                                     <option value="300">300 baud</option>
                                 </select>
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_server.throttle_baud_help', {}, locale, ['common']) }}</small>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="bbsTerminalThrottleSsh">
-                                <label class="form-check-label" for="bbsTerminalThrottleSsh">{{ t('ui.admin.bbs_settings.terminal_server.throttle_ssh', {}, locale, ['common']) }}</label>
-                                <div><small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_server.throttle_ssh_help', {}, locale, ['common']) }}</small></div>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -932,7 +932,8 @@ function saveBbsScreening() {
 }
 
 function toggleThrottleBaudVisibility() {
-    const enabled = document.getElementById('bbsTerminalThrottleSpeed')?.checked;
+    const enabled = document.getElementById('bbsTerminalThrottleSpeed')?.checked
+        || document.getElementById('bbsTerminalThrottleSsh')?.checked;
     const group = document.getElementById('bbsTerminalThrottleOptionsGroup');
     if (group) {
         group.style.display = enabled ? 'block' : 'none';

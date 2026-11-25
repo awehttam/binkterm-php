@@ -80,16 +80,14 @@
                           '<dd class="d-flex align-items-center gap-2">' +
                           '<code class="text-break small">' + escHtml(publicKey) + '</code>' +
                           '<button class="btn btn-sm btn-outline-secondary flex-shrink-0" id="meshcoreNodeKeyCopyBtn">' +
-                          '<i class="fas fa-copy"></i></button></dd>'
-                        : '') +
-                    '</dl>' +
-                    (node.interface_type === 'meshcore'
-                        ? '<div class="text-center">' +
+                          '<i class="fas fa-copy"></i></button></dd>' +
+                          '<dd class="text-center">' +
                           '<img src="/api/meshcore/node/' + encodeURIComponent(nodeId) + '/qr.svg" ' +
                           'alt="QR Code" class="img-fluid" style="max-width:220px;" loading="lazy">' +
-                          '<p class="small text-muted mt-1">' + window.t('ui.meshcore_nodes.qr_hint', {}, 'Scan to add as MeshCore contact') + '</p>' +
-                          '</div>'
-                        : '');
+                          '<p class="small text-muted mt-1 mb-0">' + window.t('ui.meshcore_nodes.qr_hint', {}, 'Scan to add as MeshCore contact') + '</p>' +
+                          '</dd>'
+                        : '') +
+                    '</dl>';
 
                 const coordsCopyBtn = document.getElementById('meshcoreNodeCoordsCopyBtn');
                 if (coordsCopyBtn) {

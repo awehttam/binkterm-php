@@ -22,7 +22,6 @@
   - [config/binkpjson](#configbinkpjson)
 - [Polling Configuration](#polling-configuration)
   - [Manual Poll](#manual-poll)
-  - [Automatic Polling (Recommended)](#automatic-polling-recommended)
 - [Manual AreaFix Commands](#manual-areafix-commands)
   - [Default Areas](#default-areas)
   - [Subscribing via Netmail](#subscribing-via-netmail)
@@ -96,7 +95,7 @@ The script will guide you through registration and automatically configure your 
 - Mail delivery depends on your polling schedule
 - Still fully functional for sending and receiving
 
-**Note:** Passive nodes must set up regular polling via cron or scheduled task.
+**Note:** Polling happens automatically. The BinkP scheduler (`scripts/binkp_scheduler.php`) polls the hub according to the uplink's poll schedule, so no separate cron job or scheduled task is needed. The scheduler must be running; see `docs/CLI.md`.
 
 ## Registration Process
 
@@ -288,24 +287,6 @@ To manually poll the hub:
 php scripts/binkp_poll.php
 ```
 
-### Automatic Polling (Recommended)
-
-**For passive nodes**, set up a cron job:
-
-```bash
-# Edit crontab
-crontab -e
-
-# Add line to poll every 15 minutes
-*/15 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
-```
-
-**For public nodes**, polling is optional but recommended as a fallback:
-```bash
-# Poll every 30 minutes
-*/30 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
-```
-
 ## Manual AreaFix Commands
 
 > **Tip:** Most echo area management can be done graphically from the **Echo Areas** tab in **Admin → LovlyNet**. The commands below are for advanced use or when web access is unavailable.
@@ -376,7 +357,7 @@ Send these in the body of a netmail to AreaFix:
 
 **For passive nodes:**
 1. This is normal - you must poll the hub
-2. Set up polling via cron (see Polling Configuration above)
+2. Make sure the BinkP scheduler is running; it polls the hub on the uplink's poll schedule (see `docs/CLI.md`)
 
 ### No Mail Flowing
 
@@ -426,7 +407,7 @@ Each network should have its own domain identifier. Additional uplinks can be co
 **From public to passive:**
 1. Update via **Admin → LovlyNet → Setup tab** (or run `php scripts/lovlynet_setup.php --update`)
 2. Check the Passive Node option
-3. Set up polling via cron
+3. Make sure the BinkP scheduler is running so the hub is polled on the uplink's poll schedule
 4. Hub will stop attempting inbound connections
 
 ## Getting Help

@@ -142,6 +142,8 @@ Add this line (adjust the path):
 @reboot /usr/bin/php /path/to/binktest/scripts/mrc_daemon.php --daemon --pid-file=/path/to/binktest/data/run/mrc_daemon.pid
 ```
 
+If the daemon starts before PostgreSQL is ready, it waits for the database for up to five minutes before connecting to the MRC server, so the `@reboot` entry does not need a delay. If the database is still unreachable after that, the daemon logs an error and exits.
+
 #### Keeping the daemon running: systemd
 
 Alternatively, create `/etc/systemd/system/mrc-daemon.service`:
@@ -252,6 +254,9 @@ The MRC connection status indicator (connected / disconnected) appears in the ma
 - Verify the server host and port in `config/mrc.json` (see the server table above)
 - Ensure the port is not blocked by your firewall
 - Try `--debug` flag to see raw protocol output
+
+**Daemon is not running after a reboot**
+- Look for `MRC: Database not available yet, waiting for it to start` in `data/logs/`. The daemon exits if PostgreSQL does not become available within five minutes; start it again once the database is up
 
 **Messages not appearing**
 - Confirm the daemon is running: check `data/run/mrc_daemon.pid` and the `mrc_state` table `connected` key

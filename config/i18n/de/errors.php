@@ -625,6 +625,8 @@ return [
     'errors.door.session_unauthorized' => 'Nicht autorisiert',
     'errors.door.session_end_failed' => 'Failed to end session',
     'errors.door.session_get_failed' => 'Failed to get session',
+    'errors.door.leaderboard_not_supported' => 'Leaderboard not available for this door',
+    'errors.door.leaderboard_failed' => 'Failed to load leaderboard',
     'errors.door.asset.invalid_type' => 'Ungültig: asset type',
     'errors.door.asset.door_not_found' => 'Door nicht gefunden',
     'errors.door.asset.not_defined' => 'Asset not defined in manifest',

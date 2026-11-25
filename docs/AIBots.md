@@ -137,6 +137,8 @@ php scripts/ai_bot_daemon.php --log-level=DEBUG
 | `--pid-file=PATH` | `data/run/ai_bot_daemon.pid` | PID file location |
 | `--log-level=LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
+If PostgreSQL is not yet accepting connections when the daemon starts, for example when it is launched from a crontab `@reboot` entry at boot, it waits for up to five minutes before continuing, logging `Database not available yet, waiting for it to start`. If the database is still unreachable after that, the daemon logs an error, removes its PID file and exits.
+
 The daemon can be restarted from the admin panel under **Admin → System → Daemon Status → Restart AI Bot Daemon**. Logs are written to `data/logs/ai_bot_daemon.log`.
 
 The bot list is refreshed from the database every 60 seconds. To pick up a newly created or edited bot without waiting, restart the daemon.

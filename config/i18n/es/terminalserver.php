@@ -541,6 +541,16 @@ return [
     // --- Door games ---
     'ui.terminalserver.doors.no_doors'                 => 'No hay puertas disponibles actualmente.',
     'ui.terminalserver.doors.title'                    => 'Juegos de Puertas',
+    'ui.terminalserver.doors.top_scores' => 'Mejores puntuaciones - {month}',
+    'ui.terminalserver.doors.no_scores' => 'No hay puntuaciones registradas este mes.',
+    'ui.terminalserver.doors.plays' => '{count} partidas',
+    'ui.terminalserver.doors.hub_scroll' => 'Desplazar',
+    'ui.terminalserver.doors.hub_play' => 'Jugar un juego',
+    'ui.terminalserver.doors.hub_quit' => 'Volver',
+    'ui.terminalserver.doors.hub_help' => 'U/D Desplazar  P Jugar un juego  Q Volver',
+    'ui.terminalserver.doors.popular' => 'Más populares',
+    'ui.terminalserver.doors.recent_players' => 'Jugadores recientes',
+    'ui.terminalserver.doors.no_activity' => 'Sin actividad reciente en los juegos.',
     'ui.terminalserver.doors.enter_choice'             => 'Ingrese número para jugar, o Q para volver: ',
     'ui.terminalserver.doors.invalid'                  => 'Selección inválida.',
     'ui.terminalserver.doors.launching'                => 'Iniciando {name}...',
@@ -575,6 +585,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Intereses',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Suscripciones',
     'ui.terminalserver.server.menu.qwk'       => 'K) Correo QWK sin conexión',
 
     // --- Main menu section headers ---
@@ -593,6 +604,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Créditos',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Suscripciones',
+    'ui.terminalserver.subscriptions.network_title' => 'Suscripciones: {network} - Intro para suscribirse/cancelar',
+    'ui.terminalserver.subscriptions.local_network' => 'Local',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} suscritas)',
+    'ui.terminalserver.subscriptions.none' => 'No hay áreas de eco disponibles.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'No se pudo suscribir a {area}.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'No se pudo cancelar la suscripción a {area}.',
     'ui.terminalserver.interests.title'              => 'Intereses',
     'ui.terminalserver.interests.none'               => 'No hay intereses disponibles.',
     'ui.terminalserver.interests.area_count'         => '({count} áreas)',

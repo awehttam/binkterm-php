@@ -491,7 +491,7 @@ The manifest is saved as `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`. For ref
 - `max_nodes`: Maximum concurrent players (1–100)
 - `ansi_required`: Whether door requires ANSI support
 - `fossil_required`: Load FOSSIL driver (default: `true`). Set to `false` for doors with internal comm routines (faster)
-- `managed`: Set to `"web"` by the manifest editor. Manifests without this field (or with another value) are treated as read-only in the admin UI.
+- `managed`: Set to `"web"` by the manifest editor. Manifests without this field (or with another value) can still be edited in the admin UI, but the editor shows a warning and saving marks them `"web"`. Manifests that ship with BinktermPHP may be overwritten by an upgrade, so copy the door directory to a new name and edit that copy instead.
 
 ### Step 4: Enable the Door
 
@@ -677,6 +677,26 @@ If you need longer sessions, you can register Doorway with the original sharewar
   - Doors with internal routines (e.g., LORD) are noticeably faster without FOSSIL
   - Set to `false` only if you've verified the door works with internal comm routines
 - **Memory impact**: FOSSIL driver uses ~30-50KB RAM per session
+
+### Game Data Parsers (Leaderboards)
+
+A door can expose its players to the BBS by naming a registered parser in its manifest:
+
+```json
+{
+  "data_parser": "lord",
+  "data_dir": "."
+}
+```
+
+- `data_parser`: id of a parser registered in `src/DoorData/DoorDataParserRegistry.php`. Built in: `lord` (Legend of the Red Dragon, reads `PLAYER.DAT`) and `thewire` (The Wire, reads `WIRE.DAT`).
+- `data_dir`: directory holding the game's data files, relative to the door directory. Defaults to `.`. It must resolve inside `dosbox-bridge/dos/DOORS/`.
+
+`GET /api/door/leaderboard?door=<DOORID>&limit=<1-100>` (login required) returns players ranked by the parser's score. Real names are not included in the response. Each entry has `rank`, `handle`, `score`, `score_label`, `last_played` and a game-specific `stats` object.
+
+When a door with a `data_parser` exits, the bridge runs `scripts/door_data_sync.php`, which copies each player's score into the `/games` Top Scores leaderboard. Players are matched to BBS users by the real name stored in the game record (against username or real name); unmatched players are skipped. A row is added only when a player's score changed since their last row. Restart the bridge after upgrading, and set `DOSDOOR_PHP_PATH` in `.env` if `php` is not on the bridge's PATH.
+
+To support another game, see [DoorDataParsers.md](DoorDataParsers.md).
 
 ### Macro Replacements in launch_command
 

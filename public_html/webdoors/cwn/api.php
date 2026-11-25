@@ -100,6 +100,10 @@ try {
             handleSearch($db, $userId);
             break;
 
+        case 'qr':
+            handlePublicKeyQr();
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Invalid action']);
@@ -114,6 +118,32 @@ exit;
 // ============================================================================
 // HANDLER FUNCTIONS
 // ============================================================================
+
+/**
+ * Output an SVG QR code encoding a MeshCore public key.
+ */
+function handlePublicKeyQr()
+{
+    $key = (string)($_GET['key'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{16,128}$/', $key)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid public key']);
+        return;
+    }
+
+    $options = new \chillerlan\QRCode\QROptions();
+    $options->outputType    = \chillerlan\QRCode\QRCode::OUTPUT_MARKUP_SVG;
+    $options->eccLevel      = \chillerlan\QRCode\QRCode::ECC_M;
+    $options->scale         = 6;
+    $options->imageBase64   = false;
+    $options->markupDark    = '#000000';
+    $options->markupLight   = '#ffffff';
+    $options->quietzoneSize = 4;
+
+    header('Content-Type: image/svg+xml');
+    header('Cache-Control: public, max-age=3600');
+    echo (new \chillerlan\QRCode\QRCode($options))->render($key);
+}
 
 /**
  * List networks

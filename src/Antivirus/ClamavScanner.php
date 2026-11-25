@@ -39,10 +39,18 @@ class ClamavScanner implements ScannerInterface
     {
         $this->logger        = new Logger(Config::getLogPath('server.log'), Logger::LEVEL_INFO, false);
         $this->clamdscanPath = $this->findClamdscan();
-        $this->enabled       = !empty($this->clamdscanPath) && $this->isClamdRunning();
+
+        if (empty($this->clamdscanPath)) {
+            $this->logger->warning('[ClamAV] clamdscan binary not found (set CLAMDSCAN in .env) — ClamAV scanning disabled');
+            $this->enabled = false;
+            return;
+        }
+
+        $this->logger->debug("[ClamAV] Using clamdscan: {$this->clamdscanPath}");
+        $this->enabled = $this->isClamdRunning();
 
         if (!$this->enabled) {
-            $this->logger->warning('ClamavScanner: clamdscan not available or clamd not running — ClamAV scanning disabled');
+            $this->logger->warning('[ClamAV] clamd did not respond to ping — ClamAV scanning disabled');
         }
     }
 
@@ -76,6 +84,7 @@ class ClamavScanner implements ScannerInterface
         }
 
         if (!file_exists($filePath)) {
+            $this->logger->error('[ClamAV] File not found for scan: ' . basename($filePath));
             return [
                 'scanned'    => false,
                 'result'     => 'error',
@@ -85,28 +94,37 @@ class ClamavScanner implements ScannerInterface
             ];
         }
 
+        $basename = basename($filePath);
+        $this->logger->info("[ClamAV] Scan started: {$basename}");
+
         $command    = escapeshellarg($this->clamdscanPath) . ' --fdpass --no-summary ' . escapeshellarg($filePath);
         $output     = [];
         $returnCode = 0;
+        $started    = microtime(true);
         exec($command . ' 2>&1', $output, $returnCode);
+        $elapsed    = round(microtime(true) - $started, 2);
 
         $outputStr = implode("\n", $output);
 
         // clamdscan exit codes: 0 = clean, 1 = infected, 2 = error
         if ($returnCode === 0) {
+            $this->logger->info("[ClamAV] Scan complete: {$basename} result=clean time={$elapsed}s");
             return ['scanned' => true, 'result' => 'clean', 'signature' => null, 'error_code' => '', 'error' => null];
         }
 
         if ($returnCode === 1) {
+            $signature = $this->extractSignature($outputStr);
+            $this->logger->warning("[ClamAV] Scan complete: {$basename} result=infected signature={$signature} time={$elapsed}s");
             return [
                 'scanned'    => true,
                 'result'     => 'infected',
-                'signature'  => $this->extractSignature($outputStr),
+                'signature'  => $signature,
                 'error_code' => '',
                 'error'      => null,
             ];
         }
 
+        $this->logger->error("[ClamAV] Scan failed: {$basename} exit={$returnCode} time={$elapsed}s output=" . $outputStr);
         return [
             'scanned'    => true,
             'result'     => 'error',

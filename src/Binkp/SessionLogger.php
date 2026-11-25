@@ -30,17 +30,88 @@ class SessionLogger
     private const REALTIME_PROGRESS_THROTTLE_SECONDS = 0.75;
     private const STALE_ACTIVE_REASON = 'Session process exited without closing log entry';
 
+    /** Minimum seconds between reconnect attempts, so a dead database cannot stall a mail session. */
+    private const HEAL_INTERVAL_SECONDS = 5;
+
+    /** @var \PDO|null Null while the database is unreachable; the session log is best-effort. */
     private $db;
     private $sessionId;
     private $startTime;
     private ?float $lastRealtimeEmitAt;
+    private int $nextHealAt = 0;
+    private bool $failureLogged = false;
 
+    /**
+     * Never throws when the database is down: a session must be able to run
+     * (and receive mail) without its audit row, so every write below is
+     * best-effort.
+     */
     public function __construct()
     {
-        $this->db = Database::getInstance()->getPdo();
+        try {
+            $this->db = Database::getInstance()->getPdo();
+        } catch (\BinktermPHP\DatabaseUnavailableException $e) {
+            $this->db = null;
+            $this->noteFailure('connect', $e);
+        }
         $this->sessionId = null;
         $this->startTime = null;
         $this->lastRealtimeEmitAt = null;
+    }
+
+    /**
+     * Run a session-log write without letting a database failure escape.
+     *
+     * On a lost connection it tries to reconnect (rate limited) so later
+     * writes in the same session can succeed again.
+     *
+     * @param callable(\PDO): mixed $fn
+     * @return mixed The callable's result, or $default if it could not run
+     */
+    private function bestEffort(string $operation, callable $fn, $default = null)
+    {
+        if ($this->db === null) {
+            $this->healConnection();
+            if ($this->db === null) {
+                return $default;
+            }
+        }
+
+        try {
+            return $fn($this->db);
+        } catch (\Throwable $e) {
+            $this->noteFailure($operation, $e);
+            if (Database::isConnectionError($e)) {
+                $this->db = null;
+                $this->healConnection();
+            }
+            return $default;
+        }
+    }
+
+    private function healConnection(): void
+    {
+        if (time() < $this->nextHealAt) {
+            return;
+        }
+        $this->nextHealAt = time() + self::HEAL_INTERVAL_SECONDS;
+        $this->db = Database::tryReconnect();
+    }
+
+    private function noteFailure(string $operation, \Throwable $e): void
+    {
+        // One line per session is enough; a dead database would otherwise log on every stat update.
+        if ($this->failureLogged) {
+            return;
+        }
+        $this->failureLogged = true;
+        try {
+            if (function_exists('getServerLogger')) {
+                getServerLogger()->warning("Binkp session log {$operation} failed (continuing without it): " . $e->getMessage());
+            }
+        } catch (\Throwable $logError) {
+            // Nothing more we can do.
+        }
     }
 
     /**
@@ -62,25 +133,31 @@ class SessionLogger
     ): int {
         $this->startTime = microtime(true);
 
-        $stmt = $this->db->prepare("
-            INSERT INTO binkp_session_log
-            (remote_address, remote_ip, session_type, is_inbound, status, process_id, log_file)
-            VALUES (?, ?::inet, ?, ?::boolean, 'active', ?, ?)
-            RETURNING id
-        ");
-        // Cast boolean to PostgreSQL-compatible string
-        $isInboundStr = $isInbound ? 'true' : 'false';
-        $stmt->execute([
-            $remoteAddress,
-            $remoteIp,
-            $sessionType,
-            $isInboundStr,
-            $processId ?? getmypid(),
-            $logFile !== null ? basename($logFile) : null,
-        ]);
-        $this->sessionId = (int)$stmt->fetchColumn();
-        $this->emitRealtimeUpdate('started', true);
-        return $this->sessionId;
+        // Returns 0 (and leaves the session untracked) if the database is unavailable.
+        $this->bestEffort('start', function (\PDO $db) use ($remoteAddress, $remoteIp, $sessionType, $isInbound, $processId, $logFile): void {
+            $stmt = $db->prepare("
+                INSERT INTO binkp_session_log
+                (remote_address, remote_ip, session_type, is_inbound, status, process_id, log_file)
+                VALUES (?, ?::inet, ?, ?::boolean, 'active', ?, ?)
+                RETURNING id
+            ");
+            // Cast boolean to PostgreSQL-compatible string
+            $isInboundStr = $isInbound ? 'true' : 'false';
+            $stmt->execute([
+                $remoteAddress,
+                $remoteIp,
+                $sessionType,
+                $isInboundStr,
+                $processId ?? getmypid(),
+                $logFile !== null ? basename($logFile) : null,
+            ]);
+            $this->sessionId = (int)$stmt->fetchColumn();
+        });
+
+        if ($this->sessionId) {
+            $this->emitRealtimeUpdate('started', true);
+        }
+        return (int)$this->sessionId;
     }
 
     /**
@@ -105,25 +182,27 @@ class SessionLogger
             return;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE binkp_session_log SET
-                messages_received = ?,
-                messages_sent = ?,
-                files_received = ?,
-                files_sent = ?,
-                bytes_received = ?,
-                bytes_sent = ?
-            WHERE id = ?
-        ");
-        $stmt->execute([
-            $messagesReceived,
-            $messagesSent,
-            $filesReceived,
-            $filesSent,
-            $bytesReceived,
-            $bytesSent,
-            $this->sessionId
-        ]);
+        $this->bestEffort('stats update', function (\PDO $db) use ($messagesReceived, $messagesSent, $filesReceived, $filesSent, $bytesReceived, $bytesSent): void {
+            $stmt = $db->prepare("
+                UPDATE binkp_session_log SET
+                    messages_received = ?,
+                    messages_sent = ?,
+                    files_received = ?,
+                    files_sent = ?,
+                    bytes_received = ?,
+                    bytes_sent = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $messagesReceived,
+                $messagesSent,
+                $filesReceived,
+                $filesSent,
+                $bytesReceived,
+                $bytesSent,
+                $this->sessionId
+            ]);
+        });
         $this->emitRealtimeUpdate('stats');
     }
 
@@ -152,11 +231,14 @@ class SessionLogger
             return;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE binkp_session_log SET {$field} = {$field} + ?
-            WHERE id = ?
-        ");
-        $stmt->execute([$amount, $this->sessionId]);
+        // $field was validated against the allowlist above.
+        $this->bestEffort('stat increment', function (\PDO $db) use ($field, $amount): void {
+            $stmt = $db->prepare("
+                UPDATE binkp_session_log SET {$field} = {$field} + ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$amount, $this->sessionId]);
+        });
         $this->emitRealtimeUpdate('progress');
     }
 
@@ -172,14 +254,16 @@ class SessionLogger
             return;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE binkp_session_log SET
-                status = ?,
-                error_message = ?,
-                ended_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ");
-        $stmt->execute([$status, $errorMessage, $this->sessionId]);
+        $this->bestEffort('end', function (\PDO $db) use ($status, $errorMessage): void {
+            $stmt = $db->prepare("
+                UPDATE binkp_session_log SET
+                    status = ?,
+                    error_message = ?,
+                    ended_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ");
+            $stmt->execute([$status, $errorMessage, $this->sessionId]);
+        });
         $this->emitRealtimeUpdate('ended', true);
     }
 
@@ -211,11 +295,13 @@ class SessionLogger
             return;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE binkp_session_log SET remote_address = ?
-            WHERE id = ?
-        ");
-        $stmt->execute([$address, $this->sessionId]);
+        $this->bestEffort('remote address update', function (\PDO $db) use ($address): void {
+            $stmt = $db->prepare("
+                UPDATE binkp_session_log SET remote_address = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$address, $this->sessionId]);
+        });
         $this->emitRealtimeUpdate('address', true);
     }
 
@@ -225,11 +311,13 @@ class SessionLogger
             return;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE binkp_session_log SET remote_ip = ?::inet
-            WHERE id = ?
-        ");
-        $stmt->execute([$remoteIp, $this->sessionId]);
+        $this->bestEffort('remote ip update', function (\PDO $db) use ($remoteIp): void {
+            $stmt = $db->prepare("
+                UPDATE binkp_session_log SET remote_ip = ?::inet
+                WHERE id = ?
+            ");
+            $stmt->execute([$remoteIp, $this->sessionId]);
+        });
         $this->emitRealtimeUpdate('address', true);
     }
 
@@ -242,11 +330,13 @@ class SessionLogger
             return;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE binkp_session_log SET session_type = ?
-            WHERE id = ?
-        ");
-        $stmt->execute([$sessionType, $this->sessionId]);
+        $this->bestEffort('session type update', function (\PDO $db) use ($sessionType): void {
+            $stmt = $db->prepare("
+                UPDATE binkp_session_log SET session_type = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$sessionType, $this->sessionId]);
+        });
         $this->emitRealtimeUpdate('type', true);
     }
 
@@ -261,11 +351,13 @@ class SessionLogger
             return;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE binkp_session_log SET auth_method = ?
-            WHERE id = ?
-        ");
-        $stmt->execute([$method, $this->sessionId]);
+        $this->bestEffort('auth method update', function (\PDO $db) use ($method): void {
+            $stmt = $db->prepare("
+                UPDATE binkp_session_log SET auth_method = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$method, $this->sessionId]);
+        });
         $this->emitRealtimeUpdate('auth', true);
     }
 
@@ -284,22 +376,30 @@ class SessionLogger
             return;
         }
 
-        $payload = $this->buildRealtimePayload($reason);
-        if ($payload === null) {
+        if ($this->db === null) {
             return;
         }
 
         try {
+            $payload = $this->buildRealtimePayload($reason);
+            if ($payload === null) {
+                return;
+            }
+
             \BinktermPHP\Realtime\BinkStream::emit($this->db, 'binkp_session', $payload, null, true);
             $this->lastRealtimeEmitAt = $now;
         } catch (\Throwable $e) {
             // Realtime delivery is best-effort only; never break a session write.
+            // The payload query also hits the database, so a lost connection can land here too.
+            if (Database::isConnectionError($e)) {
+                $this->db = null;
+            }
         }
     }
 
     private function buildRealtimePayload(string $reason): ?array
     {
-        if (!$this->sessionId) {
+        if (!$this->sessionId || $this->db === null) {
             return null;
         }
 

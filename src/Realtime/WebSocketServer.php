@@ -23,6 +23,10 @@ class WebSocketServer implements LoopServiceInterface
     private CommandDispatcher $commandDispatcher;
     private int $lastActiveConnectionsLogAt = 0;
     private int $lastPingAt = 0;
+    /** Seconds to wait between reconnect attempts while the database is unreachable. */
+    private const DATABASE_RETRY_SECONDS = 3;
+    private bool $databaseDown = false;
+    private int $databaseRetryAt = 0;
     /** @var array<string, true> */
     private array $trustedProxies = [];
 
@@ -83,7 +87,16 @@ class WebSocketServer implements LoopServiceInterface
 
     public function tick(): void
     {
-        $this->pollAndDispatchEvents();
+        if ($this->databaseRetryAt <= time()) {
+            try {
+                $this->pollAndDispatchEvents();
+            } catch (\Throwable $e) {
+                if (!Database::isConnectionError($e)) {
+                    throw $e;
+                }
+                $this->handleDatabaseError($e);
+            }
+        }
         $this->sendPingsIfDue();
         $this->logActiveConnectionsIfDue();
     }
@@ -161,12 +174,52 @@ class WebSocketServer implements LoopServiceInterface
 
         $this->clients[$id]['buffer'] .= $chunk;
 
-        if (!$this->clients[$id]['handshake_complete']) {
-            $this->tryHandshake($id);
+        try {
+            if (!$this->clients[$id]['handshake_complete']) {
+                $this->tryHandshake($id);
+                return;
+            }
+
+            $this->processFrames($id);
+        } catch (\Throwable $e) {
+            if (!Database::isConnectionError($e)) {
+                throw $e;
+            }
+            // Drop just this client; its BinkStream client reconnects on its own.
+            $this->handleDatabaseError($e);
+            if (isset($this->clients[$id])) {
+                if ($this->clients[$id]['handshake_complete']) {
+                    $this->closeClient($id);
+                } else {
+                    $this->sendHttpErrorAndClose($id, 503, 'Service Unavailable');
+                }
+            }
+        }
+    }
+
+    /**
+     * React to a lost database connection: log it, then try to reconnect and
+     * rebuild the services that cached the old PDO. If the database is still
+     * down, back off so tick() does not hammer it every 200ms.
+     */
+    private function handleDatabaseError(\Throwable $e): void
+    {
+        if (!$this->databaseDown) {
+            $this->logger->error('Realtime server lost its database connection', ['error' => $e->getMessage()]);
+            $this->databaseDown = true;
+        }
+
+        $pdo = Database::tryReconnect();
+        if ($pdo === null) {
+            $this->databaseRetryAt = time() + self::DATABASE_RETRY_SECONDS;
             return;
         }
 
-        $this->processFrames($id);
+        $this->streamService = new StreamService($pdo);
+        $this->commandDispatcher = new CommandDispatcher($pdo);
+        $this->databaseDown = false;
+        $this->databaseRetryAt = 0;
+        $this->logger->info('Realtime server database connection restored');
     }
 
     private function tryHandshake(int $clientId): void
@@ -309,6 +362,10 @@ class WebSocketServer implements LoopServiceInterface
                     $result['requestId'] = $requestId;
                     $this->sendJson($clientId, $result);
                 } catch (\RuntimeException $e) {
+                    // PDOException is a RuntimeException; a dead database is not an unknown command.
+                    if (Database::isConnectionError($e)) {
+                        throw $e;
+                    }
                     $this->sendJson($clientId, [
                         'type' => 'command_result',
                         'requestId' => $requestId,

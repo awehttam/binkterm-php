@@ -146,5 +146,12 @@ register_shutdown_function(static function () use ($pidFile): void {
     }
 });
 
+// At boot the daemon may start before PostgreSQL is accepting connections.
+// The server forks per client, so drop the probe connection; children open their own.
+if (!\BinktermPHP\Database::waitUntilAvailable(300, fn(string $m) => $logger->warning($m), false)) {
+    $logger->error('Database did not become available, exiting');
+    exit(1);
+}
+
 $server = new NntpServer($host, $plainPort, $tlsPort, $certPath, $keyPath, $externalCert, $logger);
 $server->run();

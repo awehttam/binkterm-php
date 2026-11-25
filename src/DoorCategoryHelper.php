@@ -28,6 +28,7 @@ class DoorCategoryHelper
     public const NET_DOORPARTY = 'DoorParty';
     public const NET_BBSLINK = 'BBSLink';
     public const NET_ANET = 'A-Net';
+    public const INTERNET_ARCHIVE = 'Internet Archive Games';
 
     /**
      * Standard curated categories presented in admin dropdowns and front-end tabs.
@@ -42,6 +43,7 @@ class DoorCategoryHelper
             self::NET_DOORPARTY,
             self::NET_BBSLINK,
             self::NET_ANET,
+            self::INTERNET_ARCHIVE,
             'RPG',
             'Strategy',
             'Adventure',

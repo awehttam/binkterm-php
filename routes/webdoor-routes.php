@@ -342,6 +342,35 @@ SimpleRouter::get('/games', function() {
         }
     }
 
+    // Get Internet Archive Doors
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    $archiveDoors = $archiveDoorManager->getEnabledDoors();
+    foreach ($archiveDoors as $doorId => $door) {
+        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            continue;
+        }
+        if (!empty($door['config']['hide_from_web'])) {
+            continue;
+        }
+        $iconUrl = getDefaultDoorIconUrl();
+        if (!empty($door['icon'])) {
+            $iconUrl = "/door-assets/{$doorId}/icon";
+        }
+
+        $games[] = [
+            'id' => $doorId,
+            'name' => $door['name'],
+            'description' => $door['description'] ?? '',
+            'author' => $door['author'] ?? null,
+            'version' => $door['game_version'] ?? null,
+            'path' => $doorId,
+            'icon_url' => $iconUrl,
+            'type' => 'archivedoor',
+            'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? [\BinktermPHP\DoorCategoryHelper::INTERNET_ARCHIVE]),
+            'players' => $door['players'] ?? null
+        ];
+    }
+
     // Sort all games by name
     usort($games, function($a, $b) {
         return strcasecmp($a['name'], $b['name']);
@@ -512,62 +541,17 @@ SimpleRouter::get('/games', function() {
 
     $monthOffset = 0;
     if (isset($_GET['month_offset'])) {
-        $monthOffset = (int)$_GET['month_offset'];
-        if ($monthOffset < 0) {
-            $monthOffset = 0;
-        }
-        if ($monthOffset > 120) {
-            $monthOffset = 120;
-        }
+        $monthOffset = max(0, min(120, (int)$_GET['month_offset']));
     }
 
-    $monthStart = new \DateTimeImmutable('first day of this month 00:00:00');
-    if ($monthOffset > 0) {
-        $monthStart = $monthStart->modify("-{$monthOffset} months");
-    }
-    $monthEnd = $monthStart->modify('+1 month');
-    $leaderboardMonthLabel = $monthStart->format('F Y');
+    $leaderboardService = new \BinktermPHP\WebDoorLeaderboardService(\BinktermPHP\Database::getInstance()->getPdo());
+    $monthRange = $leaderboardService->getMonthRange((int)($user['user_id'] ?? $user['id'] ?? 0), $monthOffset);
+    $leaderboardMonthLabel = $monthRange['label'];
 
     $leaderboard = [];
     if (!$hideTopScores) {
         try {
-            $db = \BinktermPHP\Database::getInstance()->getPdo();
-            $limit = 10;
-            $stmt = $db->prepare('
-                WITH best_scores AS (
-                    SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
-                        l.user_id, l.game_id, l.board, l.score, l.created_at
-                    FROM webdoor_leaderboards l
-                    WHERE l.created_at >= ?
-                      AND l.created_at < ?
-                    ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
-                )
-                SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
-                FROM best_scores b
-                JOIN users u ON b.user_id = u.id
-                ORDER BY b.score DESC, b.created_at DESC
-                LIMIT ?
-            ');
-            $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
-            $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
-            $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
-            $stmt->execute();
-            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-            foreach ($rows as $index => $row) {
-                $displayName = $row['username'];
-                $gameInfo = $gameLookup[$row['game_id']] ?? null;
-                $leaderboard[] = [
-                    'rank' => $index + 1,
-                    'display_name' => $displayName,
-                    'score' => (int)$row['score'],
-                    'game_id' => $row['game_id'],
-                    'game_name' => $gameInfo['name'] ?? ucfirst($row['game_id']),
-                    'game_path' => $gameInfo['path'] ?? null,
-                    'board' => $row['board'],
-                    'date' => substr($row['created_at'], 0, 10)
-                ];
-            }
+            $leaderboard = $leaderboardService->getLeaderboard($monthRange['start'], $monthRange['end'], 10, $gameLookup);
         } catch (\Throwable $e) {
             getServerLogger()->error('Failed to load WebDoor leaderboard: ' . $e->getMessage());
         }
@@ -1117,12 +1101,76 @@ SimpleRouter::post('/api/jsdoor/files/{gameId}', function(string $gameId) {
     }
 });
 
+/**
+ * Render the play page for an Internet Archive door, enforcing its access, credit and time limit settings.
+ *
+ * @param string     $game Door ID
+ * @param array|null $user Current user, or null for an anonymous visitor
+ * @return bool True if the request was handled (page or error rendered), false if $game is not an archive door
+ */
+function renderArchiveDoorPage(string $game, ?array $user): bool
+{
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    $archiveDoor = $archiveDoorManager->getDoor($game);
+    if (!$archiveDoor || empty($archiveDoor['config']['enabled'])) {
+        return false;
+    }
+
+    $template = new Template();
+
+    if (!empty($archiveDoor['admin_only']) && empty($user['is_admin'])) {
+        http_response_code(403);
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
+        ]);
+        return true;
+    }
+
+    $play = $archiveDoorManager->startPlay($archiveDoor, $user ? (int)($user['user_id'] ?? $user['id'] ?? 0) : null);
+    if (!$play['ok']) {
+        if (!$user) {
+            SimpleRouter::response()->redirect('/login');
+            return true;
+        }
+        http_response_code($play['error_code'] === 'ui.webdoors.errors.archive_insufficient_credits' ? 402 : 403);
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => $play['error_code']
+        ]);
+        return true;
+    }
+
+    // Log one play per payment window so page reloads are not counted again
+    if ($user && !empty($play['new_window'])) {
+        ActivityTracker::track((int)($user['user_id'] ?? $user['id'] ?? 0), ActivityTracker::TYPE_ARCHIVEDOOR_PLAY, null, $game);
+    }
+
+    $template->renderResponse('webdoor_play.twig', [
+        'game' => [
+            'name' => $archiveDoor['name'],
+            'description' => $archiveDoor['description'] ?? '',
+            'author' => $archiveDoor['author'] ?? '',
+        ],
+        'game_url' => $archiveDoor['embed_url'],
+        'game_id' => $game,
+        'is_archive' => true,
+        'seconds_remaining' => $play['seconds_remaining'],
+        'credits_charged' => $play['credits_charged']
+    ]);
+    return true;
+}
+
 // GET /games/{game} - Play a specific game (DOS door or web door)
 SimpleRouter::get('/games/{game}', function($game) {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
 
     if (!$user) {
+        // Archive doors can be opened to anonymous visitors by the sysop
+        if (GameConfig::isGameSystemEnabled() && renderArchiveDoorPage($game, null)) {
+            return;
+        }
         return SimpleRouter::response()->redirect('/login');
     }
     if(GameConfig::isGameSystemEnabled()==false){
@@ -1263,6 +1311,11 @@ SimpleRouter::get('/games/{game}', function($game) {
             'secondary_label_key' => $secondaryLabelKey,
             'show_fullscreen_button' => false,
         ]);
+        return;
+    }
+
+    // Check if this is an Internet Archive door
+    if (renderArchiveDoorPage($game, $user)) {
         return;
     }
 

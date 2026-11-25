@@ -1,6 +1,6 @@
 # Installing BinktermPHP
 
-BinktermPHP can be installed using two methods: the automated installer (recommended for most sysops) or from Git (recommended for developers and contributors).
+BinktermPHP can be installed using two methods: the automated installer or from Git.
 
 BinktermPHP is developed and tested on Debian-based Linux distributions, including Debian, Ubuntu, and Linux Mint. The instructions in this guide assume a Debian-based system. Other distributions can run BinktermPHP, but package names, paths, and service management commands will differ and you will need to adapt the instructions accordingly.
 
@@ -10,7 +10,7 @@ BinktermPHP is developed and tested on Debian-based Linux distributions, includi
   - [Ubuntu/Debian package requirements](#ubuntudebian-package-requirements)
 - [Create BBS User Account](#create-bbs-user-account)
 - [PostgreSQL Database Setup](#postgresql-database-setup)
-- [Method 1: Using the Installer (Recommended)](#method-1-using-the-installer-recommended)
+- [Method 1: Using the Installer](#method-1-using-the-installer)
 - [Method 2: From Git](#method-2-from-git)
 - [Configure Web Server](#configure-web-server)
   - [Caddy](#caddy)
@@ -123,14 +123,14 @@ Make note of the database name, username, and password — you will need them du
 
 ---
 
-## Method 1: Using the Installer (Recommended)
+## Method 1: Using the Installer
 
 > **Run as the `binktermphp` user.** Switch accounts first if you have not already:
 > ```bash
 > sudo su - binktermphp
 > ```
 
-The installer is the recommended method for most sysops. It provides a fully automated setup process that downloads, configures, and installs BinktermPHP — including handling upgrades when you re-run it on an existing installation.
+The installer provides a fully automated setup process that downloads, configures, and installs BinktermPHP — including handling upgrades when you re-run it on an existing installation.
 
 ```bash
 # Download the installer
@@ -162,7 +162,7 @@ The installer will prompt for your `SITE_URL` — the URL your BBS will be acces
 > sudo su - binktermphp
 > ```
 
-This method is recommended for developers, contributors, and advanced users who want to track the latest changes or submit patches. Most sysops should use the installer instead.
+This method is recommended for developers, contributors, and advanced users who want to track the latest changes or submit patches.
 
 ### Step 1: Clone Repository
 ```bash

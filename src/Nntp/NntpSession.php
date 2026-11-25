@@ -17,6 +17,7 @@ namespace BinktermPHP\Nntp;
 
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
+use BinktermPHP\Database;
 use BinktermPHP\EchoareaSubscriptionManager;
 use PDO;
 
@@ -126,6 +127,13 @@ class NntpSession
                     'ip' => $this->remoteIp,
                     'cmd' => $line,
                 ]);
+                if (Database::isConnectionError($e)) {
+                    // The database went away under this session. Its helper objects hold
+                    // the old connection, so end the session (RFC 3977 400) and let the
+                    // client reconnect to a child with a fresh one.
+                    $this->send('400 Service temporarily unavailable');
+                    break;
+                }
                 $this->send('403 Internal error handling that command');
             }
         }

@@ -175,7 +175,26 @@ class NntpServer
                 // getInstance() below still yields a usable handle in most setups
             }
         }
-        $db = Database::getInstance()->getPdo();
+        try {
+            if ($inlineMode) {
+                // One process serves every client here, so its connection can be stale
+                // after a Postgres restart: probe it and reconnect if so.
+                Database::withRetry(static function (\PDO $pdo): void {
+                    $pdo->query('SELECT 1');
+                }, [0]);
+            }
+            $db = Database::getInstance()->getPdo();
+        } catch (\Throwable $e) {
+            if (!Database::isConnectionError($e)) {
+                throw $e;
+            }
+            // RFC 3977 400: service temporarily unavailable, server closes the connection.
+            // Without this the exception would escape the forked child (or, in the
+            // single-process fallback, take the whole server down).
+            $this->logger->error('[nntp] database unavailable, refusing connection', ['ip' => $ip, 'error' => $e->getMessage()]);
+            @fwrite($client, "400 Service temporarily unavailable\r\n");
+            return;
+        }
 
         $session = new NntpSession([
             'db' => $db,

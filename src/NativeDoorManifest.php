@@ -172,6 +172,15 @@ class NativeDoorManifest
             'ansi_required' => $data['door']['ansi_required'] ?? true,
             'time_per_day' => $data['door']['time_per_day'] ?? 30,
 
+            // Environment declared by the door author. env_passthrough is only a
+            // request; the sysop approves names in config/nativedoors.json.
+            'env' => is_array($data['door']['env'] ?? null) ? $data['door']['env'] : [],
+            'env_passthrough' => \BinktermPHP\NativeDoorEnvPolicy::normalizeNameList($data['door']['env_passthrough'] ?? []),
+
+            // Optional game data parser (see src/DoorData)
+            'data_parser' => $data['data_parser'] ?? null,
+            'data_dir' => $data['data_dir'] ?? '.',
+
             // Requirements
             'requirements' => $data['requirements'] ?? [],
             'admin_only' => !empty($data['requirements']['admin_only']),

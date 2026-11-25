@@ -543,6 +543,16 @@ return [
     // --- Door games ---
     'ui.terminalserver.doors.no_doors'                 => 'Derzeit sind keine Türspiele verfügbar.',
     'ui.terminalserver.doors.title'                    => 'Türspiele',
+    'ui.terminalserver.doors.top_scores' => 'Bestenliste - {month}',
+    'ui.terminalserver.doors.no_scores' => 'Diesen Monat wurden keine Punktzahlen erfasst.',
+    'ui.terminalserver.doors.plays' => '{count} Spiele',
+    'ui.terminalserver.doors.hub_scroll' => 'Scrollen',
+    'ui.terminalserver.doors.hub_play' => 'Spiel starten',
+    'ui.terminalserver.doors.hub_quit' => 'Zurück',
+    'ui.terminalserver.doors.hub_help' => 'U/D Scrollen  P Spiel starten  Q Zurück',
+    'ui.terminalserver.doors.popular' => 'Am beliebtesten',
+    'ui.terminalserver.doors.recent_players' => 'Letzte Spieler',
+    'ui.terminalserver.doors.no_activity' => 'Keine aktuellen Türspiel-Aktivitäten.',
     'ui.terminalserver.doors.enter_choice'             => 'Nummer eingeben zum Spielen oder Q zum Zurückkehren: ',
     'ui.terminalserver.doors.invalid'                  => 'Ungültige Auswahl.',
     'ui.terminalserver.doors.launching'                => '{name} wird gestartet...',
@@ -579,6 +589,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Interessen',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Abonnements',
     'ui.terminalserver.server.menu.qwk'       => 'K) QWK Offline Mail',
 
     // --- Main menu section headers ---
@@ -597,6 +608,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Guthaben',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Abonnements',
+    'ui.terminalserver.subscriptions.network_title' => 'Abonnements: {network} - Eingabe zum Abonnieren/Abbestellen',
+    'ui.terminalserver.subscriptions.local_network' => 'Lokal',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} abonniert)',
+    'ui.terminalserver.subscriptions.none' => 'Keine Echo-Bereiche verfügbar.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Abonnieren von {area} fehlgeschlagen.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Abbestellen von {area} fehlgeschlagen.',
     'ui.terminalserver.interests.title'              => 'Interessen',
     'ui.terminalserver.interests.none'               => 'Keine Interessen verfügbar.',
     'ui.terminalserver.interests.area_count'         => '({count} Bereiche)',

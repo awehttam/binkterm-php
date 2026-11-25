@@ -7,6 +7,24 @@ namespace BinktermPHP;
  */
 class BbsDirectory
 {
+    public const SOURCE_MANUAL = 'manual';
+    public const SOURCE_AUTO = 'auto';
+    public const SOURCE_TELNET_BBS_GUIDE = 'telnet_bbs_guide';
+    public const SOURCE_SYNCDATA = 'syncdata';
+    public const SOURCE_IBBSLASTCALL = 'ibbslastcall';
+
+    /**
+     * Display names for well-known source tags. Tags not listed here are free text
+     * and are displayed as-is.
+     */
+    public const SOURCE_LABELS = [
+        self::SOURCE_MANUAL => 'Manual',
+        self::SOURCE_AUTO => 'Auto',
+        self::SOURCE_TELNET_BBS_GUIDE => 'Telnet BBS Guide',
+        self::SOURCE_SYNCDATA => 'Syncdata',
+        self::SOURCE_IBBSLASTCALL => 'IBBS Last Call',
+    ];
+
     /** @var \PDO */
     private \PDO $db;
     private BbsDirectoryGeocoder $geocoder;
@@ -139,18 +157,32 @@ class BbsDirectory
      * @param int    $page
      * @param int    $perPage
      * @param string $search
+     * @param string $sort    One of name, sysop, location, telnet_host, source, last_seen
+     * @param string $dir     'asc' or 'desc'
      * @return array
      */
-    public function getAllEntries(int $page = 1, int $perPage = 25, string $search = ''): array
+    public function getAllEntries(int $page = 1, int $perPage = 25, string $search = '', string $sort = 'name', string $dir = 'asc'): array
     {
         $offset = ($page - 1) * $perPage;
+
+        $sortColumns = [
+            'name'        => 'LOWER(name)',
+            'sysop'       => 'LOWER(sysop)',
+            'location'    => 'LOWER(location)',
+            'telnet_host' => 'LOWER(telnet_host)',
+            'source'      => 'source',
+            'last_seen'   => 'last_seen',
+        ];
+        $sortExpr = $sortColumns[$sort] ?? $sortColumns['name'];
+        $direction = strtolower($dir) === 'desc' ? 'DESC' : 'ASC';
+        $orderBy = "ORDER BY {$sortExpr} {$direction} NULLS LAST, LOWER(name) ASC, id ASC";
 
         if ($search !== '') {
             $stmt = $this->db->prepare("
                 SELECT *
                 FROM bbs_directory
                 WHERE name ILIKE ? OR sysop ILIKE ? OR location ILIKE ? OR telnet_host ILIKE ?
-                ORDER BY LOWER(name) ASC
+                {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $like = '%' . $search . '%';
@@ -159,7 +191,7 @@ class BbsDirectory
             $stmt = $this->db->prepare("
                 SELECT *
                 FROM bbs_directory
-                ORDER BY LOWER(name) ASC
+                {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $stmt->execute([$perPage, $offset]);
@@ -199,7 +231,8 @@ class BbsDirectory
 
     /**
      * Upsert a BBS entry by telnet address (preferred) or name (fallback).
-     * Sets source='auto' and updates last_seen. Used by robot processors and import scripts.
+     * Sets source to $data['source'] (default 'auto') and updates last_seen. Entries whose
+     * source is 'manual' keep it. Used by robot processors and import scripts.
      *
      * Match priority:
      *   1. If telnet_host is provided, look for an existing entry with the same host+port.
@@ -220,6 +253,7 @@ class BbsDirectory
         $telnetHost = !empty($data['telnet_host']) ? trim($data['telnet_host']) : null;
         $telnetPort = isset($data['telnet_port']) && $data['telnet_port'] !== '' ? (int)$data['telnet_port'] : 23;
         $existingByName = $this->findEntryByName((string)$data['name']);
+        $source = self::normalizeSource($data['source'] ?? null) ?? self::SOURCE_AUTO;
 
         // Step 1: try to match by telnet address
         if ($telnetHost !== null) {
@@ -249,7 +283,7 @@ class BbsDirectory
                         software    = COALESCE(:software,  software),
                         latitude    = :latitude,
                         longitude   = :longitude,
-                        source      = CASE WHEN source = 'manual' THEN 'manual' ELSE 'auto' END,
+                        source      = CASE WHEN source = 'manual' THEN 'manual' ELSE :source END,
                         status      = 'active',
                         last_seen   = NOW(),
                         is_active   = TRUE,
@@ -267,6 +301,7 @@ class BbsDirectory
                     ':software'    => $data['software'] ?? null,
                     ':latitude'    => $coords['latitude'],
                     ':longitude'   => $coords['longitude'],
+                    ':source'      => $source,
                     ':id'          => (int)$existing['id'],
                 ]);
                 return (int)$existing['id'];
@@ -289,7 +324,7 @@ class BbsDirectory
             INSERT INTO bbs_directory
                 (name, sysop, location, os, telnet_host, telnet_port, ssh_port, website, software, latitude, longitude, source, status, last_seen, is_active, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :ssh_port, :website, :software, :latitude, :longitude, 'auto', 'active', NOW(), TRUE, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :ssh_port, :website, :software, :latitude, :longitude, :source, 'active', NOW(), TRUE, NOW(), NOW())
             ON CONFLICT (LOWER(name)) DO UPDATE SET
                 sysop        = COALESCE(EXCLUDED.sysop,       bbs_directory.sysop),
                 location     = COALESCE(EXCLUDED.location,    bbs_directory.location),
@@ -301,7 +336,7 @@ class BbsDirectory
                 software     = COALESCE(EXCLUDED.software,    bbs_directory.software),
                 latitude     = EXCLUDED.latitude,
                 longitude    = EXCLUDED.longitude,
-                source       = CASE WHEN bbs_directory.source = 'manual' THEN 'manual' ELSE 'auto' END,
+                source       = CASE WHEN bbs_directory.source = 'manual' THEN 'manual' ELSE EXCLUDED.source END,
                 status       = 'active',
                 last_seen    = NOW(),
                 is_active    = TRUE,
@@ -322,6 +357,7 @@ class BbsDirectory
             ':software'    => $data['software'] ?? null,
             ':latitude'    => $coords['latitude'],
             ':longitude'   => $coords['longitude'],
+            ':source'      => $source,
         ]);
 
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -353,11 +389,12 @@ class BbsDirectory
             INSERT INTO bbs_directory
                 (name, sysop, location, os, telnet_host, telnet_port, website, notes, latitude, longitude, source, last_seen, is_active, is_local, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, :latitude, :longitude, 'manual', :last_seen, :is_active, :is_local, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, :latitude, :longitude, :source, :last_seen, :is_active, :is_local, NOW(), NOW())
             RETURNING id
         ");
 
         $stmt->execute([
+            ':source'      => $this->normalizeSource($data['source'] ?? null) ?? 'manual',
             ':name'        => $data['name'],
             ':sysop'       => $data['sysop'] ?? null,
             ':location'    => $data['location'] ?? null,
@@ -375,6 +412,64 @@ class BbsDirectory
 
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         return (int)$row['id'];
+    }
+
+    /**
+     * Validate an entry source value.
+     *
+     * Lowercases the tag and replaces characters outside [a-z0-9_.-] with underscores.
+     *
+     * @param mixed $source
+     * @return string|null The cleaned tag (max 50 chars), or null if empty/invalid
+     */
+    public static function normalizeSource($source): ?string
+    {
+        if (!is_string($source)) {
+            return null;
+        }
+        $tag = strtolower(trim($source));
+        $tag = preg_replace('/[^a-z0-9_.-]+/', '_', $tag);
+        $tag = trim((string)$tag, '_');
+        if ($tag === '') {
+            return null;
+        }
+        return substr($tag, 0, 50);
+    }
+
+    /**
+     * Get display names of the distinct import sources used by publicly listed entries.
+     *
+     * The 'manual' and 'auto' tags are left out because they do not name a source.
+     *
+     * @return string[] Display names, sorted case-insensitively
+     */
+    public function getPublicSourceNames(): array
+    {
+        $tags = $this->db->query("
+            SELECT DISTINCT source
+            FROM bbs_directory
+            WHERE status = 'active'
+              AND source IS NOT NULL
+              AND source NOT IN ('manual', 'auto', '')
+        ")->fetchAll(\PDO::FETCH_COLUMN);
+
+        $names = array_map(static fn($tag) => self::SOURCE_LABELS[$tag] ?? $tag, $tags);
+        natcasesort($names);
+        return array_values($names);
+    }
+
+    /**
+     * Get the distinct source tags currently in use, merged with the built-in ones.
+     *
+     * @return string[]
+     */
+    public function getKnownSources(): array
+    {
+        $rows = $this->db->query("SELECT DISTINCT source FROM bbs_directory WHERE source IS NOT NULL AND source <> ''")
+            ->fetchAll(\PDO::FETCH_COLUMN);
+        $tags = array_unique(array_merge(array_keys(self::SOURCE_LABELS), $rows));
+        sort($tags);
+        return $tags;
     }
 
     /**
@@ -403,6 +498,7 @@ class BbsDirectory
                 notes       = :notes,
                 latitude    = :latitude,
                 longitude   = :longitude,
+                source      = :source,
                 last_seen   = :last_seen,
                 is_active   = :is_active,
                 is_local    = :is_local,
@@ -411,6 +507,7 @@ class BbsDirectory
         ");
 
         $stmt->execute([
+            ':source'      => $this->normalizeSource($data['source'] ?? null) ?? $existing['source'],
             ':name'        => $data['name'],
             ':sysop'       => $data['sysop'] ?? null,
             ':location'    => $data['location'] ?? null,

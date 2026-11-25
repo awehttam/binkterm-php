@@ -425,6 +425,16 @@ return [
 
     'ui.terminalserver.doors.no_doors' => 'Aucun jeu de portes n\'est disponible actuellement.',
     'ui.terminalserver.doors.title' => 'Jeux de portes',
+    'ui.terminalserver.doors.top_scores' => 'Meilleurs scores - {month}',
+    'ui.terminalserver.doors.no_scores' => 'Aucun score enregistré ce mois-ci.',
+    'ui.terminalserver.doors.plays' => '{count} parties',
+    'ui.terminalserver.doors.hub_scroll' => 'Défiler',
+    'ui.terminalserver.doors.hub_play' => 'Jouer à un jeu',
+    'ui.terminalserver.doors.hub_quit' => 'Retour',
+    'ui.terminalserver.doors.hub_help' => 'U/D Défiler  P Jouer à un jeu  Q Retour',
+    'ui.terminalserver.doors.popular' => 'Les plus populaires',
+    'ui.terminalserver.doors.recent_players' => 'Joueurs récents',
+    'ui.terminalserver.doors.no_activity' => 'Aucune activité récente dans les jeux.',
     'ui.terminalserver.doors.enter_choice' => 'Entrez un numéro pour jouer, ou Q pour revenir : ',
     'ui.terminalserver.doors.invalid' => 'Sélection invalide.',
     'ui.terminalserver.doors.launching' => 'Lancement de {name}...',
@@ -537,6 +547,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Interets',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Abonnements',
     'ui.terminalserver.server.menu.qwk'       => 'K) Courrier QWK hors ligne',
 
     // --- Main menu section headers ---
@@ -555,6 +566,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Crédits',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Abonnements',
+    'ui.terminalserver.subscriptions.network_title' => 'Abonnements : {network} - Entrée pour s\'abonner/se désabonner',
+    'ui.terminalserver.subscriptions.local_network' => 'Local',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} abonnées)',
+    'ui.terminalserver.subscriptions.none' => 'Aucune zone d\'écho disponible.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Échec de l\'abonnement à {area}.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Échec du désabonnement de {area}.',
     'ui.terminalserver.interests.title'              => 'Interets',
     'ui.terminalserver.interests.none'               => 'Aucun interet disponible.',
     'ui.terminalserver.interests.area_count'         => '({count} zones)',

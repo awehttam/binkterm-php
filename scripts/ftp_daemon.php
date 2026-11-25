@@ -116,6 +116,10 @@ register_shutdown_function(static function () use ($pidFile): void {
 });
 
 try {
+    // At boot the daemon may start before PostgreSQL is accepting connections.
+    if (!\BinktermPHP\Database::waitUntilAvailable(300, fn(string $m) => $logger->warning($m))) {
+        throw new RuntimeException('Database did not become available');
+    }
     $server = new FtpServer($host, $port, $publicHost, $passiveStart, $passiveEnd, $logger);
     $server->start();
 

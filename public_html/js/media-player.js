@@ -89,6 +89,19 @@
         'https://cdn.bsky.app/img/'
     ];
 
+    /**
+     * Imgur single-image page links (imgur.com/ID, i.imgur.com/ID without extension)
+     * are HTML pages; map them to the direct image. Imgur serves the real image
+     * type regardless of the extension requested. Albums (/a/, /gallery/) are excluded.
+     *
+     * @param {string} href
+     * @returns {string|null} direct image URL, or null if not an imgur single-image link
+     */
+    function resolveImgurImage(href) {
+        var m = href.match(/^https?:\/\/(?:www\.|i\.|m\.)?imgur\.com\/([a-zA-Z0-9]{5,8})\/?(?:[?#].*)?$/i);
+        return m ? 'https://i.imgur.com/' + m[1] + '.jpg' : null;
+    }
+
     function isEnabled() {
         return (window.siteConfig || {}).mediaPlayerEnabled !== false;
     }
@@ -459,6 +472,12 @@
         }
 
         var path = stripQuery(href);
+
+        var imgurImage = typeAllowed('image', opts) ? resolveImgurImage(href) : null;
+        if (imgurImage) {
+            injectAfter(anchor, buildImage(imgurImage), opts);
+            return;
+        }
 
         if (typeAllowed('retroAudio', opts) && RETRO_AUDIO_EXTS.test(path)) {
             injectAfter(anchor, buildRetroAudio(href), opts);

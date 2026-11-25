@@ -695,6 +695,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/rlogindoors_config.twig');
     });
 
+    // Internet Archive Doors config page
+    SimpleRouter::get('/archive-doors', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/archivedoors_config.twig', [
+            'standard_categories' => \BinktermPHP\DoorCategoryHelper::getStandardCategories(),
+        ]);
+    });
+
     // Door Manifest Editor page
     SimpleRouter::get('/doors/{doorType}/{doorId}/manifest', function(string $doorType, string $doorId) {
         $user = RouteHelper::requireAdmin();
@@ -759,7 +769,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'picker_profiles'      => $result['picker_profiles'],
                 'picker_profiles_json' => json_encode($result['picker_profiles'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 'editable'             => $result['editable'],
-                'exists'               => $result['exists'],
+                'unmanaged'            => !empty($result['unmanaged']),
+                'exists'             => $result['exists'],
             ]);
         } catch (\Throwable $e) {
             http_response_code(404);
@@ -2821,11 +2832,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $sidebarTitle    = substr(trim((string)($fa['sidebar_info_title'] ?? '')), 0, 200);
                 $sidebarMarkdown = substr((string)($fa['sidebar_info_markdown'] ?? ''), 0, 10000);
                 $footerMarkdown  = substr((string)($fa['footer_markdown'] ?? ''), 0, 10000);
+                $multipleTabs    = !empty($fa['multiple_area_tabs']);
 
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
                 $config['file_areas']['sidebar_info_title']    = $sidebarTitle;
                 $config['file_areas']['sidebar_info_markdown'] = $sidebarMarkdown;
                 $config['file_areas']['footer_markdown']       = $footerMarkdown;
+                $config['file_areas']['multiple_area_tabs']    = $multipleTabs;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);
@@ -4484,7 +4497,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'platform' => $door['platform'] ?? [],
                     'genre' => \BinktermPHP\DoorCategoryHelper::normalizeGenres($door['genre'] ?? []),
                     'icon_url' => !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null,
-                    'config' => $door['config'] ?? []
+                    'config' => $door['config'] ?? [],
+                    'env_passthrough_requests' => \BinktermPHP\NativeDoorEnvPolicy::describeRequests($door['env_passthrough'] ?? [])
                 ];
             }
 
@@ -4519,6 +4533,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/native-doors/launch-options', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            echo json_encode([
+                'success' => true,
+                'options' => \BinktermPHP\NativeDoorLaunchPolicy::getOptions(),
+            ]);
+        });
+
         SimpleRouter::post('/native-doors/config', function() {
             $user = RouteHelper::requireAdmin();
             header('Content-Type: application/json');
@@ -4530,6 +4554,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (!is_array($config)) {
                     throw new Exception('Invalid config data');
                 }
+
+                // Secret-named variables can never be approved for passthrough
+                $config = \BinktermPHP\NativeDoorEnvPolicy::sanitizeConfig($config);
+                $config = \BinktermPHP\NativeDoorLaunchPolicy::sanitizeConfig($config);
 
                 $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
                 if ($json === false) {
@@ -5042,6 +5070,274 @@ PROMPT;
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.rlogin_doors.delete_failed', apiLocalizedText('errors.admin.rlogin_doors.delete_failed', 'Failed to delete rlogin door'), 500);
+            }
+        });
+
+        // Internet Archive Doors API
+        SimpleRouter::get('/archive-doors', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            header('Cache-Control: no-store');
+
+            $manager = new \BinktermPHP\ArchiveDoorManager();
+            $allDoors = $manager->getAllDoors();
+
+            $doors = [];
+            foreach ($allDoors as $doorId => $door) {
+                $doors[] = [
+                    'id' => $doorId,
+                    'name' => $door['name'],
+                    'short_name' => $door['short_name'] ?? $door['name'],
+                    'author' => $door['author'] ?? 'Unknown',
+                    'release_year' => $door['release_year'] ?? null,
+                    'description' => $door['description'] ?? '',
+                    'genre' => $door['genre'] ?? [],
+                    'archive_item_id' => $door['archive_item_id'] ?? '',
+                    'embed_url' => $door['embed_url'] ?? '',
+                    'icon_url' => !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null,
+                    'config' => $door['config'] ?? []
+                ];
+            }
+
+            echo json_encode(['success' => true, 'doors' => $doors]);
+        });
+
+        SimpleRouter::get('/archive-doors/fetch-metadata', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $itemId = trim((string)($_GET['item_id'] ?? ''));
+            if ($itemId === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Missing item_id parameter']);
+                return;
+            }
+
+            try {
+                $manager = new \BinktermPHP\ArchiveDoorManager();
+                $meta = $manager->fetchArchiveMetadata($itemId);
+                echo json_encode(['success' => true, 'data' => $meta]);
+            } catch (\Throwable $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::get('/archive-doors/{doorId}', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            header('Cache-Control: no-store');
+
+            $manager = new \BinktermPHP\ArchiveDoorManager();
+            $door = $manager->getDoor($doorId);
+
+            if (!$door) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Door not found']);
+                return;
+            }
+
+            $door['id'] = $doorId;
+            $door['icon_url'] = !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null;
+            $door['screenshot_url'] = !empty($door['screenshot']) ? "/door-assets/{$doorId}/screenshot" : null;
+
+            echo json_encode(['success' => true, 'door' => $door]);
+        });
+
+        SimpleRouter::post('/archive-doors', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $doorId = trim((string)($_POST['door_id'] ?? ''));
+            if (!\BinktermPHP\ArchiveDoorManager::isValidDoorId($doorId)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Door ID must contain only letters, numbers, hyphens, and underscores']);
+                return;
+            }
+
+            $manager = new \BinktermPHP\ArchiveDoorManager();
+            if ($manager->getDoor($doorId)) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'error' => 'A door with this ID already exists']);
+                return;
+            }
+
+            $archiveItemId = trim((string)($_POST['archive_item_id'] ?? ''));
+            $name = trim((string)($_POST['name'] ?? ''));
+            if ($name === '' || $archiveItemId === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Game title and Internet Archive item ID/URL are required']);
+                return;
+            }
+
+            $genre = [];
+            if (!empty($_POST['genre'])) {
+                if (is_array($_POST['genre'])) {
+                    $genre = $_POST['genre'];
+                } else {
+                    $genre = array_map('trim', explode(',', (string)$_POST['genre']));
+                }
+            }
+
+            $fields = [
+                'name' => $name,
+                'short_name' => trim((string)($_POST['short_name'] ?? '')) ?: $name,
+                'author' => trim((string)($_POST['author'] ?? '')) ?: 'Unknown',
+                'game_version' => trim((string)($_POST['game_version'] ?? '')),
+                'release_year' => !empty($_POST['release_year']) ? (int)$_POST['release_year'] : null,
+                'description' => trim((string)($_POST['description'] ?? '')),
+                'archive_item_id' => $archiveItemId,
+                'genre' => $genre,
+                'players' => trim((string)($_POST['players'] ?? '1 Player')) ?: '1 Player',
+                'credit_cost' => isset($_POST['credit_cost']) && $_POST['credit_cost'] !== '' ? (int)$_POST['credit_cost'] : 0,
+                'max_time_minutes' => isset($_POST['max_time_minutes']) && $_POST['max_time_minutes'] !== '' ? (int)$_POST['max_time_minutes'] : 60,
+                'allow_anonymous' => !empty($_POST['allow_anonymous']),
+                'hide_from_web' => !empty($_POST['hide_from_web']),
+                'enabled' => !empty($_POST['enabled']),
+            ];
+
+            try {
+                $icon = null;
+                if (!empty($_POST['remote_icon_url']) && empty($_FILES['icon']['tmp_name'])) {
+                    // Fetch remote icon from Archive.org
+                    $iconUrl = trim((string)$_POST['remote_icon_url']);
+                    if (filter_var($iconUrl, FILTER_VALIDATE_URL)) {
+                        $imgData = @file_get_contents($iconUrl, false, stream_context_create(['http' => ['timeout' => 8]]));
+                        if ($imgData !== false && strlen($imgData) > 0) {
+                            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                            $mime = finfo_buffer($finfo, $imgData);
+                            finfo_close($finfo);
+                            $icon = ['data' => $imgData, 'mime' => $mime ?: 'image/jpeg'];
+                        }
+                    }
+                } else {
+                    $icon = rloginDoorUploadedImage('icon');
+                }
+                $screenshot = rloginDoorUploadedImage('screenshot');
+
+                $success = $manager->createDoor($doorId, $fields, $icon, $screenshot);
+                if (!$success) {
+                    throw new Exception('Insert failed');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Internet Archive game created successfully!',
+                    'door' => $manager->getDoor($doorId),
+                ]);
+            } catch (\Throwable $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/archive-doors/{doorId}', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $manager = new \BinktermPHP\ArchiveDoorManager();
+            if (!$manager->getDoor($doorId)) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Door not found']);
+                return;
+            }
+
+            $archiveItemId = trim((string)($_POST['archive_item_id'] ?? ''));
+            $name = trim((string)($_POST['name'] ?? ''));
+            if ($name === '' || $archiveItemId === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Game title and Internet Archive item ID/URL are required']);
+                return;
+            }
+
+            $genre = [];
+            if (!empty($_POST['genre'])) {
+                if (is_array($_POST['genre'])) {
+                    $genre = $_POST['genre'];
+                } else {
+                    $genre = array_map('trim', explode(',', (string)$_POST['genre']));
+                }
+            }
+
+            $fields = [
+                'name' => $name,
+                'short_name' => trim((string)($_POST['short_name'] ?? '')) ?: $name,
+                'author' => trim((string)($_POST['author'] ?? '')) ?: 'Unknown',
+                'game_version' => trim((string)($_POST['game_version'] ?? '')),
+                'release_year' => !empty($_POST['release_year']) ? (int)$_POST['release_year'] : null,
+                'description' => trim((string)($_POST['description'] ?? '')),
+                'archive_item_id' => $archiveItemId,
+                'genre' => $genre,
+                'players' => trim((string)($_POST['players'] ?? '1 Player')) ?: '1 Player',
+                'credit_cost' => isset($_POST['credit_cost']) && $_POST['credit_cost'] !== '' ? (int)$_POST['credit_cost'] : 0,
+                'max_time_minutes' => isset($_POST['max_time_minutes']) && $_POST['max_time_minutes'] !== '' ? (int)$_POST['max_time_minutes'] : 60,
+                'allow_anonymous' => !empty($_POST['allow_anonymous']),
+                'hide_from_web' => !empty($_POST['hide_from_web']),
+                'enabled' => !empty($_POST['enabled']),
+            ];
+
+            try {
+                $icon = null;
+                if (!empty($_POST['remove_icon'])) {
+                    $icon = ['data' => null, 'mime' => null];
+                } elseif (!empty($_POST['remote_icon_url']) && empty($_FILES['icon']['tmp_name'])) {
+                    $iconUrl = trim((string)$_POST['remote_icon_url']);
+                    if (filter_var($iconUrl, FILTER_VALIDATE_URL)) {
+                        $imgData = @file_get_contents($iconUrl, false, stream_context_create(['http' => ['timeout' => 8]]));
+                        if ($imgData !== false && strlen($imgData) > 0) {
+                            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                            $mime = finfo_buffer($finfo, $imgData);
+                            finfo_close($finfo);
+                            $icon = ['data' => $imgData, 'mime' => $mime ?: 'image/jpeg'];
+                        }
+                    }
+                } else {
+                    $icon = rloginDoorUploadedImage('icon');
+                }
+
+                $screenshot = null;
+                if (!empty($_POST['remove_screenshot'])) {
+                    $screenshot = ['data' => null, 'mime' => null];
+                } else {
+                    $screenshot = rloginDoorUploadedImage('screenshot');
+                }
+
+                $success = $manager->updateDoor($doorId, $fields, $icon, $screenshot);
+                if (!$success) {
+                    throw new Exception('Update failed');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Configuration saved successfully!',
+                    'door' => $manager->getDoor($doorId),
+                ]);
+            } catch (\Throwable $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/archive-doors/{doorId}/delete', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $manager = new \BinktermPHP\ArchiveDoorManager();
+            if (!$manager->getDoor($doorId)) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Door not found']);
+                return;
+            }
+
+            try {
+                $success = $manager->deleteDoor($doorId);
+                if (!$success) {
+                    throw new Exception('Delete failed');
+                }
+                echo json_encode(['success' => true, 'message' => 'Door deleted successfully.']);
+            } catch (\Throwable $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Failed to delete door: ' . $e->getMessage()]);
             }
         });
 
@@ -8513,14 +8809,18 @@ SimpleRouter::get('/admin/api/bbs-directory/entries', function() {
     $search  = trim($_GET['search'] ?? '');
 
     $directory = new \BinktermPHP\BbsDirectory($db);
-    $entries   = $directory->getAllEntries($page, $perPage, $search);
+    $sort      = (string)($_GET['sort'] ?? 'name');
+    $dir       = (string)($_GET['dir'] ?? 'asc');
+    $entries   = $directory->getAllEntries($page, $perPage, $search, $sort, $dir);
     $total     = $directory->getTotalCount($search);
 
     echo json_encode([
-        'entries'  => $entries,
-        'total'    => $total,
-        'page'     => $page,
-        'per_page' => $perPage,
+        'entries'        => $entries,
+        'total'          => $total,
+        'page'           => $page,
+        'per_page'       => $perPage,
+        'sources'        => $directory->getKnownSources(),
+        'source_labels'  => \BinktermPHP\BbsDirectory::SOURCE_LABELS,
     ]);
 });
 

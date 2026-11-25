@@ -529,7 +529,8 @@ class BbsSession
         $fileHandler          = new FileHandler($this, $this->apiBase, $this->isSsh);
         $freqHandler          = new FreqHandler($this, $this->apiBase, $this->isSsh);
         $interestsHandler     = new InterestsHandler($this, $this->apiBase);
-        $qwkHandler           = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
+        $subscriptionsHandler = new SubscriptionsHandler($this, $this->apiBase);
+        $qwkHandler          = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
         $bbsListHandler       = new BbsListHandler($this, $this->apiBase);
         $nodelistHandler      = new NodelistBrowserHandler($this, $this->apiBase);
 
@@ -587,7 +588,7 @@ class BbsSession
             : [
                 'netmail' => 'n', 'echomail' => 'e', 'shoutbox' => 's', 'bulletins' => 'u',
                 'polls'   => 'p', 'doors'    => 'd', 'files'    => 'f', 'settings'  => 't',
-                'interests' => 'i', 'whosonline' => 'w', 'qwk' => 'k',
+                'interests' => 'i', 'subscriptions' => 'a', 'whosonline' => 'w', 'qwk' => 'k',
                 'bbslist' => 'b', 'nodelist'  => 'l', 'localchat' => 'c', 'quit' => 'q',
                 'freqrequests' => 'r',
             ];
@@ -618,6 +619,7 @@ class BbsSession
             $filesOption      = $showFiles     && isset($menuKeys['files'])     ? $menuKeys['files']     : null;
             $freqOption       = $showFreq      && isset($menuKeys['freqrequests']) ? $menuKeys['freqrequests'] : null;
             $interestsOption  = $showInterests && isset($menuKeys['interests']) ? $menuKeys['interests'] : null;
+            $subscriptionsOption = $menuKeys['subscriptions'] ?? null;
             $qwkOption        = $showQwk       && isset($menuKeys['qwk'])       ? $menuKeys['qwk']       : null;
             $bbsListOption    = $showBbsList   && isset($menuKeys['bbslist'])   ? $menuKeys['bbslist']   : null;
             $nodelistOption   = $showNodelist  && isset($menuKeys['nodelist'])  ? $menuKeys['nodelist']  : null;
@@ -641,6 +643,7 @@ class BbsSession
             $lblNodelist   = $norm($this->t('ui.terminalserver.server.menu.nodelist',   'L) Node List', [], $locale), 'L');
             $lblSettings   = $norm($this->t('ui.terminalserver.server.menu.settings',   'T) Settings', [], $locale), 'T');
             $lblInterests  = $norm($this->t('ui.terminalserver.server.menu.interests',  'I) Interests', [], $locale), 'I');
+            $lblSubscriptions = $norm($this->t('ui.terminalserver.server.menu.subscriptions', 'A) Subscriptions', [], $locale), 'A');
             $lblQuit       = $norm($this->t('ui.terminalserver.server.menu.quit',       'Q) Quit', [], $locale), 'Q');
 
             // Two-column section arrays for TUI rendering: [UPPER_KEY, label]
@@ -666,7 +669,20 @@ class BbsSession
             if ($freqOption !== null)  $filesItems[] = [strtoupper($freqOption), $lblFreq];
             $settingsItems = [];
             if ($settingsKey !== null)     $settingsItems[] = [strtoupper($settingsKey), $lblSettings];
-            if ($interestsOption !== null) $settingsItems[] = [strtoupper($interestsOption), $lblInterests];
+            if ($subscriptionsOption !== null && $interestsOption !== null) {
+                // Subscriptions and Interests share one row (two entries in one cell).
+                $settingsItems[] = [
+                    'pair',
+                    [
+                        [strtoupper($subscriptionsOption), $lblSubscriptions],
+                        [strtoupper($interestsOption), $lblInterests],
+                    ],
+                ];
+            } elseif ($subscriptionsOption !== null) {
+                $settingsItems[] = [strtoupper($subscriptionsOption), $lblSubscriptions];
+            } elseif ($interestsOption !== null) {
+                $settingsItems[] = [strtoupper($interestsOption), $lblInterests];
+            }
 
             // key → action map (TUI single-key dispatch)
             $keyToAction = [];
@@ -675,6 +691,7 @@ class BbsSession
                 'shoutbox'   => $shoutboxOption,'bulletins'  => $bulletinsOption,
                 'polls'      => $pollsOption,   'localchat'  => $localchatKey,
                 'interests'  => $interestsOption,'qwk'       => $qwkOption,
+                'subscriptions' => $subscriptionsOption,
                 'doors'      => $doorsOption,   'files'      => $filesOption,
                 'freqrequests' => $freqOption,
                 'bbslist'    => $bbsListOption, 'nodelist'   => $nodelistOption,
@@ -703,6 +720,7 @@ class BbsSession
                 'files'      => [$filesOption, $lblFiles],
                 'freqrequests' => [$freqOption, $lblFreq],
                 'settings'   => [$settingsKey, $lblSettings],
+                'subscriptions' => [$subscriptionsOption, $lblSubscriptions],
                 'interests'  => [$interestsOption, $lblInterests],
             ] as $_action => [$_key, $_label]) {
                 if ($_key !== null) {
@@ -821,11 +839,20 @@ class BbsSession
                     !empty($filesItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.files', 'Files', [], $locale), $colWidth, $state) : $empty,
                     !empty($settingsItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.settings', 'Settings', [], $locale), $colWidth, $state) : $empty,
                 ];
-                $maxSection3 = max(count($filesItems), count($settingsItems));
+                // Quit goes at the bottom of the Files column, after one blank line.
+                $leftItems = $filesItems;
+                if ($quitKey !== null) {
+                    if (!empty($leftItems)) {
+                        $leftItems[] = null;
+                    }
+                    $leftItems[] = [strtoupper($quitKey), $quitLabel];
+                    $quitKey = null;
+                }
+                $maxSection3 = max(count($leftItems), count($settingsItems));
                 for ($j = 0; $j < $maxSection3; $j++) {
                     $rows[] = [
-                        isset($filesItems[$j]) ? $this->menuItemCol($filesItems[$j][0], $filesItems[$j][1], $colWidth, $state) : $empty,
-                        isset($settingsItems[$j]) ? $this->menuItemCol($settingsItems[$j][0], $settingsItems[$j][1], $colWidth, $state) : $empty,
+                        isset($leftItems[$j]) ? $this->menuItemCol($leftItems[$j][0], $leftItems[$j][1], $colWidth, $state) : $empty,
+                        isset($settingsItems[$j]) ? $this->menuSettingsCell($settingsItems[$j], $colWidth, $state) : $empty,
                     ];
                 }
             }
@@ -914,14 +941,15 @@ class BbsSession
                         $this->logDuration("Disconnected", $username, $loginTime);
                         break 2;
                     }
-                    if ($timedOut) { continue; }
 
-                    // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout)
+                    // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout).
+                    // Checked before the timeout skip: a NAWS-only read surfaces as a timeout.
                     $currentCols = $state['cols'] ?? 80;
                     $currentRows = $state['rows'] ?? 24;
                     if ($currentCols !== $lastRenderCols || $currentRows !== $lastRenderRows) {
                         continue 2; // restart outer loop to re-render menu at new dimensions
                     }
+                    if ($timedOut) { continue; }
 
                     if (str_starts_with($key, 'CHAR:')) {
                         $char = strtolower(substr($key, 5));
@@ -995,6 +1023,9 @@ class BbsSession
             } elseif ($action === 'interests') {
                 $this->log("Menu: {$username} -> Interests");
                 $interestsHandler->show($conn, $state, $session);
+            } elseif ($action === 'subscriptions') {
+                $this->log("Menu: {$username} -> Subscriptions");
+                $subscriptionsHandler->show($conn, $state, $session);
             } elseif ($action === 'qwk') {
                 $this->log("Menu: {$username} -> QWK Offline Mail");
                 $qwkHandler->show($conn, $state, $session);
@@ -1077,7 +1108,16 @@ class BbsSession
         $this->authSessionCheckedAt = $now;
 
         try {
-            $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+            try {
+                $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+            } catch (\Throwable $e) {
+                // This process is long-lived: after a Postgres restart its shared
+                // connection is dead. Reconnect and retry once so revocation checks resume.
+                if (\BinktermPHP\Database::heal($e) === null) {
+                    throw $e;
+                }
+                $user = (new \BinktermPHP\Auth())->validateSession($this->authSessionId);
+            }
         } catch (\Throwable $e) {
             $this->log('Auth session re-check failed: ' . $e->getMessage());
             return false;
@@ -1202,6 +1242,28 @@ class BbsSession
             . $this->colorize(')', $borderColor)
             . ' '
             . $labelPadded;
+    }
+
+    /**
+     * Render one cell of the Settings column. A normal item is [KEY, label]; a
+     * pair is ['pair', [[KEY, label], [KEY, label]]] and puts two items side by
+     * side inside the one cell, sized to the first label.
+     *
+     * @param array $item [key, label] or ['pair', [[key, label], [key, label]]]
+     */
+    private function menuSettingsCell(array $item, int $colWidth, array $state): string
+    {
+        if ($item[0] !== 'pair') {
+            return $this->menuItemCol($item[0], $item[1], $colWidth, $state);
+        }
+
+        [$first, $second] = $item[1];
+        $secondMin = mb_strlen($second[1]) + 3;
+        $firstWidth = min(mb_strlen($first[1]) + 5, $colWidth - $secondMin);
+        $firstWidth = max(8, $firstWidth);
+
+        return $this->menuItemCol($first[0], $first[1], $firstWidth, $state)
+            . $this->menuItemCol($second[0], $second[1], max(0, $colWidth - $firstWidth), $state);
     }
 
     /**
@@ -1828,10 +1890,21 @@ class BbsSession
      */
     public function readKeyWithIdleCheck($conn, array &$state): ?string
     {
+        $startRows = $state['rows'] ?? null;
+        $startCols = $state['cols'] ?? null;
         while (true) {
             [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
             if ($shouldDisconnect) { return null; }
-            if ($timedOut) { continue; }
+            if ($timedOut) {
+                // A NAWS update is folded into protocol chatter by readRawChar().
+                // Hand control back to the caller (with an empty token) so its
+                // resize check can repaint immediately instead of waiting for
+                // the next real keypress.
+                if (($state['rows'] ?? null) !== $startRows || ($state['cols'] ?? null) !== $startCols) {
+                    return '';
+                }
+                continue;
+            }
             return $key;
         }
     }
@@ -2527,7 +2600,7 @@ class BbsSession
     private function nodelistHasEntries(): bool
     {
         try {
-            $db   = \BinktermPHP\Database::getInstance()->getPdo();
+            $db   = \BinktermPHP\Database::getLivePdo();
             $stmt = $db->query("SELECT 1 FROM nodelist LIMIT 1");
             return (bool)$stmt->fetch();
         } catch (\Throwable $e) {

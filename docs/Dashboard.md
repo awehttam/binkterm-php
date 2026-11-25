@@ -15,11 +15,13 @@ The dashboard is the first page users see after logging in. It provides a summar
 
 The dashboard is composed of cards. Which cards appear depends on which features are enabled and whether the user is an admin.
 
-### Mail & Areas *(always visible)*
+### Mail, Areas & Doors *(always visible)*
 
-Shows the count of unread netmail and new (or unread) echomail in subscribed areas. Click either counter to go directly to your inbox or echo area list.
+Shows the count of unread netmail and new (or unread) echomail in subscribed areas. Click either counter to go directly to your inbox or echo area list. This card is called **Mail & Areas** in some places in the interface; it is the same card (`unread`).
 
-Below the counters, the **New Echo Areas** section lists areas added in the past 30 days (up to 8), with their tag, network, and date. The section can be collapsed; the count is still shown when collapsed. Buttons at the bottom link to subscription management and, if enabled, the Interests page.
+Below the counters, the **New Echo Areas** section lists areas added in the past 30 days (8 at a time, with a Load More button), with their tag, network, and date. The section can be collapsed; the count is still shown when collapsed. Buttons at the bottom link to subscription management and, if enabled, the Interests page.
+
+When the door game system is enabled, a collapsible **Door Activity** section also appears, showing recently played doors with their play counts over the past 30 days and a link to the Games page.
 
 The dashboard stats refresh automatically every 30 seconds.
 
@@ -33,7 +35,7 @@ An inline version of the Shoutbox — shows the most recent shouts, lets users p
 
 ### Advertisement
 
-Displays one or more ANSI-art ads from the ad system. When multiple ads are configured, they rotate automatically and can be navigated with previous/next buttons. Appears only when the Advertising feature is enabled and at least one ad is assigned to the dashboard position. See [Advertising](Advertising.md).
+Displays one or more ANSI-art ads from the ad system. Up to five ads are loaded; when more than one is available, they rotate automatically (every 20 seconds by default) and can be navigated with previous/next buttons or the left and right arrow keys. Appears only when the Advertising feature is enabled and at least one ad is assigned to the dashboard position. See [Advertising](Advertising.md).
 
 ### Bulletins *(sidebar)*
 
@@ -41,7 +43,7 @@ Shows the count of unread bulletins with a link to the Bulletins page. Displays 
 
 ### System Information *(sidebar)*
 
-Shows the sysop name, the system's configured location (when set to something other than the "Unknown Location" placeholder), the logged-in user's username, and the FTN network addresses the BBS is registered on. A few extra running totals — registered user count, today's caller count, system uptime (host OS uptime, when it can be determined), file area file count, all-time total login count, and total echomail message count — can also be shown, controlled by **Admin → Appearance & Content → Dashboard → Extra statistics in System Information card**, which offers three modes: **Off**, **Sysop Only** (default), and **All Users**.
+Shows the sysop name, the system's configured location (when set to something other than the "Unknown Location" placeholder), the logged-in user's username, the FTN networks the BBS is registered on, and the BBS's telnet address (host and port; the port is omitted when it is 23). A few extra running totals — registered user count, today's caller count, system uptime (host OS uptime, when it can be determined), file area file count, all-time total login count, and total echomail message count — can also be shown, controlled by **Admin → Appearance & Content → Dashboard → Extra statistics in System Information card**, which offers three modes: **Off**, **Sysop Only** (default), and **All Users**.
 
 ### Today's Callers *(sidebar, admin only)*
 
@@ -51,19 +53,23 @@ A table of users who have logged in today, with the time of their last activity 
 
 Shows an active poll inline. Users can vote directly from the dashboard; results appear immediately after voting. If multiple polls are active, prev/next buttons cycle between them. Appears only when the Voting Booth feature is enabled. See [Voting Booth](VotingBooth.md).
 
+### PacketBBS Status *(sidebar)*
+
+Shows the status of the user's mesh radio (PacketBBS) nodes, with links to the radio settings and to the full node list. Appears only when the MeshCore feature is enabled and at least one PacketBBS node exists.
+
 ### Echo Areas *(sidebar)*
 
 Lists all subscribed echo areas with their unread and total message counts. Click an area name to go to its message list.
 
 ### Referral *(sidebar)*
 
-Shows the user's personal referral link with a one-click copy button, plus stats (total referrals and credits earned) and a short list of recent referrals. Appears only when the credit system's referral feature is enabled.
+Shows the user's personal referral link with a one-click copy button, plus stats (total referrals and credits earned) and a short list of recent referrals. Appears only when credits and the referral feature are both enabled.
 
 ---
 
 ## Echomail Badge Mode
 
-The echomail counter on the Mail & Areas card can operate in two modes, selectable in **Account Settings**:
+The echomail counter on the Mail, Areas & Doors card can operate in two modes, selectable in **Account Settings**:
 
 - **New since last visit** (default) — counts messages that arrived after you last opened the echo area list. Fast query; resets automatically when you visit `/echomail`.
 - **Unread** — counts messages in your subscribed areas that you have never opened, using the full read-tracking table. More accurate but a heavier database query on large installs.
@@ -79,7 +85,7 @@ Click the **Customize** button (top right of the dashboard) to open the layout e
 - Click **Save** to apply the new layout; it is stored in your account settings and persists across sessions.
 - Click **Reset** to restore the sysop's default layout (or the built-in defaults if no sysop default is configured).
 
-The **Mail & Areas** card is required and cannot be hidden.
+The **Mail, Areas & Doors** card is required and cannot be hidden.
 
 ---
 

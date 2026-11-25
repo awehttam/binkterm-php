@@ -545,6 +545,16 @@ return [
     // --- Door games ---
     'ui.terminalserver.doors.no_doors'                 => 'Nessuna door è attualmente disponibile.',
     'ui.terminalserver.doors.title'                    => 'Giochi door',
+    'ui.terminalserver.doors.top_scores' => 'Migliori punteggi - {month}',
+    'ui.terminalserver.doors.no_scores' => 'Nessun punteggio registrato questo mese.',
+    'ui.terminalserver.doors.plays' => '{count} partite',
+    'ui.terminalserver.doors.hub_scroll' => 'Scorri',
+    'ui.terminalserver.doors.hub_play' => 'Gioca a un gioco',
+    'ui.terminalserver.doors.hub_quit' => 'Indietro',
+    'ui.terminalserver.doors.hub_help' => 'U/D Scorri  P Gioca a un gioco  Q Indietro',
+    'ui.terminalserver.doors.popular' => 'Più popolari',
+    'ui.terminalserver.doors.recent_players' => 'Giocatori recenti',
+    'ui.terminalserver.doors.no_activity' => 'Nessuna attività recente nei giochi.',
     'ui.terminalserver.doors.enter_choice'             => 'Inserisci il numero per giocare, oppure Q per tornare: ',
     'ui.terminalserver.doors.invalid'                  => 'Selezione non valida.',
     'ui.terminalserver.doors.launching'                => 'Avvio di {name}...',
@@ -579,6 +589,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Interessi',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Iscrizioni',
     'ui.terminalserver.server.menu.qwk'       => 'K) Posta offline QWK',
 
     // --- Main menu section headers ---
@@ -597,6 +608,13 @@ return [
     'ui.terminalserver.dashboard.label.credits'   => 'Crediti',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Iscrizioni',
+    'ui.terminalserver.subscriptions.network_title' => 'Iscrizioni: {network} - Invio per iscriversi/annullare',
+    'ui.terminalserver.subscriptions.local_network' => 'Locale',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} iscritte)',
+    'ui.terminalserver.subscriptions.none' => 'Nessuna area echo disponibile.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Iscrizione a {area} non riuscita.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Annullamento dell\'iscrizione a {area} non riuscito.',
     'ui.terminalserver.interests.title'              => 'Interessi',
     'ui.terminalserver.interests.none'               => 'Nessun interesse disponibile.',
     'ui.terminalserver.interests.area_count'         => '({count} aree)',

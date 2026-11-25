@@ -119,9 +119,16 @@
                         <label class="form-label">Website</label>
                         <input type="url" class="form-control" id="entryWebsite" maxlength="255">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Last Seen</label>
-                        <input type="date" class="form-control" id="entryLastSeen">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.bbs_directory.col_source', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="entrySource" list="entrySourceList" maxlength="50" value="manual" autocomplete="off">
+                            <datalist id="entrySourceList"></datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Last Seen</label>
+                            <input type="date" class="form-control" id="entryLastSeen">
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Notes about what this system offers (public)</label>
@@ -210,6 +217,34 @@
 let currentEntryId = null;
 let currentPage    = 1;
 const perPage      = 25;
+let sortColumn     = 'name';
+let sortDir        = 'asc';
+let sourceLabels   = {};
+
+function sourceLabel(tag) {
+    if (tag === 'manual') { return uiT('ui.bbs_directory.source_manual', 'Manual'); }
+    if (tag === 'auto')   { return uiT('ui.bbs_directory.source_auto', 'Auto'); }
+    return sourceLabels[tag] || tag || '';
+}
+
+function setSort(column) {
+    if (sortColumn === column) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortColumn = column;
+        sortDir = 'asc';
+    }
+    currentPage = 1;
+    loadEntries();
+}
+
+function sortableHeader(column, label) {
+    let icon = 'fa-sort text-muted';
+    if (sortColumn === column) {
+        icon = sortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down';
+    }
+    return `<th role="button" class="user-select-none text-nowrap" onclick="setSort('${column}')">${label} <i class="fas ${icon}"></i></th>`;
+}
 
 function uiT(key, fallback, params = {}) {
     return window.t ? window.t(key, params, fallback) : fallback;
@@ -295,8 +330,14 @@ function loadEntries() {
     const search = $('#entrySearch').val().trim();
     $('#entriesContainer').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Loading...</div>');
 
-    $.get('/admin/api/bbs-directory/entries', { page: currentPage, per_page: perPage, search: search })
-        .done(function(data) { renderEntries(data.entries, data.total); })
+    $.get('/admin/api/bbs-directory/entries', { page: currentPage, per_page: perPage, search: search, sort: sortColumn, dir: sortDir })
+        .done(function(data) {
+            sourceLabels = data.source_labels || {};
+            $('#entrySourceList').html((data.sources || []).map(function(s) {
+                return `<option value="${escapeHtml(s)}">${escapeHtml(sourceLabel(s))}</option>`;
+            }).join(''));
+            renderEntries(data.entries, data.total);
+        })
         .fail(function(xhr) {
             $('#entriesContainer').html(`<div class="text-center text-danger py-4">${apiErr(xhr.responseJSON, 'Failed to load entries')}</div>`);
         });
@@ -313,12 +354,12 @@ function renderEntries(entries, total) {
 
     let html = `<div class="table-responsive"><table class="table table-hover mb-0">
         <thead><tr>
-            <th>${uiT('ui.admin.bbs_directory.col_name', 'Name')}</th>
-            <th>${uiT('ui.admin.bbs_directory.col_sysop', 'Sysop')}</th>
-            <th>${uiT('ui.admin.bbs_directory.col_location', 'Location')}</th>
-            <th>${uiT('ui.admin.bbs_directory.col_telnet', 'Telnet')}</th>
-            <th>${uiT('ui.admin.bbs_directory.col_source', 'Source')}</th>
-            <th>${uiT('ui.admin.bbs_directory.col_last_seen', 'Last Seen')}</th>
+            ${sortableHeader('name', uiT('ui.admin.bbs_directory.col_name', 'Name'))}
+            ${sortableHeader('sysop', uiT('ui.admin.bbs_directory.col_sysop', 'Sysop'))}
+            ${sortableHeader('location', uiT('ui.admin.bbs_directory.col_location', 'Location'))}
+            ${sortableHeader('telnet_host', uiT('ui.admin.bbs_directory.col_telnet', 'Telnet'))}
+            ${sortableHeader('source', uiT('ui.admin.bbs_directory.col_source', 'Source'))}
+            ${sortableHeader('last_seen', uiT('ui.admin.bbs_directory.col_last_seen', 'Last Seen'))}
             <th>${uiT('ui.admin.bbs_directory.col_actions', 'Actions')}</th>
         </tr></thead><tbody>`;
 
@@ -326,10 +367,8 @@ function renderEntries(entries, total) {
         const telnet = e.telnet_host
             ? `<span class="font-monospace small">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</span>`
             : '';
-        const sourceClass = e.source === 'auto' ? 'bg-info' : 'bg-secondary';
-        const sourceLabel = e.source === 'auto'
-            ? uiT('ui.bbs_directory.source_auto', 'Auto')
-            : uiT('ui.bbs_directory.source_manual', 'Manual');
+        const sourceClass = e.source === 'manual' ? 'bg-secondary' : 'bg-info';
+        const sourceText = sourceLabel(e.source);
         const statusBadge = e.status === 'pending'
             ? `<span class="badge bg-warning text-dark ms-1">${uiT('ui.bbs_directory.status_pending', 'Pending')}</span>`
             : (e.status === 'rejected' ? `<span class="badge bg-danger ms-1">${uiT('ui.bbs_directory.status_rejected', 'Rejected')}</span>` : '');
@@ -346,7 +385,7 @@ function renderEntries(entries, total) {
             <td>${escapeHtml(e.sysop || '')}</td>
             <td>${escapeHtml(e.location || '')}</td>
             <td>${telnet}</td>
-            <td><span class="badge ${sourceClass}">${sourceLabel}</span></td>
+            <td><span class="badge ${sourceClass}">${escapeHtml(sourceText)}</span></td>
             <td class="text-nowrap"><small>${lastSeen}</small></td>
             <td>
                 <div class="btn-group" role="group">
@@ -465,6 +504,7 @@ function showAddEntryModal() {
     $('#entryId').val('');
     $('#entryTelnetPort').val(23);
     $('#entryLastSeen').val(todayIsoDate());
+    $('#entrySource').val('manual');
     $('#entryActive').prop('checked', true);
     $('#entryIsLocal').prop('checked', false);
     $('#entryModal').modal('show');
@@ -486,6 +526,7 @@ function editEntry(id) {
             $('#entryTelnetPort').val(entry.telnet_port || 23);
             $('#entryWebsite').val(entry.website || '');
             $('#entryLastSeen').val(normalizeLastSeenForInput(entry.last_seen));
+            $('#entrySource').val(entry.source || 'manual');
             $('#entryNotes').val(entry.notes || '');
             $('#entryActive').prop('checked', entry.is_active == true || entry.is_active === 't' || entry.is_active === '1');
             $('#entryIsLocal').prop('checked', entry.is_local == true || entry.is_local === 't' || entry.is_local === '1');
@@ -507,7 +548,8 @@ function saveEntry() {
         telnet_port: parseInt($('#entryTelnetPort').val()) || 23,
         website:     $('#entryWebsite').val() || null,
         last_seen:   $('#entryLastSeen').val() || todayIsoDate(),
-        notes:       $('#entryNotes').val() || null,
+        source:      $('#entrySource').val().trim() || null,
+        notes:      $('#entryNotes').val() || null,
         is_active:   $('#entryActive').is(':checked'),
         is_local:    $('#entryIsLocal').is(':checked'),
     };

@@ -28,7 +28,7 @@
                                     <div class="text-muted small">{{ door.description }}</div>
                                     {% endif %}
                                 </div>
-                                <a href="/play/{{ door.door_id }}" target="_blank" class="btn btn-outline-secondary btn-sm ms-3 text-nowrap">
+                                <a href="{{ door.play_url|default('/play/' ~ door.door_id) }}" target="_blank" class="btn btn-outline-secondary btn-sm ms-3 text-nowrap">
                                     <i class="fas fa-terminal"></i>
                                     {{ t('ui.guest_doors.connect', {}, 'common') }}
                                 </a>

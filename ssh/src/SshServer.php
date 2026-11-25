@@ -588,6 +588,11 @@ class SshServer
         $toPlain = '';  // SSH channel data → plain socket
         $toSsh   = '';  // plain socket data → SSH channel
 
+        // TEMP diagnostics (debug mode only): track flow-control stalls.
+        $dbgSent = 0; $dbgStart = 0.0; $dbgStallAt = 0.0; $dbgStalls = 0; $dbgStallTotal = 0.0;
+        $dbgLastWin = $sshSession->getPeerWindowSize();
+        if ($this->debug) { $this->log("bridge: initial peer window {$dbgLastWin}"); }
+
         while (true) {
             $read   = [$sshConn, $plainSocket];
             $write  = null;
@@ -639,9 +644,30 @@ class SshServer
             // Forward plain→SSH within the current window.  Unsent remainder
             // stays in $toSsh and is retried once the window reopens.
             if ($toSsh !== '') {
+                $dbgBefore = strlen($toSsh);
                 try {
                     $sshSession->trySendChannelData($toSsh);
                 } catch (\Throwable $e) { break; }
+                if ($this->debug) {
+                    $now = microtime(true);
+                    $sentNow = $dbgBefore - strlen($toSsh);
+                    if ($sentNow > 0) {
+                        if ($dbgStart === 0.0) { $dbgStart = $now; }
+                        $dbgSent += $sentNow;
+                    }
+                    $win = $sshSession->getPeerWindowSize();
+                    if ($toSsh !== '' && $win <= 0 && $dbgStallAt === 0.0) {
+                        $dbgStallAt = $now; $dbgStalls++;
+                    } elseif ($dbgStallAt !== 0.0 && $win > 0) {
+                        $dur = $now - $dbgStallAt; $dbgStallTotal += $dur; $dbgStallAt = 0.0;
+                        $this->log(sprintf('bridge: window stall %.0fms, reopened to %d, queued %d', $dur * 1000, $win, strlen($toSsh)));
+                    }
+                    if ($toSsh === '' && $dbgStart !== 0.0 && $dbgSent >= 65536) {
+                        $this->log(sprintf('bridge: burst done %d bytes in %.0fms, %d stalls totalling %.0fms',
+                            $dbgSent, ($now - $dbgStart) * 1000, $dbgStalls, $dbgStallTotal * 1000));
+                        $dbgSent = 0; $dbgStart = 0.0; $dbgStalls = 0; $dbgStallTotal = 0.0;
+                    }
+                }
             }
 
             // Forward SSH→plain.  Non-blocking fwrite returns immediately; a

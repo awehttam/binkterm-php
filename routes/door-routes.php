@@ -212,9 +212,8 @@ SimpleRouter::post('/api/door/launch', function() {
             $creditCost = (int)$doorConfig['credit_cost'];
 
             // Check if credits system is enabled
-            $userCredit = new \BinktermPHP\UserCredit($userId);
-            if ($userCredit->isEnabled()) {
-                $currentBalance = $userCredit->getBalance();
+            if (\BinktermPHP\UserCredit::isEnabled()) {
+                $currentBalance = \BinktermPHP\UserCredit::getBalance($userId);
 
                 if ($currentBalance < $creditCost) {
                     getDoorLogger()->warning("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
@@ -226,13 +225,12 @@ SimpleRouter::post('/api/door/launch', function() {
                 }
 
                 // Deduct credits
-                $creditReason = $doorType === 'rlogin' ? 'rlogindoor_launch' : 'dosdoor_launch';
-                if (!$userCredit->deductCredits($creditCost, $creditReason, "Launched door: $doorName")) {
+                if (!\BinktermPHP\UserCredit::debit($userId, $creditCost, "Launched $doorType door: $doorName")) {
                     getDoorLogger()->error("DOSDOOR: [API] Failed to deduct credits for $doorName");
                     throw new \Exception("Failed to process credit payment. Please try again.");
                 }
 
-                getDoorLogger()->info("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . $userCredit->getBalance());
+                getDoorLogger()->info("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . \BinktermPHP\UserCredit::getBalance($userId));
             }
         }
 
@@ -592,6 +590,42 @@ SimpleRouter::get('/api/door/session', function() {
     }
 });
 
+// Get a DOS door's player leaderboard parsed from the game's data files
+// GET /api/door/leaderboard?door=LORD&limit=25
+SimpleRouter::get('/api/door/leaderboard', function() {
+    header('Content-Type: application/json');
+
+    RouteHelper::requireAuth();
+    $doorId = (string)($_GET['door'] ?? '');
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
+
+    $service = new \BinktermPHP\DoorData\DoorDataService();
+    if (!$service->isSupported($doorId)) {
+        doorApiError('errors.door.leaderboard_not_supported', 'Leaderboard not available for this door', 404);
+        return;
+    }
+
+    try {
+        $players = array_slice($service->getPlayers($doorId), 0, $limit);
+        $entries = [];
+        foreach ($players as $rank => $player) {
+            // real_name is deliberately omitted; it can hold the BBS user's real name
+            $entries[] = [
+                'rank' => $rank + 1,
+                'handle' => $player['handle'],
+                'score' => $player['score'],
+                'score_label' => $player['score_label'],
+                'last_played' => $player['last_played'],
+                'stats' => $player['stats'],
+            ];
+        }
+        echo json_encode(['success' => true, 'door' => $doorId, 'players' => $entries]);
+    } catch (\BinktermPHP\DoorData\DoorDataParseException $e) {
+        getDoorLogger()->warning("DOSDOOR: [Leaderboard] $doorId: " . $e->getMessage());
+        doorApiError('errors.door.leaderboard_failed', 'Failed to load leaderboard', 500);
+    }
+});
+
 // Public guest doors listing page
 // GET /guest-doors — lists all anonymous-accessible native doors
 SimpleRouter::get('/guest-doors', function() {
@@ -611,6 +645,18 @@ SimpleRouter::get('/guest-doors', function() {
             $guestDoors[] = $door;
         }
     }
+
+    // Internet Archive doors opened to anonymous visitors (free, played at /games/{id})
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    foreach ($archiveDoorManager->getEnabledDoors() as $door) {
+        if (!empty($door['config']['allow_anonymous']) && empty($door['config']['hide_from_web'])
+            && (int)($door['config']['credit_cost'] ?? 0) === 0) {
+            $door['play_url'] = '/games/' . $door['door_id'];
+            $guestDoors[] = $door;
+        }
+    }
+
+    usort($guestDoors, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 
     $template = new \BinktermPHP\Template();
     $template->renderResponse('guest_doors.twig', ['doors' => $guestDoors]);
@@ -682,6 +728,35 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
         $blob = $asset === 'icon'
             ? $rloginDoorManager->getIconBlob($doorid)
             : $rloginDoorManager->getScreenshotBlob($doorid);
+
+        if (!$blob) {
+            http_response_code(404);
+            echo doorLocalizedText('errors.door.asset.not_defined', 'Asset not defined in manifest');
+            return;
+        }
+
+        $etag = '"' . md5($blob['data']) . '"';
+        header('ETag: ' . $etag);
+        header('Content-Type: ' . $blob['mime']);
+        header('Content-Length: ' . $blob['size']);
+        header('Cache-Control: public, max-age=604800, stale-while-revalidate=86400');
+
+        if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && trim($_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+            http_response_code(304);
+            return;
+        }
+
+        echo $blob['data'];
+        return;
+    }
+
+    // Archive doors have no filesystem footprint — icon/screenshot are stored
+    // as BYTEA blobs in the archive_doors table.
+    $archiveDoorManager = new \BinktermPHP\ArchiveDoorManager();
+    if ($archiveDoorManager->getDoor($doorid)) {
+        $blob = $asset === 'icon'
+            ? $archiveDoorManager->getIconBlob($doorid)
+            : $archiveDoorManager->getScreenshotBlob($doorid);
 
         if (!$blob) {
             http_response_code(404);

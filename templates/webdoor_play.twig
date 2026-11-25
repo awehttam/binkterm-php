@@ -11,20 +11,47 @@
             </a>
             <h4 class="mb-0"><i class="fas fa-gamepad"></i> {{ game.name }}</h4>
         </div>
-        <div>
+        <div class="d-flex align-items-center">
+            {% if is_archive and credits_charged|default(0) > 0 %}
+            <span class="badge bg-secondary me-2">{{ t('ui.webdoor_play.credits_charged', {'cost': credits_charged}, locale, ['common']) }}</span>
+            {% endif %}
+            {% if is_archive and seconds_remaining is not null %}
+            <span id="play-timer" class="badge bg-primary me-2" data-seconds="{{ seconds_remaining }}"></span>
+            {% endif %}
             <button id="fullscreen-btn" class="btn btn-outline-primary btn-sm" title="{{ t('ui.webdoor_play.fullscreen', {}, locale, ['common']) }}">
                 <i class="fas fa-expand"></i>
             </button>
         </div>
     </div>
 
-    <div class="game-container">
+    <div class="game-container{% if is_archive %} archive-container{% endif %}">
+        {% if is_archive %}
+        <div class="archive-scaler-wrap">
+            <iframe id="game-frame"
+                    src="{{ game_url }}"
+                    class="game-frame archive-frame"
+                    allowfullscreen
+                    allow="autoplay; fullscreen">
+            </iframe>
+        </div>
+        {% if seconds_remaining is not null %}
+        <div id="play-expired" class="archive-expired d-none">
+            <div class="text-center">
+                <p class="mb-3">{{ t('ui.webdoor_play.time_expired', {}, locale, ['common']) }}</p>
+                <button type="button" class="btn btn-primary" onclick="window.location.reload()">
+                    <i class="fas fa-redo"></i> {{ t('ui.webdoor_play.play_again', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+        {% endif %}
+        {% else %}
         <iframe id="game-frame"
                 src="{{ game_url }}"
                 class="game-frame"
                 allowfullscreen
                 allow="autoplay; fullscreen">
         </iframe>
+        {% endif %}
     </div>
 </div>
 
@@ -43,11 +70,59 @@
     width: 100%;
     height: 100%;
     border: none;
+    display: block;
+}
+
+/* Internet Archive embed responsive scaling */
+.game-container.archive-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+    overflow: hidden;
+}
+
+.archive-scaler-wrap {
+    position: relative;
+    width: 640px;
+    height: 480px;
+    flex-shrink: 0;
+    transform-origin: center center;
+}
+
+.archive-scaler-wrap .archive-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 640px;
+    height: 480px;
+    border: 0;
+    display: block;
+}
+
+.archive-expired {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+    color: #fff;
+    z-index: 5;
+}
+
+.archive-expired.d-none {
+    display: none;
 }
 
 /* Fullscreen styles */
 .game-container:fullscreen {
     height: 100vh;
+    width: 100vw;
+    border-radius: 0;
 }
 
 .game-container:fullscreen .game-frame {
@@ -56,6 +131,56 @@
 </style>
 
 <script>
+function resizeArchiveFrame() {
+    const container = document.querySelector('.game-container.archive-container');
+    const wrap = document.querySelector('.archive-scaler-wrap');
+    if (!container || !wrap) return;
+
+    const contWidth = container.clientWidth;
+    const contHeight = container.clientHeight;
+    if (!contWidth || !contHeight) return;
+
+    // Scale 640x480 frame to fill container while keeping 4:3 aspect ratio
+    const scale = Math.min(contWidth / 640, contHeight / 480);
+    wrap.style.transform = `scale(${scale})`;
+}
+
+window.addEventListener('resize', resizeArchiveFrame);
+document.addEventListener('fullscreenchange', resizeArchiveFrame);
+document.addEventListener('webkitfullscreenchange', resizeArchiveFrame);
+document.addEventListener('DOMContentLoaded', resizeArchiveFrame);
+// Call once on immediate load
+resizeArchiveFrame();
+
+(function() {
+    const timer = document.getElementById('play-timer');
+    if (!timer) return;
+
+    const template = window.t('ui.webdoor_play.time_remaining', { time: '{time}' }, 'Time remaining: {time}');
+    let remaining = parseInt(timer.dataset.seconds, 10);
+    const endAt = Date.now() + remaining * 1000;
+
+    function render() {
+        remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+        const m = Math.floor(remaining / 60);
+        const sec = String(remaining % 60).padStart(2, '0');
+        timer.textContent = template.replace('{time}', m + ':' + sec);
+        if (remaining <= 0) {
+            clearInterval(handle);
+            const frame = document.getElementById('game-frame');
+            if (frame) frame.src = 'about:blank';
+            if (document.fullscreenElement) document.exitFullscreen();
+            const container = document.querySelector('.game-container');
+            container.style.position = 'relative';
+            document.getElementById('play-expired').classList.remove('d-none');
+            timer.classList.add('d-none');
+        }
+    }
+
+    const handle = setInterval(render, 1000);
+    render();
+})();
+
 document.getElementById('fullscreen-btn').addEventListener('click', function() {
     const container = document.querySelector('.game-container');
     if (container.requestFullscreen) {

@@ -447,6 +447,30 @@ The admin save route derives its valid action list from `array_keys(AppearanceCo
 
 ---
 
+## Subscriptions
+
+`SubscriptionsHandler::show()` is the entry point for the `subscriptions` main menu action (default key `a`, listed in the Settings column). It uses `EchoareaSubscriptionManager` directly, the same service behind `/api/subscriptions`, so sysop-only filtering and subscription reactivation match the web side. `Database::getLivePdo()` is called before each read or write, and a failure is passed to `Database::heal()`.
+
+The handler builds two `chooseFromList()` screens. The first groups `getAllEchoareasWithSubscriptionStatus()` rows by network, with local areas (`is_local`) grouped under an empty domain and shown with the `ui.terminalserver.subscriptions.local_network` label. The second lists one network's areas and calls `subscribeUser()` or `unsubscribeUser()` when an area is selected, then rebuilds the list with the same row highlighted. Strings live under `ui.terminalserver.subscriptions.*` in every locale's `terminalserver.php`.
+
+---
+
+## Doors Hub
+
+`DoorHandler::show()` is the entry point for the `doors` main menu action. It renders a hub via `showScrollablePanel()` (extra key `p` returns `play`) and loops: `play` calls the private `DoorHandler::showDoorList()` (the door picker and launcher); any other result returns to the main menu.
+
+The hub body is built by `DoorHandler::buildActivityLines()` from shared classes, using direct internal reads rather than API calls:
+
+| Section | Source |
+|---------|--------|
+| Top Scores | `WebDoorLeaderboardService::getMonthRange()` and `getLeaderboard()` (also used by the web doors page in `routes/webdoor-routes.php`) |
+| Most Popular / Recent Players | `DoorActivityService::getActivity()` (also backs `GET /api/dashboard/door-activity`) |
+| Door display names | `DoorActivityService::getVisibleDoors()` |
+
+The hub lists Top Scores first, then Most Popular and Recent Players. The Top Scores section is skipped when `AppearanceConfig::shouldHideTopScores()` is true. Timestamps are formatted with `TelnetUtils::formatUserDate()`. Hub strings live under `ui.terminalserver.doors.*` in every locale's `terminalserver.php`.
+
+---
+
 ## Dialup Speed Throttling Architecture
 
 BinktermPHP can simulate authentic dialup connection speeds (e.g. 300 to 57,600 baud) over Telnet and SSH connections to preserve the retro BBS experience where ANSI screens draw line-by-line rather than appearing instantaneously.
@@ -454,7 +478,7 @@ BinktermPHP can simulate authentic dialup connection speeds (e.g. 300 to 57,600 
 ### Configuration & Initialization
 
 - **Sysop settings**: Configured via **Admin → BBS Settings → Terminal Server Settings** (`throttle_speed`, `throttle_baud`, `throttle_ssh`), stored in `data/bbs.json` under `terminal_server`.
-- **Session init**: In `BbsSession::run()`, the session checks `BbsConfig::getTerminalThrottleSpeed()` and baud rate. If enabled for the transport (always enabled for Telnet, gated by `throttle_ssh` for SSH), `TelnetUtils::setThrottleBaud($baud)` activates throttling for that child process.
+- **Session init**: In `BbsSession::run()`, the session checks `BbsConfig::getTerminalThrottleSpeed()` and baud rate. If enabled for the transport (`throttle_speed` for Telnet, `throttle_ssh` for SSH; the two are independent), `TelnetUtils::setThrottleBaud($baud)` activates throttling for that child process.
 
 ### Streaming & Pacing (`TelnetUtils::safeWrite`)
 
@@ -480,11 +504,24 @@ The terminal server is a trusted first-party component. Code under `telnet/src/`
 |-----------|-----|
 | Consuming an existing API-shaped feature (user-facing flows that should behave the same as the web) | `TelnetUtils::apiRequest()` |
 | Sharing transport-agnostic business logic or domain services | Direct class reuse from `src/` |
-| Simple internal read or small internal query where an API would add unnecessary complexity | Direct PDO: `$db = Database::getInstance()->getPdo()` |
+| Simple internal read or small internal query where an API would add unnecessary complexity | Direct PDO: `$db = Database::getLivePdo()` (see [Long-Lived Sessions](#long-lived-sessions-and-the-database)) |
 
 Do not bypass important business rules. If validation, permissions, side effects, or invariants already live in a shared service or domain class, use that logic rather than reimplementing with ad hoc SQL.
 
 Terminal code must not depend on web controllers, route handlers, Twig/view helpers, form handlers, middleware, or any code that assumes a browser-driven HTTP request lifecycle.
+
+### Long-Lived Sessions and the Database
+
+Each Telnet or SSH connection is a forked child process that can stay up for hours and holds one shared PDO for its whole life. After a PostgreSQL restart that PDO is dead, and a direct read that swallows its error would stay silent until the user disconnects. In terminal code:
+
+- Fetch the connection with `Database::getLivePdo()` at the start of a direct-database operation (a menu screen, a handler's `show()`). It reconnects first if the shared PDO is stale and throws only if PostgreSQL is still unreachable. Do not use it inside a tight loop; it costs a `SELECT 1`.
+- In a catch block that logs and continues, call `Database::heal($e)` and retry once. `BbsSession::authSessionRevoked()` does this for the 30-second session-revocation check, so revoked sessions are still detected after a restart.
+- Do not cache a PDO in a handler property across screens. Fetch it per operation.
+- Do not open a PDO in the daemon's accept loop before forking. Each forked session opens its own connection after the fork.
+
+Screens that read the database directly today are the Door Games hub activity (`DoorHandler`), the Node List (`NodelistBrowserHandler`), the BBS Directory (`BbsListHandler`) and the main menu's Node List check (`BbsSession::nodelistHasEntries()`). Everything else goes through `apiRequest()`, so a database outage reaches those screens as an API error. Login also uses the API, so while PostgreSQL is down a login attempt fails in the same way as a wrong password.
+
+The full set of connection rules is in the **Database Connections** section of `docs/DEVELOPER_GUIDE.md`.
 
 ### `TelnetUtils::apiRequest()` — Response Structure
 

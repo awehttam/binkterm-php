@@ -194,6 +194,8 @@ The door will now appear in the `/games` game library.
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
 | `ansi_required` | boolean | No | Whether ANSI is required. Defaults to `true` |
 | `time_per_day` | integer | No | Time limit in minutes per day. Defaults to `30` |
+| `env` | object | No | Static environment variables to set for the door, as name/value strings. Any valid name may be used, including ones that look like secrets (for example `WX_API_KEY`), because the value is the literal one written in the manifest and is never read from the bridge. It is stored in plain text in `nativedoor.json`, so do not put a secret you share with other systems there |
+| `env_passthrough` | array of strings | No | Names of variables the door would like copied from the bridge's environment. This is a request only: a variable is passed only after a sysop approves it for the door in **Admin → Native Doors** |
 
 #### Launch command placeholders
 
@@ -252,7 +254,20 @@ The following environment variables are set in the door process at launch:
 | `DOOR_ANSI` | Always `1` (ANSI assumed) | `1` |
 | `TERM` | Terminal type | `xterm-256color` |
 
-The process also inherits the environment of the multiplexing bridge, including `PATH`.
+A door's environment is built from scratch. It does **not** inherit the multiplexing bridge's environment, so secrets from `.env` are never visible to the door. In addition to the variables above, the door receives:
+
+| Variable | Value |
+|----------|-------|
+| `PATH` | `/usr/local/bin:/usr/bin:/bin`, or the value of `NATIVEDOOR_PATH` in `.env` |
+| `HOME` | The user's private per-door directory (same as `DOOR_HOME`) |
+| `USER`, `LOGNAME` | The operating system user the bridge runs as |
+| `LANG` | `C.UTF-8` |
+| `COLUMNS`, `LINES` | The terminal size |
+| `PUBTERM_HOST`, `PUBTERM_PORT`, `PUBTERM_TELNET_BIN` | PubTerm door only, supplied by the bridge |
+| `door.env` values | Static values from the manifest |
+| Approved `door.env_passthrough` names | Copied from the bridge's environment, only after sysop approval |
+
+Variable names that look like secrets can never be approved for passthrough, and are never substituted into `${VAR:-default}` references in a launch command (the default is used instead), because both read from the bridge's own environment. They can be set as literals in `door.env`, since that value comes from the manifest. The bridge logs the names of any manifest requests that were not approved. At debug level it also logs the names, never the values, of the variables each door received.
 
 ---
 
@@ -373,6 +388,67 @@ The `terminal_size` setting is read from `config/nativedoors.json` (the admin-co
 
 ---
 
+## Launch Modes
+
+By default a native door runs as the same operating system user as the multiplexing bridge (`direct`). On Linux and BSD you can run a door as a separate, unprivileged user instead, so a door cannot read `.env`, `config/binkp.json` or any other application file. Choose the mode per door in **Admin → Native Doors**: click the edit button for the door and set **Launch Mode**. The mode is a sysop decision and can never be set from a door's manifest. Windows and macOS always run doors directly, and the setting is ignored with a log notice.
+
+| Mode | How the door is started | Use it when |
+|------|-------------------------|-------------|
+| Direct | The bridge starts the door itself, as the bridge's user | Default. The only mode on Windows and macOS |
+| Sudo | The bridge starts the door with `sudo -n -u <door user>` | The bridge runs as a normal user on a bare-metal install |
+| Socket | The bridge asks a small launcher process that already runs as the door user (`scripts/dosbox-bridge/door-launcher.js`) to start the door | You can run a launcher per door user under systemd or supervisor, including in Docker |
+
+A door with no launch mode uses the server default, which is `direct` unless `NATIVEDOOR_LAUNCH_MODE` is set in `.env`. Once any door, or the server default, uses `sudo` or `socket`, a door with no resolved mode is refused rather than run as `direct`. Set `direct` explicitly on a door that should stay that way.
+
+In Sudo mode, **Door User** is the account the door runs as. Only members of the door group (`doors`, or the group named by `NATIVEDOOR_DOORS_GROUP`) are offered. In Socket mode, **Launcher Socket** names the launcher to use. Only sockets that currently exist in the socket directory (`/run/binkterm-doors/<name>/launcher.sock`, or `NATIVEDOOR_SOCKET_DIR`) are offered. These lists come from the operating system, not from a file the web server can write, so the admin interface cannot be used to pick an arbitrary account. The bridge also refuses `root` and its own user.
+
+Server defaults in `.env`:
+
+| Variable | Description |
+|----------|-------------|
+| `NATIVEDOOR_LAUNCH_MODE` | `direct`, `sudo` or `socket`, for doors that set no mode |
+| `NATIVEDOOR_RUN_AS_USER` | Default door user for sudo mode |
+| `NATIVEDOOR_LAUNCHER_SOCKET` | Default launcher socket name for socket mode. Falls back to the door user |
+| `NATIVEDOOR_SOCKET_DIR` | Directory holding one subdirectory per launcher socket. Default `/run/binkterm-doors` |
+| `NATIVEDOOR_DOORS_GROUP` | Group whose members may be used as door users. Default `doors` |
+
+### Setting up a door user
+
+The launch modes do nothing until the operating system is prepared. Run `scripts/setup_door_user.sh` as root (see [Door User Setup](CLI.md#door-user-setup)); it can be previewed first with `--dry-run`. In a Docker installation the container does this for you (see [Docker](#docker)). For one door per account:
+
+```bash
+sudo scripts/setup_door_user.sh sudo --door syncdoom --user door_syncdoom        # sudo mode
+sudo scripts/setup_door_user.sh systemd --door syncdoom --user door_syncdoom     # socket mode, systemd
+```
+
+It does the following, which you can also do by hand:
+
+- Creates one unprivileged account per door user, each with its own primary group, adds the accounts to the shared `doors` group, and adds the bridge's user (and the web server user, if you give one) to each door user's group.
+- With `--apply-permissions` only (the Docker image uses it; on bare metal you set permissions yourself): makes `.env`, `config/` and `data/` unreadable to the door users. `data/` and `data/users/` stay traverse-only so a door can reach its own directory.
+- With `--apply-permissions` only: gives each door directory under `native-doors/doors/` to the bridge's user with the door's group and mode `3770`, makes `native-doors/doors/` itself traverse-only, and gives the door user any files the manifest lists under `door.writable_paths`. The bridge creates each user's `data/users/<id>/<door>` directory with the door's group and mode `2770`.
+- Sudo mode: installs a sudoers rule for the bridge's user, `bridgeuser ALL=(%doors) NOPASSWD: ALL`, together with `Defaults:bridgeuser !use_pty`, checked with `visudo -c` first. Without `!use_pty`, sudo inserts a second terminal that breaks raw output, resizing and teardown.
+- Socket mode: runs `door-launcher.js` as each door user, with a clean environment, listening on `/run/binkterm-doors/<user>/launcher.sock` in a directory the bridge's user can traverse and other door users cannot. Under systemd it is socket-activated (`LISTEN_FDS`) with `NoNewPrivileges`, a read-only filesystem apart from the door's own directories, and `.env` and `config/` made inaccessible. The launcher reads these from its own environment, never from a file the web server can write:
+
+| Variable | Description |
+|----------|-------------|
+| `NATIVEDOOR_LAUNCHER_SOCKET` | Socket path, when not socket-activated |
+| `NATIVEDOOR_LAUNCHER_EXEC_ROOTS` | Colon-separated directories doors may be run from. Default `native-doors/doors/` |
+| `NATIVEDOOR_LAUNCHER_INTERPRETERS` | Colon-separated interpreters allowed to run a script inside those directories. Default `/bin/bash:/usr/bin/bash:/bin/sh`. Options that run inline code, such as `-c`, are refused |
+
+### Docker
+
+The container image ships the support but leaves it off. Set `NATIVEDOOR_DOOR_USERS` for the service in `docker-compose.yml` (or the shell or `.env` that Compose reads) to a space-separated list of door ids, each optionally `id=user`, for example `syncdoom bbslinknative=door_bbs`. On every start the container then creates those users, applies the permissions above, and runs a launcher for each as a supervisor program. Afterwards choose **Socket** for the door in **Admin → Native Doors**, or set `NATIVEDOOR_LAUNCH_MODE=socket` in `.env` to make it the default.
+
+Until a door's mode is changed it keeps running as `binkterm`, the bridge's own user, and can read `.env` and the bridge's `/proc/<pid>/environ`. It is not on by default because bind-mounted volumes on some hosts (Docker Desktop in particular) ignore ownership and mode changes, so the door user may not be kept away from `.env` or able to write its own directory there.
+
+The container also no longer leaves `data/`, `config/` and `dosbox-bridge/` readable by other users: they are `770` (directories) and `660` (files).
+
+### Failing closed
+
+Before every launch the bridge checks that the door user exists, is not root or the bridge's own user, and can be reached (`sudo -n -u <user> true`, or a handshake with the launcher). It also confirms that the door user can write its own `data/users/<id>/<door>` directory. The bridge does not check whether the door user can read `.env` or `config/`; keeping door users away from those files is a matter of file permissions that you set up (or `--apply-permissions`, or the Docker image, does). If any check fails, the launch is refused and the reason is logged. A door is never started as the bridge's user as a fallback. The bridge logs the state of each non-direct door when it starts and when it is reloaded with `SIGHUP`.
+
+To verify a setup, enable the bundled `linuxdoortest` door, set its Launch Mode and launch it.
+
 ## Configuration File
 
 Runtime configuration (enabled/disabled, credit cost, session limits) is stored in `config/nativedoors.json`. This file is managed by the admin panel and the admin daemon — **do not edit it directly while the BBS is running**.
@@ -407,6 +483,10 @@ All supported keys per door entry:
 | `allow_anonymous` | boolean | `false` | Allow unauthenticated guest access (requires `credit_cost: 0`) |
 | `guest_max_sessions` | integer | `2` | Maximum concurrent guest sessions when `allow_anonymous` is true |
 | `terminal_size` | string | `"80x25"` | Initial PTY and canvas dimensions. Accepted values: `"80x25"`, `"132x24"`, `"132x43"`, `"132x50"`, or `"autofit"`. See [Terminal Settings](#terminal-settings) |
+| `env_passthrough_approved` | array of strings | none | Variables from the door's manifest `env_passthrough` request that the sysop has approved. Set through **Admin → Native Doors**; names that look like secrets are removed when the configuration is saved |
+| `launch_mode` | string | server default | `direct`, `sudo` or `socket`. See [Launch Modes](#launch-modes) |
+| `run_as` | string | `NATIVEDOOR_RUN_AS_USER` | Door user for sudo mode |
+| `launcher_socket` | string | `NATIVEDOOR_LAUNCHER_SOCKET`, else the door user | Launcher socket name for socket mode |
 | `hide_from_web` | boolean | `false` | When `true`, hides this door from the web games list and blocks its `/games/nativedoors/{doorid}` web player page (`404`). The door remains launchable over telnet/SSH via **[Files] → Door Games** (`telnet/src/DoorHandler.php`), since that path calls `POST /api/door/launch` directly rather than going through the web listing/player route. Use this for doors that only make sense in a terminal (e.g. FOSSIL/ANSI-only games) or that a sysop wants restricted to the terminal server. |
 
 ---
@@ -428,7 +508,7 @@ Both are disabled by default. Enable them through **Admin → Native Doors** to 
 
 > **Only install native doors from sources you trust.**
 
-Native doors run as the same operating system user as the BinktermPHP web server and multiplexing bridge. A door that drops to a shell, spawns subprocesses, or reads arbitrary files on disk does so with the full permissions of that user — including access to your database credentials, configuration files, private keys, and all BBS data.
+Native doors receive a clean environment without the secrets from `.env`. Unless you set up a separate door user (see [Launch Modes](#launch-modes)), they still run as the same operating system user as the multiplexing bridge. A door that drops to a shell, spawns subprocesses, or reads arbitrary files on disk does so with the full permissions of that user — including read access to `.env`, configuration files, private keys, and all BBS data. Running a door as a separate user limits it to what that user can read.
 
 **Key risks to be aware of:**
 

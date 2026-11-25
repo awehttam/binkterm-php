@@ -626,6 +626,8 @@ return [
     'errors.door.session_unauthorized' => 'No autorizado',
     'errors.door.session_end_failed' => 'No se pudo finalizar la sesion',
     'errors.door.session_get_failed' => 'No se pudo obtener la sesion',
+    'errors.door.leaderboard_not_supported' => 'Clasificacion no disponible para esta puerta',
+    'errors.door.leaderboard_failed' => 'No se pudo cargar la clasificacion',
     'errors.door.asset.invalid_type' => 'Tipo de recurso invalido',
     'errors.door.asset.door_not_found' => 'Puerta no encontrada',
     'errors.door.asset.not_defined' => 'Recurso no definido en el manifiesto',

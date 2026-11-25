@@ -1,6 +1,8 @@
 {
   "version": "1.0",
   "type": "dosdoor",
+  "data_parser": "lord",
+  "data_dir": ".",
   "game": {
     "name": "Legend of the Red Dragon",
     "short_name": "LORD",

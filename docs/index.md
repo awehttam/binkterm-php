@@ -65,7 +65,9 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 - [Doors Overview](Doors.md) — Overview of door types and how to install them
 - [DOS Doors](DOSDoors.md) — Running classic DOS door games
+- [Door Data Parsers](DoorDataParsers.md) — Developer guide for reading DOS door game data files into leaderboards
 - [Native Doors](NativeDoors.md) — Native Linux/Unix door games
+- [Internet Archive Doors](ArchiveDoors.md) — Browser-streamed games hosted on archive.org, added from the admin UI
 - [RLogin Doors](RLoginDoors.md) — Connect out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol
 - [PubTerm](PubTerm.md) — Built-in browser terminal door: setup, terminal size, guest access, and known limitations
 - [WebDoors](WebDoors.md) — Browser-native door runtime that connects games and utilities to BinktermPHP users, sessions, and APIs
@@ -163,6 +165,7 @@ Specifications published by the LovlyNet Standards Council.
 
 Release-specific upgrade notes, listed newest-first. See [UPGRADING_TEMPLATE.md](UPGRADING_TEMPLATE.md) for the document template.
 
+- [Upgrading to 1.10.8](UPGRADING_1.10.8.md)
 - [Upgrading to 1.10.7](UPGRADING_1.10.7.md)
 - [Upgrading to 1.10.6](UPGRADING_1.10.6.md)
 - [Upgrading to 1.10.5](UPGRADING_1.10.5.md)

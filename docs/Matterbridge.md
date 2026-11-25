@@ -181,6 +181,8 @@ nohup ./matterbridge/matterbridge -conf matterbridge/matterbridge.toml \
 
 Matterbridge must be running before the inbound daemon (`matterbridge_daemon.php`) will successfully poll — the daemon will log errors on each poll cycle if Matterbridge is unreachable.
 
+When the inbound daemon is started at boot, for example from a crontab `@reboot` entry, it waits for PostgreSQL for up to five minutes if the database is not yet accepting connections, logging `Database not available yet, waiting for it to start`. If the database is still unreachable after that, the daemon logs an error, removes its PID file and exits.
+
 ### systemd example (Matterbridge binary)
 
 ```ini

@@ -53,7 +53,7 @@ class NodelistBrowserHandler
         }
 
         // Enrich with net and node counts for the top-level network list.
-        $db = Database::getInstance()->getPdo();
+        $db = Database::getLivePdo();
         foreach ($zones as &$z) {
             $stmt = $db->prepare("
                 SELECT COUNT(DISTINCT net) AS net_count, COUNT(*) AS node_count
@@ -138,7 +138,7 @@ class NodelistBrowserHandler
     {
         $locale  = $state['locale'];
         $perPage = max(5, ($state['rows'] ?? 24) - 3);
-        $db      = Database::getInstance()->getPdo();
+        $db      = Database::getLivePdo();
 
         // Fetch nets with node counts and an optional hub name
         $stmt = $db->prepare("

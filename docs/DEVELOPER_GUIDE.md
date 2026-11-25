@@ -28,6 +28,7 @@ FidoNet is a worldwide network of BBSs that exchange mail and files using store-
 - **File Areas**: FTN TIC file distribution with pluggable antivirus scanning (ClamAV, VirusTotal)
 - **WebDoors**: Drop-in game/application system (see `docs/WebDoors.md`)
 - **Native Doors & DOS Doors**: PTY and DOSBox-backed door games (see `docs/Doors.md`)
+- **Internet Archive Doors**: Browser-streamed games hosted on archive.org (see `docs/ArchiveDoors.md`)
 - **RLogin Doors**: Connects out to a remote BBS or service over the rlogin protocol (see `docs/RLoginDoors.md`)
 - **Credits System**: Configurable in-world currency (see below)
 - **Webshare**: Share echomail messages via secure links with expiration
@@ -250,7 +251,7 @@ These skills are also listed in the root `CLAUDE.md`. When adding a new skill, r
 - **Classes**: PascalCase (`MessageHandler`, `UserCredit`)
 - **Constants**: UPPER_SNAKE_CASE (`MAX_CONNECTIONS`, `DEFAULT_TIMEOUT`)
 - **Indentation**: 4 spaces (no tabs)
-- **Database**: Use `Database::getInstance()->getPdo()` for connections
+- **Database**: Use `Database::getInstance()->getPdo()` in web requests and short CLI scripts. Long-lived processes (daemons, forked sessions) must use `Database::getLivePdo()` / `Database::withRetry()` instead. See [Database Connections](#database-connections)
 - **Environment variables**: Always use `Config::env('VAR_NAME', 'default')` — never `getenv()` or `$_ENV` directly
 - **Client-side storage**: Use `UserStorage` (`public_html/js/user-storage.js`) instead of `localStorage` directly — it scopes keys per user and falls back to `sessionStorage` when not logged in
 - **Web interface queries**: Use AJAX requests via the API rather than full page reloads
@@ -408,6 +409,31 @@ Use `AdminDaemonClient::log($level, $message, $context)` for application-level l
 ```php
 \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'Something happened', ['key' => 'value']);
 ```
+
+### Database Connections
+
+`Database` (`src/Database.php`) keeps one shared PDO per process. It does not notice that the connection died, so a process that outlives a PostgreSQL restart keeps a dead handle until something replaces it. Choose the access pattern by how long the process lives:
+
+| Where the code runs | Use |
+|---|---|
+| Web request (route, controller, service) | `Database::getInstance()->getPdo()`. Each request opens a fresh connection. |
+| Short CLI script or cron job | The same call. Under the CLI a failed connect throws `DatabaseUnavailableException`; under the web SAPI it still ends the request with a message. |
+| Start of an operation in a long-lived process (daemon loop, forked terminal session, daemon command handler) | `Database::getLivePdo()` — probes the connection with `SELECT 1` and reconnects if it is stale. |
+| A unit of work in a daemon loop that should survive a restart | `Database::withRetry($fn, $delays, $onReconnect, $log)` |
+| A catch block that logs a database error and carries on | `Database::heal($e)` — reconnects only if `$e` is a lost-connection error |
+| Best-effort bookkeeping that must never abort its caller | Catch and log once, as `SessionLogger::bestEffort()` does |
+
+Points that are easy to get wrong:
+
+- `getLivePdo()` costs one round trip. Call it at the start of an operation, not inside a hot loop; probe once per pass in a loop that runs several times a second.
+- `withRetry()` runs the whole callable again on a new connection, so it must be safe to repeat. It does not retry when a transaction was already open before the call, and it never retries SQL or constraint errors. It sleeps between attempts, so do not use it inside a single-threaded loop that serves many clients (the realtime and FTP servers). There, test `Database::isConnectionError($e)`, call `Database::tryReconnect()`, rebuild what cached the old PDO, and carry on at the next tick.
+- A reconnect replaces the shared connection. A PDO fetched earlier, or stored in a property such as `$this->db`, is stale afterwards. Rebuild those objects after the reconnect (`withRetry()` passes the new PDO to `$onReconnect` for this) or fetch the PDO per operation.
+- `Database::tryReconnect()` returns `null` while the database is still down and does not throw. `Database::reconnect()` throws under the CLI.
+- `DatabaseUnavailableException` deliberately does not carry the original `PDOException`: its stack trace includes the database password.
+- Never create the PDO in a parent process before `pcntl_fork()`. Children would share one socket, and a child exiting closes the parent's connection. Each child should call `Database::getInstance()` after the fork.
+- Answer clients with their protocol's temporary-failure reply when the database is down (NNTP `400`, FTP `421`/`451`) instead of dropping the connection silently.
+
+The project-wide rules are also in the **Database Connections** section of the root `CLAUDE.md`.
 
 ---
 
@@ -635,13 +661,14 @@ Several features require additional background daemons or services beyond the co
 
 ### Door Games
 
-BinktermPHP supports four door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
+BinktermPHP supports five door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
 
 | Type | Description | Doc |
 |------|-------------|-----|
 | **WebDoors** | HTML5/JavaScript games in a browser iframe — no extra server-side process required | [WebDoors.md](WebDoors.md) |
 | **Native Doors** | Linux binaries or Windows executables launched via PTY | [NativeDoors.md](NativeDoors.md) |
 | **DOS Doors** | Classic DOS games running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
+| **Internet Archive Doors** | Games streamed in the browser from archive.org, stored in the `archive_doors` table | [ArchiveDoors.md](ArchiveDoors.md) |
 | **RLogin Doors** | Connects out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol | [RLoginDoors.md](RLoginDoors.md) |
 
 #### Multiplexing Bridge (Node.js)
@@ -736,6 +763,8 @@ When adding features, **you must update the corresponding documentation file** f
 | Add or change a PacketBBS command, chat feature, output profile, or bridge API endpoint | `docs/PacketBBS.md` |
 | Change NNTP server behaviour, commands, newsgroup mapping, or article numbering (`src/Nntp/`, `scripts/nntp_server.php`) | `docs/NNTP.md` |
 | Change netmail storage, mailbox ownership/visibility, sending, receiving, or deletion (`MessageHandler` netmail methods, `BinkdProcessor::storeNetmail()`) | `docs/Netmail.md` |
+| Add or change a door data parser, the parser registry, or the leaderboard sync (`src/DoorData/`, `scripts/door_data_sync.php`) | `docs/DoorDataParsers.md` |
+| Change how a long-lived process connects to, retries, or recovers from the database (`src/Database.php` and its callers in daemons) | The **Database Connections** section of `docs/DEVELOPER_GUIDE.md` and of the root `CLAUDE.md` |
 | Add a new documentation file to `docs/` (excluding `docs/proposals/`) | `docs/index.md` (in operational priority order) |
 | Create a new `UPGRADING_x.y.z.md` file | `docs/index.md` Upgrading section (newest-first) and `README.md` |
 | Add a root-level Markdown file that a `docs/` page links to with `../` | Two places in `src/Web/DocsController.php`: `$specialBases` in `resolveDocPath()` and the `in_array` list in `rewriteLinks()` |
@@ -752,5 +781,6 @@ When adding features, **you must update the corresponding documentation file** f
 - **WebDoor Tutorial**: See [WebDoor-Tutorial.md](WebDoor-Tutorial.md) to build your first WebDoor end-to-end
 - **WebDoor API**: See [WebDoors.md](WebDoors.md) for the full WebDoor specification
 - **Door Games**: See [Doors.md](Doors.md) for the multiplexing bridge and door types
+- **Door Data Parsers**: See [DoorDataParsers.md](DoorDataParsers.md) to read a DOS door's data files into leaderboards
 - **Localization**: See [Localization.md](Localization.md) for the full i18n workflow
 - **Upgrade Guides**: Check the `docs/UPGRADING_x.x.x.md` files for version-specific changes

@@ -42,6 +42,8 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Auto Feed Poster](#auto-feed-poster)
 - [Import BBS List](#import-bbs-list)
 - [RLogin Synchronet Service Client](#rlogin-synchronet-service-client)
+- [Door Data Sync](#door-data-sync)
+- [Door User Setup](#door-user-setup)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -406,6 +408,8 @@ php scripts/binkp_scheduler.php --status
 # Custom interval to check outgoing queues (seconds)
 php scripts/binkp_scheduler.php --interval=120
 ```
+
+When started at boot, for example from a crontab `@reboot` entry, the scheduler waits for PostgreSQL for up to five minutes if the database is not yet accepting connections. It logs `Database not available yet, waiting for it to start` to `data/logs/binkp_scheduler.log` and exits with an error if the database is still unreachable after that.
 
 ### Debug Connection Issues
 ```bash
@@ -966,6 +970,8 @@ php scripts/nntp_test_client.php --host=127.0.0.1 --port=1190 --user=NAME --pass
 
 Log: `data/logs/nntpd.log`.
 
+When started at boot, the daemon waits for PostgreSQL for up to five minutes if the database is not yet accepting connections, then exits with an error if it is still unreachable.
+
 ## Restart Daemons
 
 Stops and restarts BinktermPHP daemons (admin daemon, scheduler, BinkP server, telnet, SSH, MRC, DOS bridge, Gemini, NNTP). Uses PID files in `data/run/` to manage processes.
@@ -1209,6 +1215,7 @@ php scripts/import_bbslist.php /path/to/bbslist.zip --quiet
 Options:
 - `--dry-run` — Parse and display rows without writing to the database
 - `--quiet` — Suppress per-row output (summary still printed)
+- `--source=<tag>` — Source tag stored on imported entries (default: `telnet_bbs_guide`)
 - `--help, -h` — Show usage
 
 The ZIP must contain a file named `bbslist.csv` (case-insensitive). Expected CSV columns:
@@ -1328,3 +1335,25 @@ Reads connection details from `config/rlogin_synchronet_service.json` (copy `con
 `rlogin_host`/`rlogin_port` are only used by the **Import from Synchronet** admin feature (see [RLoginDoors.md](RLoginDoors.md)), not by this script itself.
 
 On success it prints `{"remote_username":"..."}` to stdout and exits `0`. On failure it prints an error to stderr and exits `1`, which aborts the door launch.
+
+## Door Data Sync
+Copies a DOS door's player scores into the `/games` Top Scores leaderboard, using the parser named by `data_parser` in the door's `dosdoor.jsn`:
+
+```bash
+php scripts/door_data_sync.php LORD
+```
+
+Players are matched to BBS users by the real name stored in the game record (against username or real name); unmatched or ambiguous players are skipped. A row is added only when a player's score has changed. The bridge runs this automatically when a door exits; set `DOSDOOR_PHP_PATH` in `.env` if `php` is not on the bridge's PATH. See `docs/DOSDoors.md`.
+
+## Door User Setup
+Prepares the operating system to run native doors as dedicated unprivileged users, for the Sudo and Socket launch modes (see `docs/NativeDoors.md`, Launch Modes). Run it as root:
+
+```bash
+sudo scripts/setup_door_user.sh sudo --door syncdoom --user door_syncdoom
+sudo scripts/setup_door_user.sh systemd --door syncdoom --door bbslinknative=door_bbs --web-user www-data
+scripts/setup_door_user.sh systemd --door syncdoom --dry-run
+```
+
+The first argument is the mode: `sudo` installs a sudoers rule (checked with `visudo -c` before it is installed), `systemd` creates a socket-activated launcher unit pair per door user, and `supervisor` writes a supervisor program per door user (this is what the Docker image uses). `--door ID` names a door directory under `native-doors/doors/`; add `--user NAME` after it, or write `ID=NAME`, to choose the account (default `door_<id>`). Other options: `--app-user` (the user the door bridge runs as; default the owner of `.env`), `--web-user` (added to each door group so the admin interface can still edit door files), `--doors-group`, `--install-dir`, `--socket-dir`, `--node`, `--supervisor-dir` and `--dry-run`, which prints every change without making any.
+
+By default the script creates the accounts and groups, adds the bridge user (and the web user, if given) to each door group, and installs the sudoers rule or launcher units. It does not change the ownership or mode of any file; you arrange file permissions yourself. The door user must be able to write its own `data/users/<id>/<door>` directory, which the bridge checks before each launch. To keep a door away from your secrets, also make sure it cannot read `.env` or `config/`; the bridge does not check this. Add `--apply-permissions` to have the script do it: it takes world access away from `.env`, `config/` and `data/`, sets the per-door directory layout, and confirms that each door user cannot read `.env`, `config/binkp.json` or `data/`. That assumes the web server and the bridge share a group that owns those files, as the Docker image does (the Docker image passes the flag); on an install that relies on world access it locks the web server out. It is safe to run again, and never deletes anything. After it runs, set the Launch Mode for each door in **Admin → Native Doors**.

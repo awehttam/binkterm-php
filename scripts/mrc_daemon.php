@@ -969,6 +969,15 @@ try {
         });
     }
 
+    // At boot the daemon may start before PostgreSQL is accepting connections.
+    if (!Database::waitUntilAvailable(300, static function (string $m): void {
+        mrcLog('MRC: ' . $m, 'WARNING');
+    })) {
+        mrcLog('MRC: Database did not become available, exiting', 'ERROR');
+        @unlink($pidFile);
+        exit(1);
+    }
+
     $debugMode = isset($args['debug']);
 
     mrcLog("MRC: Daemon started (PID: " . getmypid() . ")" . ($debugMode ? " [DEBUG MODE]" : ""));
@@ -987,6 +996,27 @@ try {
 
     // Main loop
     while (!$shutdown) {
+        // Probe the database each pass. getDb() re-fetches the singleton on every
+        // call, so reconnecting here heals every helper below after a Postgres
+        // restart; if it is still down, wait instead of letting a PDOException
+        // end the daemon.
+        try {
+            Database::withRetry(
+                static function (PDO $pdo): void {
+                    $pdo->query('SELECT 1');
+                },
+                [1, 2, 5],
+                null,
+                static function (string $message): void {
+                    mrcLog('MRC: ' . $message, 'WARNING');
+                }
+            );
+        } catch (Throwable $e) {
+            mrcLog('MRC: Database unavailable: ' . $e->getMessage(), 'ERROR');
+            sleep(5);
+            continue;
+        }
+
         // Check if still enabled
         $config->reloadConfig();
         if (!$config->isEnabled()) {

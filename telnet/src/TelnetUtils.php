@@ -2893,7 +2893,9 @@ class TelnetUtils
             $line .= $bg . $blue . str_repeat(' ', $width - $used);
         }
 
-        return $line . $reset;
+        // Disable auto-wrap while the bar is drawn: a full-width write on the last
+        // terminal row would otherwise wrap and scroll the whole screen up one line.
+        return "\033[?7l" . $line . $reset . "\033[?7h";
     }
 
     /**

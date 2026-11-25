@@ -546,6 +546,16 @@ return [
     // --- Door games ---
     'ui.terminalserver.doors.no_doors' => 'В данный момент игр нет.',
     'ui.terminalserver.doors.title' => 'Игры через двери (Door Games)',
+    'ui.terminalserver.doors.top_scores' => 'Лучшие результаты - {month}',
+    'ui.terminalserver.doors.no_scores' => 'В этом месяце результатов нет.',
+    'ui.terminalserver.doors.plays' => 'Игр: {count}',
+    'ui.terminalserver.doors.hub_scroll' => 'Прокрутка',
+    'ui.terminalserver.doors.hub_play' => 'Играть',
+    'ui.terminalserver.doors.hub_quit' => 'Назад',
+    'ui.terminalserver.doors.hub_help' => 'U/D Прокрутка  P Играть  Q Назад',
+    'ui.terminalserver.doors.popular' => 'Самые популярные',
+    'ui.terminalserver.doors.recent_players' => 'Недавние игроки',
+    'ui.terminalserver.doors.no_activity' => 'Недавней активности в играх нет.',
     'ui.terminalserver.doors.enter_choice' => 'Введите номер для запуска игры или Q — вернуться: ',
     'ui.terminalserver.doors.invalid' => 'Некорректный выбор.',
     'ui.terminalserver.doors.launching' => 'Запуск {name}…',
@@ -580,6 +590,7 @@ return [
 
     // --- Main menu additions ---
     'ui.terminalserver.server.menu.interests' => 'I) Интересы',
+    'ui.terminalserver.server.menu.subscriptions' => 'A) Подписки',
     'ui.terminalserver.server.menu.qwk' => 'K) QWK‑почта (офлайн)',
 
 
@@ -599,6 +610,13 @@ return [
     'ui.terminalserver.dashboard.label.credits' => 'Кредиты',
 
     // --- Interests handler ---
+    'ui.terminalserver.subscriptions.title' => 'Подписки',
+    'ui.terminalserver.subscriptions.network_title' => 'Подписки: {network} - Enter для подписки/отписки',
+    'ui.terminalserver.subscriptions.local_network' => 'Локальные',
+    'ui.terminalserver.subscriptions.network_summary' => '({subscribed}/{total} подписок)',
+    'ui.terminalserver.subscriptions.none' => 'Нет доступных эхо-областей.',
+    'ui.terminalserver.subscriptions.subscribe_failed' => 'Не удалось подписаться на {area}.',
+    'ui.terminalserver.subscriptions.unsubscribe_failed' => 'Не удалось отписаться от {area}.',
     'ui.terminalserver.interests.title' => 'Интересы',
     'ui.terminalserver.interests.none' => 'Доступных интересов нет.',
     'ui.terminalserver.interests.area_count' => '({count} эх)',

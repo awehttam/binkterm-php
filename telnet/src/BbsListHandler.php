@@ -181,7 +181,7 @@ class BbsListHandler
 
     private function fetchEntries(): array
     {
-        $db        = Database::getInstance()->getPdo();
+        $db        = Database::getLivePdo();
         $directory = new BbsDirectory($db);
         return $directory->getActiveEntries();
     }
